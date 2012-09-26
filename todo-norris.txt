@@ -1,0 +1,12 @@
+check_current_action, reorganize, move "add_action_to_lists" even earlier (done)
+
+finish release seq (resolve end-of-execution)
+- at synchronization, resolve: for those that happen before
+  * mutexes (done)
+  * joins (done?)
+  * release seq. completion
+- at end-of-execution, resolve
+
+(when checking, check head of each thread list for synchronization...) (done)
+
+- snapshot clock vectors? (yes, and/or re-compute)
