@@ -1273,7 +1273,7 @@ ModelAction * ModelChecker::check_current_action(ModelAction *curr)
 
 	/* Initialize work_queue with the "current action" work */
 	work_queue_t work_queue(1, CheckCurrWorkEntry(curr));
-	while (!work_queue.empty() && !has_asserted()) {
+	while (!work_queue.empty() && !has_asserted() && isfeasible()) {
 		WorkQueueEntry work = work_queue.front();
 		work_queue.pop_front();
 
