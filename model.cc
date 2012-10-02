@@ -1174,11 +1174,18 @@ bool ModelChecker::read_from(ModelAction *act, const ModelAction *rf)
 		rel_heads_list_t release_heads;
 		get_release_seq_heads(act, act, &release_heads);
 		int num_heads = release_heads.size();
+		if (DBG_ENABLED() && !release_heads.empty()) {
+			DEBUG("release sequence synchronization\n");
+			DEBUG("acquire:\n");
+			act->print();
+			DEBUG("release(s):\n");
+		}
 		for (unsigned int i = 0; i < release_heads.size(); i++)
 			if (!act->synchronize_with(release_heads[i])) {
 				set_bad_synchronization();
 				num_heads--;
-			}
+			} else if (DBG_ENABLED())
+				release_heads[i]->print();
 		return num_heads > 0;
 	}
 	return false;
@@ -2062,12 +2069,22 @@ bool ModelChecker::resolve_release_sequences(void *location, work_queue_t *work_
 		rel_heads_list_t release_heads;
 		bool complete;
 		complete = release_seq_heads(rf, &release_heads, pending);
+
+		if (DBG_ENABLED() && !release_heads.empty()) {
+			DEBUG("release sequence resolved\n");
+			DEBUG("acquire:\n");
+			acquire->print();
+			DEBUG("release(s):\n");
+		}
 		for (unsigned int i = 0; i < release_heads.size(); i++) {
 			if (!acquire->has_synchronized_with(release_heads[i])) {
-				if (acquire->synchronize_with(release_heads[i]))
+				if (acquire->synchronize_with(release_heads[i])) {
 					updated = true;
-				else
+					if (DBG_ENABLED())
+						release_heads[i]->print();
+				} else {
 					set_bad_synchronization();
+				}
 			}
 		}
 
