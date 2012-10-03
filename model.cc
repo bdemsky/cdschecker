@@ -167,7 +167,8 @@ void ModelChecker::reset_to_initial_state()
 /** @return a thread ID for a new Thread */
 thread_id_t ModelChecker::get_next_id()
 {
-	return priv->next_thread_id++;
+	thread_id_t id = { priv->next_thread_id++ };
+	return id;
 }
 
 /** @return the number of user threads created during this execution */
@@ -280,7 +281,7 @@ Thread * ModelChecker::get_next_thread(ModelAction *curr)
 		tid = next->get_tid();
 	}
 	DEBUG("*** ModelChecker chose next thread = %d ***\n", id_to_int(tid));
-	ASSERT(tid != THREAD_ID_T_NONE);
+	ASSERT(tid.id != THREAD_ID_T_NONE);
 	return thread_map->get(id_to_int(tid));
 }
 

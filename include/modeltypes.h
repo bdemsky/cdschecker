@@ -19,7 +19,17 @@
  * @see id_to_int
  * @see int_to_id
  */
-typedef int thread_id_t;
+typedef struct __thread_id {
+	int id;
+	inline bool operator ==(const __thread_id id2) const
+	{
+		return id == id2.id;
+	}
+	inline bool operator !=(const __thread_id id2) const
+	{
+		return id != id2.id;
+	}
+} thread_id_t;
 
 #define THREAD_ID_T_NONE	-1
 

@@ -158,7 +158,8 @@ static inline thread_id_t thrd_to_id(thrd_t t)
  */
 static inline thread_id_t int_to_id(int i)
 {
-	return i;
+	thread_id_t id = { i };
+	return id;
 }
 
 /**
@@ -168,7 +169,7 @@ static inline thread_id_t int_to_id(int i)
  */
 static inline int id_to_int(thread_id_t id)
 {
-	return id;
+	return id.id;
 }
 
 #endif /* __THREADS_MODEL_H__ */
