@@ -25,8 +25,9 @@ ModelAction::ModelAction(action_type_t type, memory_order order, void *loc, uint
 
 ModelAction::~ModelAction()
 {
-	if (cv)
-		delete cv;
+	//Can't delete clock vector as it could be from an old snapshot
+	//	if (cv)
+	//delete cv;
 }
 
 void ModelAction::copy_from_new(ModelAction *newaction)

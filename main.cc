@@ -95,12 +95,15 @@ static void real_main() {
 	model = new ModelChecker(params);
 
 	snapshotObject->snapshotStep(0);
+	int c=0;
 	do {
 		/* Start user program */
 		model->add_thread(new Thread(&user_thread, (void (*)(void *)) &user_main, NULL));
 
 		/* Wait for all threads to complete */
 		model->finish_execution();
+		if (c++>4000) break;
+			
 	} while (model->next_execution());
 
 	delete model;

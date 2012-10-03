@@ -20,7 +20,8 @@ class Promise {
 	ModelAction * get_action() const { return read; }
 	int increment_threads() { return ++numthreads; }
 	uint64_t get_value() const { return value; }
-
+	
+	SNAPSHOTALLOC
  private:
 	const uint64_t value;
 	const modelclock_t expiration;

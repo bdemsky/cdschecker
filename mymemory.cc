@@ -13,6 +13,22 @@ int howManyFreed = 0;
 static mspace sStaticSpace = NULL;
 #endif
 
+#define MAX_TRACE_LEN 100
+#include <execinfo.h>
+
+
+void dump(size_t size, void *ptr) {
+	void *array[MAX_TRACE_LEN];
+  char **strings;
+  int sizex;
+
+  sizex = backtrace(array, MAX_TRACE_LEN);
+  strings = backtrace_symbols(array, sizex);
+	printf("ALLOC: %p %zu %p %s\n", ptr, size, __builtin_return_address(2), strings[2]);
+
+	free(strings);
+}
+
 /** Non-snapshotting calloc for our use. */
 void *model_calloc(size_t count, size_t size) {
 #if USE_MPROTECT_SNAPSHOT
@@ -29,6 +45,7 @@ void *model_calloc(size_t count, size_t size) {
 		}
 	}
 	ptr = callocp(count, size);
+	dump(size*count,ptr);
 	return ptr;
 #else
 	if( !snapshotrecord) {
@@ -39,6 +56,7 @@ void *model_calloc(size_t count, size_t size) {
 	return mspace_calloc( sStaticSpace, count, size );
 #endif
 }
+
 
 /** Non-snapshotting malloc for our use. */
 void *model_malloc(size_t size) {
@@ -56,6 +74,7 @@ void *model_malloc(size_t size) {
 		}
 	}
 	ptr = mallocp(size);
+	dump(size, ptr);
 	return ptr;
 #else
 	if( !snapshotrecord) {
@@ -113,6 +132,7 @@ void model_free(void *ptr) {
 			exit(EXIT_FAILURE);
 		}
 	}
+	printf("FR %p\n",ptr);
 	freep(ptr);
 #else
 	mspace_free( sStaticSpace, ptr );
