@@ -418,6 +418,7 @@ void NodeStack::pop_restofstack(int numAhead)
 {
 	/* Diverging from previous execution; clear out remainder of list */
 	unsigned int it=iter+numAhead;
+
 	for(unsigned int i=it;i<node_list.size();i++)
 		delete node_list[i];
 	node_list.resize(it);
