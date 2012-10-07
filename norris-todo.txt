@@ -1,0 +1,23 @@
+check release sequences:
+* (done) !is_enabled => future_ordered
+* synchronize with a thread that is mo_graph ordered => future_ordered
+* (done) no assertions => no fixup
+* can I break *all* release sequences? check this before trying to synchronize any of them
+* release sequence fixup: forcing a synchronization must force synchronization for *all* related release sequences
+
+Other TODO:
+
+check_current_action, reorganize, move "add_action_to_lists" even earlier (done)
+
+finish release seq (resolve end-of-execution)
+- at synchronization, resolve: for those that happen before
+  * mutexes (done)
+  * joins (done?)
+  * release seq. completion
+- at end-of-execution, resolve (done, mostly)
+
+(when checking, check head of each thread list for synchronization...) (done)
+
+- snapshot clock vectors? (yes, and/or re-compute) (done)
+
+- thread IDs: not *exactly* unique... unique for replay, but for assertion/send-back, just trace the ancestry (done?)
