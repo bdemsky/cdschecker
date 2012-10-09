@@ -1,23 +1,48 @@
+#include <ostream>
+
 namespace std {
 
-	class thread;
+	class thread {
+	 public:
+		/* types: */
+		 class id;
+		 typedef int native_handle_type;
+
+		 /* construct/copy/destroy: */
+		 thread();
+		 template <class F, class ...Args> explicit thread(F f, Args&&... args);
+		 ~thread();
+		 thread(const thread&) = delete;
+		 thread(thread&&);
+		 thread& operator=(const thread&) = delete;
+		 thread& operator=(thread&&);
+
+		 /* members: */
+		 void swap(thread&&);
+		 bool joinable() const;
+		 void join();
+		 void detach();
+		 id get_id() const;
+		 native_handle_type native_handle();
+
+		 /* static members: */
+		 static unsigned hardware_concurrency();
+	};
 
 	void swap(thread&  x, thread&  y);
 	void swap(thread&& x, thread&  y);
 	void swap(thread&  x, thread&& y);
 
-	namespace this_thread
-	{
+	namespace this_thread {
 		thread::id get_id();
 
 		void yield();
 		template <class TimeDuration>
-			void sleep(const TimeDuration& rel_t);
+		void sleep(const TimeDuration& rel_t);
 
 	}  /* this_thread */
 
-	struct once_flag
-	{
+	struct once_flag {
 		constexpr once_flag();
 
 		once_flag(const once_flag&) = delete;
@@ -27,62 +52,33 @@ namespace std {
 	template<class Callable, class ...Args>
 	void call_once(once_flag& flag, Callable func, Args&&... args);
 
+	/* ------------------ */
+
+	class thread::id {
+		public:
+			id();
+	};
+
+	bool operator==(const thread::id& x, const thread::id& y);
+	bool operator!=(const thread::id& x, const thread::id& y);
+	bool operator<(const thread::id& x, const thread::id& y);
+	bool operator<=(const thread::id& x, const thread::id& y);
+	bool operator>(const thread::id& x, const thread::id& y);
+	bool operator>=(const thread::id& x, const thread::id& y);
+
+	template<class charT, class traits>
+	basic_ostream<charT, traits>&
+	operator<< (basic_ostream<charT, traits>&& out, const thread::id& id);
+
+	/* ------------------ */
+
+	namespace this_thread {
+		thread::id get_id();
+
+		void yield();
+		template <class TimeDuration>
+		void sleep(const TimeDuration& rel_t);
+
+	}  /* this_thread */
+
 } /* std */
-
-/* ------------------ */
-
-class thread {
- public:
-    /* types: */
-    class id;
-    typedef implementation-defined native_handle_type;
-
-    /* construct/copy/destroy: */
-    thread();
-    template <class F, class ...Args> explicit thread(F f, Args&&... args);
-    ~thread();
-    thread(const thread&) = delete;
-    thread(thread&&);
-    thread& operator=(const thread&) = delete;
-    thread& operator=(thread&&);
-
-    /* members: */
-    void swap(thread&&);
-    bool joinable() const;
-    void join();
-    void detach();
-    id get_id() const;
-    native_handle_type native_handle();
-
-    /* static members: */
-    static unsigned hardware_concurrency();
-};
-
-/* ------------------ */
-
-class thread::id {
- public:
-	id();
-};
-
-bool operator==(const thread::id& x, const thread::id& y);
-bool operator!=(const thread::id& x, const thread::id& y);
-bool operator<(const thread::id& x, const thread::id& y);
-bool operator<=(const thread::id& x, const thread::id& y);
-bool operator>(const thread::id& x, const thread::id& y);
-bool operator>=(const thread::id& x, const thread::id& y);
-
-template<class charT, class traits>
-basic_ostream<charT, traits>&
-operator<< (basic_ostream<charT, traits>&& out, const thread::id& id);
-
-/* ------------------ */
-
-namespace this_thread {
-	thread::id get_id();
-
-	void yield();
-	template <class TimeDuration>
-	void sleep(const TimeDuration& rel_t);
-
-}  /* this_thread */
