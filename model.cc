@@ -75,6 +75,7 @@ struct model_snapshot_members {
 	SNAPSHOTALLOC
 };
 
+#define SPECIAL ((list)->empty() ? NULL : (list)->front())
 /**
  * Iterate through all actions (@a act) in list (@a list) using a given
  * iterator (@a rit). The iteration happens in reverse, so that we process the
@@ -84,9 +85,9 @@ struct model_snapshot_members {
  * @param rit The STL iterator to use for iteration
  */
 #define for_each_action_reverse(act, list, rit) \
-	for ((rit) = (list)->rbegin(), (act) = ((list)->empty() ? NULL : *(rit)); \
-			(rit) != (list)->rend(); \
-			(act) = (++(rit) != (list)->rend()) ? *(rit) : NULL)
+	for ((rit) = (list)->rbegin(), (act) = ((list)->empty() ? SPECIAL : *(rit)); \
+			(act) != NULL; \
+			(act) = (++(rit) != (list)->rend()) ? *(rit) : ((act) == SPECIAL ? NULL : SPECIAL))
 
 /** @brief Constructor */
 ModelChecker::ModelChecker(struct model_params params) :
