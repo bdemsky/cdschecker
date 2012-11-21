@@ -75,6 +75,19 @@ struct model_snapshot_members {
 	SNAPSHOTALLOC
 };
 
+/**
+ * Iterate through all actions (@a act) in list (@a list) using a given
+ * iterator (@a rit). The iteration happens in reverse, so that we process the
+ * most recent actions first.
+ * @param act The ModelAction that will reference the current item
+ * @param list The STL list over which to iterate
+ * @param rit The STL iterator to use for iteration
+ */
+#define for_each_action_reverse(act, list, rit) \
+	for ((rit) = (list)->rbegin(), (act) = ((list)->empty() ? NULL : *(rit)); \
+			(rit) != (list)->rend(); \
+			(act) = (++(rit) != (list)->rend()) ? *(rit) : NULL)
+
 /** @brief Constructor */
 ModelChecker::ModelChecker(struct model_params params) :
 	/* Initialize default scheduler */
@@ -540,11 +553,10 @@ ModelAction * ModelChecker::get_last_conflict(ModelAction *act)
 		/* linear search: from most recent to oldest */
 		action_list_t *list = get_safe_ptr_action(obj_map, act->get_location());
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *prev = *rit;
+		ModelAction *prev;
+		for_each_action_reverse(prev, list, rit)
 			if (prev->could_synchronize_with(act))
 				return prev;
-		}
 		break;
 	}
 	case ATOMIC_LOCK:
@@ -552,30 +564,28 @@ ModelAction * ModelChecker::get_last_conflict(ModelAction *act)
 		/* linear search: from most recent to oldest */
 		action_list_t *list = get_safe_ptr_action(obj_map, act->get_location());
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *prev = *rit;
+		ModelAction *prev;
+		for_each_action_reverse(prev, list, rit)
 			if (act->is_conflicting_lock(prev))
 				return prev;
-		}
 		break;
 	}
 	case ATOMIC_UNLOCK: {
 		/* linear search: from most recent to oldest */
 		action_list_t *list = get_safe_ptr_action(obj_map, act->get_location());
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *prev = *rit;
+		ModelAction *prev;
+		for_each_action_reverse(prev, list, rit)
 			if (!act->same_thread(prev) && prev->is_failed_trylock())
 				return prev;
-		}
 		break;
 	}
 	case ATOMIC_WAIT: {
 		/* linear search: from most recent to oldest */
 		action_list_t *list = get_safe_ptr_action(obj_map, act->get_location());
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *prev = *rit;
+		ModelAction *prev;
+		for_each_action_reverse(prev, list, rit) {
 			if (!act->same_thread(prev) && prev->is_failed_trylock())
 				return prev;
 			if (!act->same_thread(prev) && prev->is_notify())
@@ -589,11 +599,10 @@ ModelAction * ModelChecker::get_last_conflict(ModelAction *act)
 		/* linear search: from most recent to oldest */
 		action_list_t *list = get_safe_ptr_action(obj_map, act->get_location());
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *prev = *rit;
+		ModelAction *prev;
+		for_each_action_reverse(prev, list, rit)
 			if (!act->same_thread(prev) && prev->is_wait())
 				return prev;
-		}
 		break;
 	}
 	default:
@@ -1583,9 +1592,8 @@ bool ModelChecker::r_modification_order(ModelAction *curr, const rf_type *rf)
 		/* Iterate over actions in thread, starting from most recent */
 		action_list_t *list = &(*thrd_lists)[i];
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *act = *rit;
-
+		ModelAction *act;
+		for_each_action_reverse(act, list, rit) {
 			if (act->is_write() && !act->equals(rf) && act != curr) {
 				/* C++, Section 29.3 statement 5 */
 				if (curr->is_seqcst() && last_sc_fence_thread_local &&
@@ -1693,8 +1701,8 @@ bool ModelChecker::w_modification_order(ModelAction *curr)
 		/* Iterate over actions in thread, starting from most recent */
 		action_list_t *list = &(*thrd_lists)[i];
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *act = *rit;
+		ModelAction *act;
+		for_each_action_reverse(act, list, rit) {
 			if (act == curr) {
 				/*
 				 * 1) If RMW and it actually read from something, then we
@@ -1819,9 +1827,8 @@ bool ModelChecker::mo_may_allow(const ModelAction *writer, const ModelAction *re
 		/* Iterate over actions in thread, starting from most recent */
 		action_list_t *list = &(*thrd_lists)[i];
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *act = *rit;
-
+		ModelAction *act;
+		for_each_action_reverse(act, list, rit) {
 			/* Don't disallow due to act == reader */
 			if (!reader->happens_before(act) || reader == act)
 				break;
@@ -1961,8 +1968,8 @@ bool ModelChecker::release_seq_heads(const ModelAction *rf,
 
 		ASSERT(!th->is_model_thread() || future_ordered);
 
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			const ModelAction *act = *rit;
+		const ModelAction *act;
+		for_each_action_reverse(act, list, rit) {
 			/* Reach synchronization -> this thread is complete */
 			if (act->happens_before(release))
 				break;
@@ -2219,9 +2226,10 @@ ModelAction * ModelChecker::get_last_seq_cst_write(ModelAction *curr) const
 	action_list_t *list = get_safe_ptr_action(obj_map, location);
 	/* Find: max({i in dom(S) | seq_cst(t_i) && isWrite(t_i) && samevar(t_i, t)}) */
 	action_list_t::reverse_iterator rit;
-	for (rit = list->rbegin(); rit != list->rend(); rit++)
-		if ((*rit)->is_write() && (*rit)->is_seqcst() && (*rit) != curr)
-			return *rit;
+	ModelAction *act;
+	for_each_action_reverse(act, list, rit)
+		if (act->is_write() && act->is_seqcst() && act != curr)
+			return act;
 	return NULL;
 }
 
@@ -2268,9 +2276,10 @@ ModelAction * ModelChecker::get_last_unlock(ModelAction *curr) const
 	action_list_t *list = get_safe_ptr_action(obj_map, location);
 	/* Find: max({i in dom(S) | isUnlock(t_i) && samevar(t_i, t)}) */
 	action_list_t::reverse_iterator rit;
-	for (rit = list->rbegin(); rit != list->rend(); rit++)
-		if ((*rit)->is_unlock() || (*rit)->is_wait())
-			return *rit;
+	ModelAction *act;
+	for_each_action_reverse(act, list, rit)
+		if (act->is_unlock() || act->is_wait())
+			return act;
 	return NULL;
 }
 
@@ -2480,9 +2489,8 @@ void ModelChecker::build_reads_from_past(ModelAction *curr)
 		/* Iterate over actions in thread, starting from most recent */
 		action_list_t *list = &(*thrd_lists)[i];
 		action_list_t::reverse_iterator rit;
-		for (rit = list->rbegin(); rit != list->rend(); rit++) {
-			ModelAction *act = *rit;
-
+		ModelAction *act;
+		for_each_action_reverse(act, list, rit) {
 			/* Only consider 'write' actions */
 			if (!act->is_write() || act == curr)
 				continue;
