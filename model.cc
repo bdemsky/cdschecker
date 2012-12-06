@@ -2059,6 +2059,16 @@ bool ModelChecker::mo_may_allow(const ModelAction *writer, const ModelAction *re
 {
 	SnapVector<action_list_t> *thrd_lists = get_safe_ptr_vect_action(obj_thrd_map, reader->get_location());
 	unsigned int i;
+
+	if (reader->is_acquire()) {
+		rel_heads_list_t rel_heads;
+		struct release_seq pending;
+		release_seq_heads(writer, &rel_heads, &pending);
+		for (i = 0; i < rel_heads.size(); i++)
+			if (*reader < *rel_heads[i])
+				return false;
+	}
+
 	/* Iterate over all threads */
 	for (i = 0; i < thrd_lists->size(); i++) {
 		const ModelAction *write_after_read = NULL;
