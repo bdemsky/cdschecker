@@ -525,6 +525,8 @@ void ModelChecker::print_execution(bool printbugs) const
 
 	model_print("\n");
 	print_summary();
+	if (params.verbose || DBG_ENABLED())
+		node_stack->print();
 }
 
 /**
@@ -642,6 +644,11 @@ ModelAction * ModelChecker::get_last_fence_conflict(ModelAction *act) const
 		if (acquire_fences[i] && prior_loads[i])
 			if (!latest_backtrack || *latest_backtrack < *acquire_fences[i])
 				latest_backtrack = acquire_fences[i];
+	if (latest_backtrack) {
+		model_print("fence conflict:\n");
+		latest_backtrack->print();
+		act->print();
+	}
 	return latest_backtrack;
 }
 
@@ -797,10 +804,10 @@ void ModelChecker::set_backtracking(ModelAction *act)
 		/* If this is a new backtracking point, mark the tree */
 		if (!node->set_backtrack(tid))
 			continue;
-		DEBUG("Setting backtrack: conflict = %d, instead tid = %d\n",
+		if (DBG_ENABLED() || params.verbose) {
+			model_print("Setting backtrack: conflict = %d, instead tid = %d\n",
 					id_to_int(prev->get_tid()),
 					id_to_int(t->get_id()));
-		if (DBG_ENABLED()) {
 			prev->print();
 			act->print();
 		}
