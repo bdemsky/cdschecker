@@ -2587,12 +2587,16 @@ void ModelChecker::build_may_read_from(ModelAction *curr)
 	ASSERT(curr->is_read());
 
 	ModelAction *last_sc_write = NULL;
+	// ModelAction *last_sc_fence_local = get_last_seq_cst_fence(curr->get_tid(), NULL);
 
 	if (curr->is_seqcst())
 		last_sc_write = get_last_seq_cst_write(curr);
 
 	/* Iterate over all threads */
 	for (i = 0; i < thrd_lists->size(); i++) {
+		/* Get last fence X in thread i s.t. X --sc-> last_sc_fence_local */
+		// ModelAction *last_sc_fence_thread = get_last_seq_cst_fence(int_to_id(i), last_sc_fence_local);
+
 		/* Iterate over actions in thread, starting from most recent */
 		action_list_t *list = &(*thrd_lists)[i];
 		action_list_t::reverse_iterator rit;
@@ -2610,6 +2614,8 @@ void ModelChecker::build_may_read_from(ModelAction *curr)
 				allow_read = false;
 			else if (curr->get_sleep_flag() && !curr->is_seqcst() && !sleep_can_read_from(curr, act))
 				allow_read = false;
+			// else if (last_sc_fence_thread && (*act < *last_sc_fence_thread))
+				// allow_read = false;
 
 			if (allow_read) {
 				/* Only add feasible reads */
