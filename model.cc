@@ -550,6 +550,18 @@ bool ModelChecker::next_execution()
 
 		checkDataRaces();
 	}
+	bool sleep = false;
+	for (unsigned int i = 0; i < get_num_threads(); i++) {
+		thread_id_t tid = int_to_id(i);
+		if (get_enabled(tid) == THREAD_ENABLED) {
+			sleep = false;
+			break;
+		}
+		if (get_enabled(tid) == THREAD_SLEEP_SET)
+			sleep = true;
+	}
+	if (sleep)
+		model_print("ALL THREADS WERE IN THE SLEEP SET OR DISABLED\n");
 
 	record_stats();
 
