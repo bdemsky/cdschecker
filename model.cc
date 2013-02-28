@@ -556,6 +556,8 @@ void ModelChecker::print_execution(bool printbugs) const
 
 	model_print("\n");
 	print_summary();
+	if (params.verbose || DBG_ENABLED())
+		node_stack->print();
 }
 
 /**

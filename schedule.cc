@@ -236,6 +236,9 @@ Thread * Scheduler::select_next_thread()
 		}
 	}
 	
+	DEBUG("no thread chosen\n");
+	if (DBG_ENABLED())
+		print();
 	/* No thread was enabled */
 	return NULL;
 }

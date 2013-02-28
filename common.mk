@@ -14,5 +14,5 @@ CPPFLAGS += -Wall -g
 ifeq ($(UNAME), Darwin)
 CPPFLAGS += -D_XOPEN_SOURCE -DMAC -O0
 else
-CPPFLAGS += -O3
+CPPFLAGS += -O0
 endif
