@@ -1,12 +1,17 @@
 include common.mk
 
+SPEC_DIR := spec-analysis
+
 OBJECTS := libthreads.o schedule.o model.o threads.o librace.o action.o \
 	   nodestack.o clockvector.o main.o snapshot-interface.o cyclegraph.o \
 	   datarace.o impatomic.o cmodelint.o \
 	   snapshot.o malloc.o mymemory.o common.o mutex.o promise.o conditionvariable.o \
 	   context.o scanalysis.o execution.o plugins.o libannotate.o
 
-CPPFLAGS += -Iinclude -I.
+SPEC_OBJ := $(SPEC_DIR)/specanalysis.o $(SPEC_DIR)/testanalysis.o
+SPEC_SRC := $(SPEC_DIR)/specanalysis.h $(SPEC_DIR)/specanalysis.cc $(SPEC_DIR)/specannotation.h $(SPEC_DIR)/spec_lib.c $(SPEC_DIR)/spec_lib.h $(SPEC_DIR)/testanalysis.h $(SPEC_DIR)/testanalysis.cc
+
+CPPFLAGS += -g -Iinclude -I. -Ispec-analysis
 LDFLAGS := -ldl -lrt -rdynamic
 SHARED := -shared
 
@@ -32,8 +37,9 @@ docs: *.c *.cc *.h README.html
 README.html: README.md
 	$(MARKDOWN) $< > $@
 
-$(LIB_SO): $(OBJECTS)
-	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS)
+$(LIB_SO): $(OBJECTS) $(SPEC_SRC)
+	$(MAKE) -C $(SPEC_DIR)
+	$(CXX) $(SHARED) -o $(LIB_SO) $(OBJECTS) $(SPEC_OBJ) $(LDFLAGS)
 
 malloc.o: malloc.c
 	$(CC) -fPIC -c malloc.c -DMSPACES -DONLY_MSPACES -DHAVE_MMAP=0 $(CPPFLAGS) -Wno-unused-variable
@@ -50,6 +56,7 @@ PHONY += clean
 clean:
 	rm -f *.o *.so .*.d *.pdf *.dot
 	$(MAKE) -C $(TESTS_DIR) clean
+	$(MAKE) -C $(SPEC_DIR) clean
 
 PHONY += mrclean
 mrclean: clean
