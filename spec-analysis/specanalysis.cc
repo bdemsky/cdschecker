@@ -53,7 +53,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	buildEdges();
 	
 	node_list_t *sorted_commit_points = sortCPGraph();
-	//dumpGraph();
+	dumpGraph();
 	bool passed = check(sorted_commit_points);
 	if (!passed) {
 		model_print("Error exists!!\n");
@@ -66,9 +66,11 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 	bool passed = true;
 	// Actions and simple checks first
 	node_list_t::iterator iter;
+	model_print("Sorted nodes:\n");
 	for (iter = sorted_commit_points->begin(); iter !=
 		sorted_commit_points->end(); iter++) {
 		commit_point_node *node = *iter;
+		dumpNode(node);
 		int interface_num = node->interface_num;
 		id_func_t id_func = (id_func_t) func_table[2 * interface_num];
 		check_action_func_t check_action = (check_action_func_t) func_table[2 * interface_num + 1];
@@ -131,6 +133,8 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 							// Check hb here
 							if (!n1->begin->happens_before(n2->end)) {
 								model_print("Error exists in hb check!!\n");
+								dumpNode(n1);
+								dumpNode(n2);
 								return false;
 							} else {
 								//model_print("hey passed one HB check!\n");
@@ -181,6 +185,7 @@ node_list_t* SPECAnalysis::sortCPGraph() {
 			} else if (node->color == 1) { // Ready to visit
 				node->color = 2;
 				node->finish_time_stamp = time_stamp++;
+				dumpNode(node);
 				sorted_list->push_front(node);
 			}
 		}
@@ -202,6 +207,7 @@ void SPECAnalysis::buildEdges() {
 			// When sorting, we favor RF, so we add RF edge first
 			if (act2->get_reads_from() == act1) {
 				node1->addEdge(node2, RF);
+				dumpNode(node1);
 			} else if (act1->get_reads_from() == act2) {
 				node2->addEdge(node1, RF);
 			} else { // Deal with HB or MO

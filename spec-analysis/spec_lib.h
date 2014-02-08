@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 /* This file defines the basic sequential data structures that can be used by
  * the specification
@@ -104,6 +106,38 @@ spec_list* sub_list(spec_list *list, int from, int to);
 
 /* Sequential hashtable */
 
+/**
+ * @brief HashTable node
+ */
+typedef struct spec_table_node{
+	void *key;
+	void *val;
+} spec_table_node;
+
+typedef struct spec_table {
+	bool (*_comparator)(void*, void*);
+	struct spec_table_node *table;
+	unsigned int capacity;
+	unsigned int size;
+	unsigned int capacitymask;
+	unsigned int threshold;
+	double loadfactor;
+} spec_table;
+
+spec_table* new_spec_table_default(bool (*comparator)(void*, void*));
+
+spec_table* new_spec_table(bool (*comparator)(void*, void*), unsigned int initialcapacity, double factor);
+
+void free_spec_table(spec_table *t);
+
+void spec_table_reset(spec_table *t);
+
+void spec_table_put(spec_table *t, void *key, void *val);
+
+void* spec_table_get(spec_table *t, void *key);
+	
+bool spec_table_contains(spec_table *t, void *key);
+	
 /* End of hashtable */
 
 #ifdef __cplusplus

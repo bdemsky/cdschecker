@@ -8,6 +8,8 @@
 #include "specannotation.h"
 #include "mymemory.h"
 #include "modeltypes.h"
+#include "action.h"
+#include "common.h"
 
 struct commit_point_node;
 struct commit_point_edge;
@@ -66,7 +68,21 @@ typedef struct commit_point_node {
 		if (edges == NULL) {
 			edges = new edge_list_t();
 		}
-		edges->push_back(new commit_point_edge(type, next));
+		ModelAction *op = next->operation;
+		// Special routine for RF
+		model_print("%d\n", op->get_type());
+		if (type == RF) {
+			if (op->get_type() == ATOMIC_READ) {
+				edges->push_back(new commit_point_edge(type, next));
+				model_print("RF read\n");
+			} else {
+				edges->push_front(new commit_point_edge(type, next));
+				model_print("RF non-read\n");
+			}
+		} else {
+			//model_print("non-RF\n");
+			edges->push_back(new commit_point_edge(type, next));
+		}
 	}
 
 	MEMALLOC

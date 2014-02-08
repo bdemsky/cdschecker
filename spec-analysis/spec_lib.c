@@ -222,3 +222,149 @@ spec_list* sub_list(spec_list *list, int from, int to) {
 }
 
 /* End of sequential list */
+
+/* Sequential hashtable */
+
+spec_table* new_spec_table_default(bool (*comparator)(void*, void*)) {
+	spec_table *t = (spec_table*) MODEL_MALLOC(sizeof(spec_table));
+	// Init hashtable parameters
+	t->_comparator = comparator;
+
+	unsigned int initialcapacity = 1024;
+	double factor = 0.5;
+	// Allocate space for the hash table
+	t->table = (struct spec_table_node*) MODEL_CALLOC(initialcapacity, sizeof(struct spec_table_node));
+	t->loadfactor = factor;
+	t->capacity = initialcapacity;
+	t->capacitymask = initialcapacity - 1;
+
+	t->threshold = (unsigned int)(initialcapacity * t->loadfactor);
+	t->size = 0; // Initial number of elements in the hash
+	return t;
+}
+
+spec_table* new_spec_table(bool (*comparator)(void*, void*), unsigned int
+	initialcapacity, double factor) {
+	spec_table *t = (spec_table*) MODEL_MALLOC(sizeof(spec_table));
+	// Init hashtable parameters
+	t->_comparator = comparator;
+
+	// Allocate space for the hash table
+	t->table = (struct spec_table_node*) MODEL_CALLOC(initialcapacity, sizeof(struct spec_table_node));
+	t->loadfactor = factor;
+	t->capacity = initialcapacity;
+	t->capacitymask = initialcapacity - 1;
+
+	t->threshold = (unsigned int)(initialcapacity * t->loadfactor);
+	t->size = 0; // Initial number of elements in the hash
+	return t;
+}
+
+void free_spec_table(spec_table *t) {
+	MODEL_FREE(t->table);
+}
+
+void spec_table_reset(spec_table *t) {
+	memset(t->table, 0, t->capacity * sizeof(struct spec_table_node));
+	t->size = 0;
+}
+
+static void spec_table_resize(spec_table *t, unsigned int newsize);
+
+void spec_table_put(spec_table *t, void *key, void *val) {
+	/* HashTable cannot handle 0 as a key */
+	//ASSERT(key);
+
+	if (t->size > t->threshold)
+		spec_table_resize(t, t->capacity << 1);
+
+	struct spec_table_node *search;
+
+	unsigned int index = (unsigned int) key;
+	do {
+		index &= t->capacitymask;
+		search = &t->table[index];
+		if (t->_comparator(search->key, key)) {
+			search->val = val;
+			return;
+		}
+		index++;
+	} while (search->key);
+
+	search->key = key;
+	search->val = val;
+	t->size++;
+}
+
+void* spec_table_get(spec_table *t, void *key) {
+	struct spec_table_node *search;
+
+	/* HashTable cannot handle 0 as a key */
+	//ASSERT(key);
+
+	unsigned int index = (unsigned int) key;
+	do {
+		index &= t->capacitymask;
+		search = &t->table[index];
+		if (t->_comparator(search->key, key))
+			return search->val;
+		index++;
+	} while (search->key);
+	return NULL;
+}
+
+bool spec_table_contains(spec_table *t, void *key) {
+	struct spec_table_node *search;
+
+	/* HashTable cannot handle 0 as a key */
+	//ASSERT(key);
+
+	unsigned int index = (unsigned int) key;
+	do {
+		index &= t->capacitymask;
+		search = &t->table[index];
+		if (t->_comparator(search->key, key))
+			return true;
+		index++;
+	} while (search->key);
+	return false;
+}
+
+static void spec_table_resize(spec_table *t, unsigned int newsize) {
+	struct spec_table_node *oldtable = t->table;
+	struct spec_table_node *newtable;
+	unsigned int oldcapacity = t->capacity;
+
+	if ((newtable = (struct spec_table_node*)MODEL_CALLOC(newsize, sizeof(struct spec_table_node))) == NULL) {
+		model_print("calloc error %s %d\n", __FILE__, __LINE__);
+		exit(EXIT_FAILURE);
+	}
+
+	t->table = newtable;          // Update the global hashtable upon spec_table_resize()
+	t->capacity = newsize;
+	t->capacitymask = newsize - 1;
+
+	t->threshold = (unsigned int)(newsize * t->loadfactor);
+
+	struct spec_table_node *bin = &oldtable[0];
+	struct spec_table_node *lastbin = &oldtable[oldcapacity];
+	for (; bin < lastbin; bin++) {
+		void *key = bin->key;
+
+		struct spec_table_node *search;
+
+		unsigned int index = (unsigned int) key;
+		do {
+			index &= t->capacitymask;
+			search = &t->table[index];
+			index++;
+		} while (search->key);
+
+		search->key = key;
+		search->val = bin->val;
+	}
+
+	MODEL_FREE(oldtable);            // Free the memory of the old hash table
+}
+
+/* End of sequential hashtable */
