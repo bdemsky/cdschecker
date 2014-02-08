@@ -1,0 +1,25 @@
+gcc -o main.o main.c deque.c ../../spec-analysis/spec_lib.o -I../../include -I../../spec-analysis -I../.. -g -std=c99 -L../.. -lmodel -rdynamic
+In file included from main.c:7:0:
+deque.h: In function ‘new_tag_elem’:
+deque.h:31:1: warning: implicit declaration of function ‘_Z12model_mallocm’ [-Wimplicit-function-declaration]
+deque.h:31:18: warning: cast to pointer from integer of different size [-Wint-to-pointer-cast]
+deque.h: In function ‘Push_check_action’:
+deque.h:124:45: error: ‘val’ undeclared (first use in this function)
+deque.h:124:45: note: each undeclared identifier is reported only once for each function it appears in
+deque.h: In function ‘__sequential_init’:
+deque.h:170:1: warning: implicit declaration of function ‘_Z11cdsannotatemPv’ [-Wimplicit-function-declaration]
+main.c: In function ‘task’:
+main.c:13:1: warning: implicit declaration of function ‘steal’ [-Wimplicit-function-declaration]
+main.c: In function ‘user_main’:
+main.c:19:1: warning: implicit declaration of function ‘push’ [-Wimplicit-function-declaration]
+main.c:22:1: warning: implicit declaration of function ‘take’ [-Wimplicit-function-declaration]
+In file included from deque.c:10:0:
+deque.h: In function ‘new_tag_elem’:
+deque.h:31:1: warning: implicit declaration of function ‘_Z12model_mallocm’ [-Wimplicit-function-declaration]
+deque.h:31:18: warning: cast to pointer from integer of different size [-Wint-to-pointer-cast]
+deque.h: In function ‘Push_check_action’:
+deque.h:124:45: error: ‘val’ undeclared (first use in this function)
+deque.h:124:45: note: each undeclared identifier is reported only once for each function it appears in
+deque.h: In function ‘__sequential_init’:
+deque.h:170:1: warning: implicit declaration of function ‘_Z11cdsannotatemPv’ [-Wimplicit-function-declaration]
+make: *** [main.o] Error 1
