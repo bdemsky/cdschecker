@@ -53,7 +53,11 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	buildEdges();
 	
 	node_list_t *sorted_commit_points = sortCPGraph();
-	dumpGraph();
+	if (sorted_commit_points == NULL) {
+		model_print("Wired data structure, fail to check!\n");
+		return;
+	}
+	//dumpGraph();
 	bool passed = check(sorted_commit_points);
 	if (!passed) {
 		model_print("Error exists!!\n");
@@ -66,11 +70,11 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 	bool passed = true;
 	// Actions and simple checks first
 	node_list_t::iterator iter;
-	model_print("Sorted nodes:\n");
+	//model_print("Sorted nodes:\n");
 	for (iter = sorted_commit_points->begin(); iter !=
 		sorted_commit_points->end(); iter++) {
 		commit_point_node *node = *iter;
-		dumpNode(node);
+		//dumpNode(node);
 		int interface_num = node->interface_num;
 		id_func_t id_func = (id_func_t) func_table[2 * interface_num];
 		check_action_func_t check_action = (check_action_func_t) func_table[2 * interface_num + 1];
@@ -133,8 +137,8 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 							// Check hb here
 							if (!n1->begin->happens_before(n2->end)) {
 								model_print("Error exists in hb check!!\n");
-								dumpNode(n1);
-								dumpNode(n2);
+								//dumpNode(n1);
+								//dumpNode(n2);
 								return false;
 							} else {
 								//model_print("hey passed one HB check!\n");
@@ -147,6 +151,17 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 	}
 	return passed;
 }
+
+
+/**
+	This function is called with sortCPGraph to check if this is a cyclic
+	execution graph. We use DFS to traverse the graph and then check if there's
+	any back edges to judge if it's cyclic.
+*/
+bool SPECAnalysis::isCyclic() {
+	return false;
+}
+
 
 /**
 	Topologically sort the commit points graph; If they are not restricted to
@@ -161,6 +176,7 @@ node_list_t* SPECAnalysis::sortCPGraph() {
 	action_list_t::reverse_iterator iter = cpActions->rbegin();
 	node = cpGraph->get(*iter);
 	stack->push_back(node);
+	// color: 0 -> undiscovered; 1 -> discovered; 2 -> visited
 	for (; iter != cpActions->rend(); iter++) {
 		node = cpGraph->get(*iter);
 		if (node->color == 0) { // Not discovered yet
@@ -177,15 +193,19 @@ node_list_t* SPECAnalysis::sortCPGraph() {
 					for (edge_list_t::reverse_iterator rit =
 						node->edges->rbegin(); rit != node->edges->rend(); rit++) {
 						commit_point_node *next_node = (*rit)->next_node;
+						if (next_node->color == 1) { // back edge -> cycle
+							model_print("There exists cycles in this graph!\n");
+							return NULL;
+						}
 						if (next_node->color == 0) {
 							stack->push_back(next_node);
 						}
 					}
 				}
-			} else if (node->color == 1) { // Ready to visit
+			} else if (node->color == 1) { // Discovered and ready to visit
 				node->color = 2;
 				node->finish_time_stamp = time_stamp++;
-				dumpNode(node);
+				//dumpNode(node);
 				sorted_list->push_front(node);
 			}
 		}
@@ -207,7 +227,7 @@ void SPECAnalysis::buildEdges() {
 			// When sorting, we favor RF, so we add RF edge first
 			if (act2->get_reads_from() == act1) {
 				node1->addEdge(node2, RF);
-				dumpNode(node1);
+				//dumpNode(node1);
 			} else if (act1->get_reads_from() == act2) {
 				node2->addEdge(node1, RF);
 			} else { // Deal with HB or MO

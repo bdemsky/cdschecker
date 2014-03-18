@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <atomic>
-//#include <common.h>
 #ifdef STANDALONE
 #include <assert.h>
 #define MODEL_ASSERT assert 
@@ -11,23 +10,20 @@
 #include <model-assert.h>
 #endif
 
+#include <spec_lib.h>
+#include <stdlib.h>
+#include <cdsannotate.h>
+#include <specannotation.h>
+#include <model_memory.h>
+
 using namespace std;
 
-/**
-	This header file declares and defines a simplified version of Cliff Click's
-	NonblockingHashMap. It contains all the necessary structrues and main
-	functions. In simplified_cliffc_hashtable.cc file, it has the definition for
-	the static fields.
-*/
+
 
 template<typename TypeK, typename TypeV>
 class cliffc_hashtable;
 
-/**
-	Corresponding the the Object[] array in Cliff Click's Java implementation.
-	It keeps the first two slots for CHM (Hashtable control unit) and the hash
-	records (an array of hash used for fast negative key-equality check).
-*/
+
 struct kvs_data {
 	int _size;
 	atomic<void*> *_data;
@@ -36,15 +32,12 @@ struct kvs_data {
 		_size = sz;
 		int real_size = sz * 2 + 2;
 		_data = new atomic<void*>[real_size];
-		// The control block should be initialized in resize()
-		// Init the hash record array
-		int *hashes = new int[_size];
+						int *hashes = new int[_size];
 		int i;
 		for (i = 0; i < _size; i++) {
 			hashes[i] = 0;
 		}
-		// Init the data to Null slot
-		for (i = 2; i < real_size; i++) {
+				for (i = 2; i < real_size; i++) {
 			_data[i].store(NULL, memory_order_relaxed);
 		}
 		_data[1].store(hashes, memory_order_release);
@@ -68,96 +61,179 @@ struct slot {
 };
 
 
-/**
-	TypeK must have defined function "int hashCode()" which return the hash
-	code for the its object, and "int equals(TypeK anotherKey)" which is
-	used to judge equality.
-	TypeK and TypeV should define their own copy constructor.
-*/
+
+
 template<typename TypeK, typename TypeV>
 class cliffc_hashtable {
-	/**
-		# The synchronization we have for the hashtable gives us the property of
-		# serializability, so we should have a sequential hashtable when we check the
-		# correctness. The key thing is to identify all the commit point.
+/* All other user-defined structs */
+static spec_table * map;
+static spec_table * id_map;
+static id_tag_t * tag;
+/* All other user-defined functions */
+inline static bool equals_key ( void * ptr1 , void * ptr2 ) {
+TypeK * key1 = ( TypeK * ) ptr1 , * key2 = ( TypeK * ) ptr2 ;
+if ( key1 == NULL || key2 == NULL ) return false ;
+return key1 -> equals ( key2 ) ;
+}
+
+inline static bool equals_val ( void * ptr1 , void * ptr2 ) {
+TypeV * val1 = ( TypeV * ) ptr1 , * val2 = ( TypeV * ) ptr2 ;
+if ( val1 == NULL || val2 == NULL ) return false ;
+return val1 -> equals ( val2 ) ;
+}
+
+inline static bool equals_id ( void * ptr1 , void * ptr2 ) {
+id_tag_t * id1 = ( id_tag_t * ) ptr1 , * id2 = ( id_tag_t * ) ptr2 ;
+if ( id1 == NULL || id2 == NULL ) return false ;
+return ( * id1 ) . tag == ( * id2 ) . tag ;
+}
+
+inline static id_tag_t getKeyTag ( TypeK * key ) {
+if ( spec_table_contains ( id_map , key ) ) {
+id_tag_t * cur_tag = MODEL_MALLOC ( sizeof ( id_tag_t ) ) ;
+* cur_tag = current ( tag ) ;
+spec_table_put ( id_map , key , cur_tag ) ;
+next ( tag ) ;
+return cur_tag ;
+}
+else {
+id_tag_t * res = ( id_tag_t * ) spec_table_get ( id_map , key ) ;
+return * res ;
+}
+}
+
+/* Definition of interface info struct: Put */
+typedef struct Put_info {
+TypeV * __RET__;
+TypeK * key;
+TypeV * val;
+} Put_info;
+/* End of info struct definition: Put */
+
+/* ID function of interface: Put */
+inline static call_id_t Put_id(void *info, thread_id_t __TID__) {
+	Put_info* theInfo = (Put_info*)info;
+	TypeV * __RET__ = theInfo->__RET__;
+	TypeK * key = theInfo->key;
+	TypeV * val = theInfo->val;
+
+	call_id_t __ID__ = getKeyTag ( key );
+	return __ID__;
+}
+/* End of ID function: Put */
+
+/* Check action function of interface: Put */
+inline static bool Put_check_action(void *info, call_id_t __ID__, thread_id_t __TID__) {
+	bool check_passed;
+	Put_info* theInfo = (Put_info*)info;
+	TypeV * __RET__ = theInfo->__RET__;
+	TypeK * key = theInfo->key;
+	TypeV * val = theInfo->val;
+
+	void * _Old_Val = spec_table_get ( map , key ) ;
+	spec_table_put ( map , key , val ) ;
+	check_passed = equals_val ( __RET__ , _Old_Val );
+	if (!check_passed)
+		return false;
+	return true;
+}
+/* End of check action function: Put */
+
+/* Definition of interface info struct: Get */
+typedef struct Get_info {
+TypeV * __RET__;
+TypeK * key;
+} Get_info;
+/* End of info struct definition: Get */
+
+/* ID function of interface: Get */
+inline static call_id_t Get_id(void *info, thread_id_t __TID__) {
+	Get_info* theInfo = (Get_info*)info;
+	TypeV * __RET__ = theInfo->__RET__;
+	TypeK * key = theInfo->key;
+
+	call_id_t __ID__ = getKeyTag ( key );
+	return __ID__;
+}
+/* End of ID function: Get */
+
+/* Check action function of interface: Get */
+inline static bool Get_check_action(void *info, call_id_t __ID__, thread_id_t __TID__) {
+	bool check_passed;
+	Get_info* theInfo = (Get_info*)info;
+	TypeV * __RET__ = theInfo->__RET__;
+	TypeK * key = theInfo->key;
+
+	void * _Old_Val = spec_table_get ( map , key ) ;
+	check_passed = equals_val ( _Old_Val , __RET__ );
+	if (!check_passed)
+		return false;
+	return true;
+}
+/* End of check action function: Get */
+
+#define INTERFACE_SIZE 2
+static void** func_ptr_table;
+static anno_hb_init** hb_init_table;
+
+/* Define function for sequential code initialization */
+inline static void __sequential_init() {
+	/* Init func_ptr_table */
+	func_ptr_table = (void**) malloc(sizeof(void*) * 2 * 2);
+	func_ptr_table[2 * 1] = (void*) &Put_id;
+	func_ptr_table[2 * 1 + 1] = (void*) &Put_check_action;
+	func_ptr_table[2 * 0] = (void*) &Get_id;
+	func_ptr_table[2 * 0 + 1] = (void*) &Get_check_action;
+	/* Put(true) -> Put(true) */
+	struct anno_hb_init *hbConditionInit0 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
+	hbConditionInit0->interface_num_before = 1; // Put
+	hbConditionInit0->hb_condition_num_before = 0; // 
+	hbConditionInit0->interface_num_after = 1; // Put
+	hbConditionInit0->hb_condition_num_after = 0; // 
+	/* Put(true) -> Get(true) */
+	struct anno_hb_init *hbConditionInit1 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
+	hbConditionInit1->interface_num_before = 1; // Put
+	hbConditionInit1->hb_condition_num_before = 0; // 
+	hbConditionInit1->interface_num_after = 0; // Get
+	hbConditionInit1->hb_condition_num_after = 0; // 
+	/* Init hb_init_table */
+	hb_init_table = (anno_hb_init**) malloc(sizeof(anno_hb_init*) * 2);
+	#define HB_INIT_TABLE_SIZE 2
+	hb_init_table[0] = hbConditionInit0;
+	hb_init_table[1] = hbConditionInit1;
+	/* Pass init info, including function table info & HB rules */
+	struct anno_init *anno_init = (struct anno_init*) malloc(sizeof(struct anno_init));
+	anno_init->func_table = func_ptr_table;
+	anno_init->func_table_size = INTERFACE_SIZE;
+	anno_init->hb_init_table = hb_init_table;
+	anno_init->hb_init_table_size = HB_INIT_TABLE_SIZE;
+	struct spec_annotation *init = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	init->type = INIT;
+	init->annotation = anno_init;
+	cdsannotate(SPEC_ANALYSIS, init);
+
+	map = new_spec_table_default ( equals_key ) ;
+	id_map = new_spec_table_default ( equals_id ) ;
+	tag = new_id_tag ( ) ;
+}
+/* End of Global construct generation in class */
 	
-		@Begin
-		@Options:
-			LANG = C;
-			CLASS = cliffc_hashtable;
-		@Global_define:
-			@DeclareVar:
-			spec_hashtable<TypeK, TypeV*> map;
-			spec_hashtable<TypeK, Tag> id_map;
-			Tag tag;
-			@InitVar:
-				map = spec_hashtable<TypeK, TypeV*>();
-				id_map = spec_hashtable<TypeK, TypeV*>();
-				tag = Tag();
-			@DefineFunc:
-			bool equals_val(TypeV *ptr1, TypeV *ptr2) {
-				// ...
-			}
-			
-			@DefineFunc:
-			# Update the tag for the current key slot if the corresponding tag
-			# is NULL, otherwise just return that tag. It will update the next
-			# available tag too if it requires a new tag for that key slot.
-			Tag getKeyTag(TypeK &key) {
-				if (id_map.get(key) == NULL) {
-					Tag cur_tag = tag.current();
-					id_map.put(key, cur_tag);
-					tag.next();
-					return cur_tag;
-				} else {
-					return id_map.get(key);
-				}
-			}
-		
-		@Interface_cluster:
-			Read_interface = {
-				Get,
-				PutIfAbsent,
-				RemoveAny,
-				RemoveIfMatch,
-				ReplaceAny,
-				ReplaceIfMatch
-			}
-			
-			Write_interface = {
-				Put,
-				PutIfAbsent(COND_PutIfAbsentSucc),
-				RemoveAny,
-				RemoveIfMatch(COND_RemoveIfMatchSucc),
-				ReplaceAny,
-				ReplaceIfMatch(COND_ReplaceIfMatchSucc)
-			}
-		@Happens_before:
-			Write_interface -> Read_interface
-		@End
-	*/
 
 friend class CHM;
-	/**
-		The control structure for the hashtable
-	*/
+	
 	private:
 	class CHM {
 		friend class cliffc_hashtable;
 		private:
 		atomic<kvs_data*> _newkvs;
 		
-		// Size of active K,V pairs
-		atomic_int _size;
+				atomic_int _size;
 	
-		// Count of used slots
-		atomic_int _slots;
+				atomic_int _slots;
 		
-		// The next part of the table to copy
-		atomic_int _copy_idx;
+				atomic_int _copy_idx;
 		
-		// Work-done reporting
-		atomic_int _copy_done;
+				atomic_int _copy_done;
 	
 		public:
 		CHM(int size) {
@@ -173,38 +249,28 @@ friend class CHM;
 		
 		private:
 			
-		// Heuristic to decide if the table is too full
-		bool table_full(int reprobe_cnt, int len) {
+				bool table_full(int reprobe_cnt, int len) {
 			return
 				reprobe_cnt >= REPROBE_LIMIT &&
 				_slots.load(memory_order_relaxed) >= reprobe_limit(len);
 		}
 	
 		kvs_data* resize(cliffc_hashtable *topmap, kvs_data *kvs) {
-			//model_print("resizing...\n");
-			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
+						kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 			if (newkvs != NULL)
 				return newkvs;
 	
-			// No copy in-progress, start one; Only double the table size
-			int oldlen = kvs->_size;
+						int oldlen = kvs->_size;
 			int sz = _size.load(memory_order_relaxed);
 			int newsz = sz;
 			
-			// Just follow Cliff Click's heuristic to decide the new size
-			if (sz >= (oldlen >> 2)) { // If we are 25% full
-				newsz = oldlen << 1; // Double size
-				if (sz >= (oldlen >> 1))
-					newsz = oldlen << 2; // Double double size
-			}
+						if (sz >= (oldlen >> 2)) { 				newsz = oldlen << 1; 				if (sz >= (oldlen >> 1))
+					newsz = oldlen << 2; 			}
 	
-			// We do not record the record timestamp
-			if (newsz <= oldlen) newsz = oldlen << 1;
-			// Do not shrink ever
-			if (newsz < oldlen) newsz = oldlen;
+						if (newsz <= oldlen) newsz = oldlen << 1;
+						if (newsz < oldlen) newsz = oldlen;
 	
-			// Last check cause the 'new' below is expensive
-			newkvs = _newkvs.load(memory_order_acquire);
+						newkvs = _newkvs.load(memory_order_acquire);
 			if (newkvs != NULL) return newkvs;
 	
 			newkvs = new kvs_data(newsz);
@@ -212,16 +278,13 @@ friend class CHM;
 			newkvs->_data[0].store(chm, memory_order_release);
 	
 			kvs_data *cur_newkvs; 
-			// Another check after the slow allocation
-			if ((cur_newkvs = _newkvs.load(memory_order_acquire)) != NULL)
+						if ((cur_newkvs = _newkvs.load(memory_order_acquire)) != NULL)
 				return cur_newkvs;
-			// CAS the _newkvs to the allocated table
-			kvs_data *desired = (kvs_data*) NULL;
+						kvs_data *desired = (kvs_data*) NULL;
 			kvs_data *expected = (kvs_data*) newkvs; 
 			if (!_newkvs.compare_exchange_strong(desired, expected, memory_order_release,
 					memory_order_release)) {
-				// Should clean the allocated area
-				delete newkvs;
+								delete newkvs;
 				newkvs = _newkvs.load(memory_order_acquire);
 			}
 			return newkvs;
@@ -234,13 +297,11 @@ friend class CHM;
 			int oldlen = oldkvs->_size;
 			int min_copy_work = oldlen > 1024 ? 1024 : oldlen;
 		
-			// Just follow Cliff Click's code here
-			int panic_start = -1;
+						int panic_start = -1;
 			int copyidx;
 			while (_copy_done.load(memory_order_acquire) < oldlen) {
 				copyidx = _copy_idx.load(memory_order_acquire);
-				if (panic_start == -1) { // No painc
-					copyidx = _copy_idx.load(memory_order_acquire);
+				if (panic_start == -1) { 					copyidx = _copy_idx.load(memory_order_acquire);
 					while (copyidx < (oldlen << 1) &&
 						!_copy_idx.compare_exchange_strong(copyidx, copyidx +
 							min_copy_work, memory_order_release, memory_order_release))
@@ -249,8 +310,7 @@ friend class CHM;
 						panic_start = copyidx;
 				}
 	
-				// Now copy the chunk of work we claimed
-				int workdone = 0;
+								int workdone = 0;
 				for (int i = 0; i < min_copy_work; i++)
 					if (copy_slot(topmap, (copyidx + i) & (oldlen - 1), oldkvs,
 						newkvs))
@@ -260,18 +320,14 @@ friend class CHM;
 	
 				copyidx += min_copy_work;
 				if (!copy_all && panic_start == -1)
-					return; // We are done with the work we claim
-			}
-			copy_check_and_promote(topmap, oldkvs, 0); // See if we can promote
-		}
+					return; 			}
+			copy_check_and_promote(topmap, oldkvs, 0); 		}
 	
 		kvs_data* copy_slot_and_check(cliffc_hashtable *topmap, kvs_data
 			*oldkvs, int idx, void *should_help) {
 			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
-			// We're only here cause the caller saw a Prime
-			if (copy_slot(topmap, idx, oldkvs, newkvs))
-				copy_check_and_promote(topmap, oldkvs, 1); // Record the slot copied
-			return (should_help == NULL) ? newkvs : topmap->help_copy(newkvs);
+						if (copy_slot(topmap, idx, oldkvs, newkvs))
+				copy_check_and_promote(topmap, oldkvs, 1); 			return (should_help == NULL) ? newkvs : topmap->help_copy(newkvs);
 		}
 	
 		void copy_check_and_promote(cliffc_hashtable *topmap, kvs_data*
@@ -287,8 +343,7 @@ friend class CHM;
 				}
 			}
 	
-			// Promote the new table to the current table
-			if (copyDone + workdone == oldlen &&
+						if (copyDone + workdone == oldlen &&
 				topmap->_kvs.load(memory_order_acquire) == oldkvs) {
 				kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 				topmap->_kvs.compare_exchange_strong(oldkvs, newkvs, memory_order_release,
@@ -302,29 +357,22 @@ friend class CHM;
 			while ((key_slot = key(oldkvs, idx)) == NULL)
 				CAS_key(oldkvs, idx, NULL, TOMBSTONE);
 	
-			// First CAS old to Prime
-			slot *oldval = val(oldkvs, idx);
+						slot *oldval = val(oldkvs, idx);
 			while (!is_prime(oldval)) {
 				slot *box = (oldval == NULL || oldval == TOMBSTONE)
 					? TOMBPRIME : new slot(true, oldval->_ptr);
 				if (CAS_val(oldkvs, idx, oldval, box)) {
 					if (box == TOMBPRIME)
-						return 1; // Copy done
-					// Otherwise we CAS'd the box
-					oldval = box; // Record updated oldval
-					break;
+						return 1; 										oldval = box; 					break;
 				}
-				oldval = val(oldkvs, idx); // Else re-try
-			}
+				oldval = val(oldkvs, idx); 			}
 	
-			if (oldval == TOMBPRIME) return false; // Copy already completed here
-	
+			if (oldval == TOMBPRIME) return false; 	
 			slot *old_unboxed = new slot(false, oldval->_ptr);
 			int copied_into_new = (putIfMatch(topmap, newkvs, key_slot, old_unboxed,
 				NULL) == NULL);
 	
-			// Old value is exposed in the new table
-			while (!CAS_val(oldkvs, idx, oldval, TOMBPRIME))
+						while (!CAS_val(oldkvs, idx, oldval, TOMBPRIME))
 				oldval = val(oldkvs, idx);
 	
 			return copied_into_new;
@@ -334,51 +382,66 @@ friend class CHM;
 	
 
 	private:
-	static const int Default_Init_Size = 4; // Intial table size
-
+	static const int Default_Init_Size = 4; 
 	static slot* const MATCH_ANY;
 	static slot* const NO_MATCH_OLD;
 
 	static slot* const TOMBPRIME;
 	static slot* const TOMBSTONE;
 
-	static const int REPROBE_LIMIT = 10; // Forces a table-resize
-
+	static const int REPROBE_LIMIT = 10; 
 	atomic<kvs_data*> _kvs;
 
 	public:
 	cliffc_hashtable() {
-		// Should initialize the CHM for the construction of the table
-		// For other CHM in kvs_data, they should be initialzed in resize()
-		// because the size is determined dynamically
-		kvs_data *kvs = new kvs_data(Default_Init_Size);
+								kvs_data *kvs = new kvs_data(Default_Init_Size);
 		void *chm = (void*) new CHM(0);
 		kvs->_data[0].store(chm, memory_order_relaxed);
 		_kvs.store(kvs, memory_order_release);
 	}
 
 	cliffc_hashtable(int init_size) {
-		// Should initialize the CHM for the construction of the table
-		// For other CHM in kvs_data, they should be initialzed in resize()
-		// because the size is determined dynamically
+	__sequential_init();
+								
+
 		kvs_data *kvs = new kvs_data(init_size);
 		void *chm = (void*) new CHM(0);
 		kvs->_data[0].store(chm, memory_order_relaxed);
 		_kvs.store(kvs, memory_order_release);
 	}
 
-	/**
-		@Begin
-		@Interface: Get
-		@Commit_point_set: Read_Val_Point1 | Read_Val_Point2 | Read_Val_Point3
-		@ID: __sequential.getKeyTag(key)
-		@Action:
-			TypeV *_Old_Val = __sequential.map.get(key)
-		@Post_check:
-			__sequential.equals_val(_Old_Val, __RET__)
-		@End
-	*/
-	TypeV* get(TypeK *key) {
+
+TypeV * get(TypeK * key) {
+	/* Interface begins */
+	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
+	interface_begin->interface_num = 0; // Get
+	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	annotation_interface_begin->type = INTERFACE_BEGIN;
+	annotation_interface_begin->annotation = interface_begin;
+	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
+	TypeV * __RET__ = __wrapper__get(key);
+	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
+	hb_condition->interface_num = 0; // Get
+	hb_condition->hb_condition_num = 0;
+	struct spec_annotation *annotation_hb_condition = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	annotation_hb_condition->type = HB_CONDITION;
+	annotation_hb_condition->annotation = hb_condition;
+	cdsannotate(SPEC_ANALYSIS, annotation_hb_condition);
+
+	Get_info* info = (Get_info*) malloc(sizeof(Get_info));
+	info->__RET__ = __RET__;
+	info->key = key;
+	struct anno_interface_end *interface_end = (struct anno_interface_end*) malloc(sizeof(struct anno_interface_end));
+	interface_end->interface_num = 0; // Get
+	interface_end->info = info;
+	struct spec_annotation *annoation_interface_end = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	annoation_interface_end->type = INTERFACE_END;
+	annoation_interface_end->annotation = interface_end;
+	cdsannotate(SPEC_ANALYSIS, annoation_interface_end);
+	return __RET__;
+}
+	
+TypeV * __wrapper__get(TypeK * key) {
 		slot *key_slot = new slot(false, key);
 		int fullhash = hash(key_slot);
 		kvs_data *kvs = _kvs.load(memory_order_acquire);
@@ -388,116 +451,65 @@ friend class CHM;
 		return (TypeV*) V->_ptr;
 	}
 
-	/**
-		@Begin
-		@Interface: Put
-		@Commit_point_set: Write_Val_Point
-		@ID: __sequential.getKeyTag(key)
-		@Action:
-			# Remember this old value at checking point
-			TypeV *_Old_Val = __sequential.map.get(key)
-			__sequential.map.put(key, &val);
-		@Post_check:
-			__sequential.equals_val(__RET__, _Old_Val)
-		@End
-	*/
-	TypeV* put(TypeK *key, TypeV *val) {
+
+TypeV * put(TypeK * key, TypeV * val) {
+	/* Interface begins */
+	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
+	interface_begin->interface_num = 1; // Put
+	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	annotation_interface_begin->type = INTERFACE_BEGIN;
+	annotation_interface_begin->annotation = interface_begin;
+	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
+	TypeV * __RET__ = __wrapper__put(key, val);
+	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
+	hb_condition->interface_num = 1; // Put
+	hb_condition->hb_condition_num = 0;
+	struct spec_annotation *annotation_hb_condition = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	annotation_hb_condition->type = HB_CONDITION;
+	annotation_hb_condition->annotation = hb_condition;
+	cdsannotate(SPEC_ANALYSIS, annotation_hb_condition);
+
+	Put_info* info = (Put_info*) malloc(sizeof(Put_info));
+	info->__RET__ = __RET__;
+	info->key = key;
+	info->val = val;
+	struct anno_interface_end *interface_end = (struct anno_interface_end*) malloc(sizeof(struct anno_interface_end));
+	interface_end->interface_num = 1; // Put
+	interface_end->info = info;
+	struct spec_annotation *annoation_interface_end = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	annoation_interface_end->type = INTERFACE_END;
+	annoation_interface_end->annotation = interface_end;
+	cdsannotate(SPEC_ANALYSIS, annoation_interface_end);
+	return __RET__;
+}
+	
+TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 		return putIfMatch(key, val, NO_MATCH_OLD);
 	}
 
-	/**
-		@Begin
-		@Interface: PutIfAbsent
-		@Commit_point_set:
-			Write_Val_Point | PutIfAbsent_Fail_Point
-		@Condition: __sequential.map.get(key) == NULL
-		@HB_condition:
-			COND_PutIfAbsentSucc :: __RET__ == NULL
-		@ID: __sequential.getKeyTag(key)
-		@Action:
-			TypeV *_Old_Val = __sequential.map.get(key)
-			if (__COND_SAT__)
-				__sequential.map.put(key, &value);
-		@Post_check:
-			__COND_SAT__ ? __RET__ == NULL : __sequential.equals_val(_Old_Val, __RET__) 
-		@End
-	*/
+	
 	TypeV* putIfAbsent(TypeK *key, TypeV *value) {
 		return putIfMatch(key, val, TOMBSTONE);
 	}
 
-	/**
-		@Begin
-		@Interface: RemoveAny
-		@Commit_point_set: Write_Val_Point
-		@ID: __sequential.getKeyTag(key)
-		@Action:
-			TypeV *_Old_Val = __sequential.map.get(key)
-			__sequential.map.put(key, NULL);
-		@Post_check:
-			__sequential.equals_val(__RET__, _Old_Val)
-		@End
-	*/
+	
 	TypeV* remove(TypeK *key) {
 		return putIfMatch(key, TOMBSTONE, NO_MATCH_OLD);
 	}
 
-	/**
-		@Begin
-		@Interface: RemoveIfMatch
-		@Commit_point_set:
-			Write_Val_Point | RemoveIfMatch_Fail_Point
-		@Condition:
-			__sequential.equals_val(__sequential.map.get(key), &val)
-		@HB_condition:
-			COND_RemoveIfMatchSucc :: __RET__ == true
-		@ID: __sequential.getKeyTag(key)
-		@Action:
-			if (__COND_SAT__)
-				__sequential.map.put(key, NULL);
-		@Post_check:
-			__COND_SAT__ ? __RET__ : !__RET__
-		@End
-	*/
+	
 	bool remove(TypeK *key, TypeV *val) {
 		slot *val_slot = val == NULL ? NULL : new slot(false, val);
 		return putIfMatch(key, TOMBSTONE, val) == val;
 
 	}
 
-	/**
-		@Begin
-		@Interface: ReplaceAny
-		@Commit_point_set:
-			Write_Val_Point
-		@ID: __sequential.getKeyTag(key)
-		@Action:
-			TypeV *_Old_Val = __sequential.map.get(key)
-		@Post_check:
-			__sequential.equals_val(__RET__, _Old_Val)
-		@End
-	*/
+	
 	TypeV* replace(TypeK *key, TypeV *val) {
 		return putIfMatch(key, val, MATCH_ANY);
 	}
 
-	/**
-		@Begin
-		@Interface: ReplaceIfMatch
-		@Commit_point_set:
-			Write_Val_Point | ReplaceIfMatch_Fail_Point
-		@Condition:
-			__sequential.equals_val(__sequential.map.get(key), &oldval)
-		@HB_condition:
-			COND_ReplaceIfMatchSucc :: __RET__ == true
-		@ID: __sequential.getKeyTag(key)
-		@Action:
-			if (__COND_SAT__)
-				__sequential.map.put(key, &newval);
-		@Post_check:
-			__COND_SAT__ ? __RET__ : !__RET__
-		@End
-	*/
+	
 	bool replace(TypeK *key, TypeV *oldval, TypeV *newval) {
 		return putIfMatch(key, newval, oldval) == oldval;
 	}
@@ -512,37 +524,27 @@ friend class CHM;
 		return (int *) kvs->_data[1].load(memory_order_relaxed);
 	}
 	
-	// Preserve happens-before semantics on newly inserted keys
-	static inline slot* key(kvs_data *kvs, int idx) {
+		static inline slot* key(kvs_data *kvs, int idx) {
 		MODEL_ASSERT (idx >= 0 && idx < kvs->_size);
-		// Corresponding to the volatile read in get_impl() and putIfMatch in
-		// Cliff Click's Java implementation
-		slot *res = (slot*) kvs->_data[idx * 2 + 2].load(memory_order_acquire);
+						slot *res = (slot*) kvs->_data[idx * 2 + 2].load(memory_order_acquire);
 		return res;
 	}
 
-	/**
-		The atomic operation in val() function is a "potential" commit point,
-		which means in some case it is a real commit point while it is not for
-		some other cases. This so happens because the val() function is such a
-		fundamental function that many internal operation will call. Our
-		strategy is that we label any potential commit points and check if they
-		really are the commit points later.
-	*/
-	// Preserve happens-before semantics on newly inserted values
-	static inline slot* val(kvs_data *kvs, int idx) {
+	
+		static inline slot* val(kvs_data *kvs, int idx) {
 		MODEL_ASSERT (idx >= 0 && idx < kvs->_size);
-		// Corresponding to the volatile read in get_impl() and putIfMatch in
-		// Cliff Click's Java implementation
-		slot *res = (slot*) kvs->_data[idx * 2 + 3].load(memory_order_acquire);
-		/**
-			@Begin
-			# This is a complicated potential commit point since many many functions are
-			# calling val().
-			@Potential_commit_point_define: true
-			@Label: Read_Val_Point
-			@End
-		*/
+						slot *res = (slot*) kvs->_data[idx * 2 + 3].load(memory_order_acquire);
+	/* Automatically generated code for potential commit point: Read_Val_Point */
+
+	if (true) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 0;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
+	}
+		
 		return res;
 
 
@@ -552,8 +554,7 @@ friend class CHM;
 		MODEL_ASSERT(key_slot != NULL && key_slot->_ptr != NULL);
 		TypeK* key = (TypeK*) key_slot->_ptr;
 		int h = key->hashCode();
-		// Spread bits according to Cliff Click's code
-		h += (h << 15) ^ 0xffffcd7d;
+				h += (h << 15) ^ 0xffffcd7d;
 		h ^= (h >> 10);
 		h += (h << 3);
 		h ^= (h >> 6);
@@ -561,10 +562,7 @@ friend class CHM;
 		return h ^ (h >> 16);
 	}
 	
-	// Heuristic to decide if reprobed too many times. 
-	// Be careful here: Running over the limit on a 'get' acts as a 'miss'; on a
-	// put it triggers a table resize. Several places MUST have exact agreement.
-	static int reprobe_limit(int len) {
+				static int reprobe_limit(int len) {
 		return REPROBE_LIMIT + (len >> 2);
 	}
 	
@@ -572,12 +570,9 @@ friend class CHM;
 		return (val != NULL) && val->_prime;
 	}
 
-	// Check for key equality. Try direct pointer comparison first (fast
-	// negative teset) and then the full 'equals' call
-	static bool keyeq(slot *K, slot *key_slot, int *hashes, int hash,
+			static bool keyeq(slot *K, slot *key_slot, int *hashes, int hash,
 		int fullhash) {
-		// Caller should've checked this.
-		MODEL_ASSERT (K != NULL);
+				MODEL_ASSERT (K != NULL);
 		TypeK* key_ptr = (TypeK*) key_slot->_ptr;
 		return
 			K == key_slot ||
@@ -593,31 +588,27 @@ friend class CHM;
 		return ptr1->equals(val_slot2->_ptr);
 	}
 	
-	// Together with key() preserve the happens-before relationship on newly
-	// inserted keys
-	static inline bool CAS_key(kvs_data *kvs, int idx, void *expected, void *desired) {
+			static inline bool CAS_key(kvs_data *kvs, int idx, void *expected, void *desired) {
 		return kvs->_data[2 * idx + 2].compare_exchange_strong(expected,
 			desired, memory_order_release, memory_order_release);
 	}
 
-	/**
-		Same as the val() function, we only label the CAS operation as the
-		potential commit point.
-	*/
-	// Together with val() preserve the happens-before relationship on newly
-	// inserted values
-	static inline bool CAS_val(kvs_data *kvs, int idx, void *expected, void
+	
+			static inline bool CAS_val(kvs_data *kvs, int idx, void *expected, void
 		*desired) {
 		bool res =  kvs->_data[2 * idx + 3].compare_exchange_strong(expected,
 			desired, memory_order_release, memory_order_release);
-		/**
-			# If it is a successful put instead of a copy or any other internal
-			# operantions, expected != NULL
-			@Begin
-			@Potential_commit_point_define: __ATOMIC_RET__ == true
-			@Label: Write_Val_Point
-			@End
-		*/
+	/* Automatically generated code for potential commit point: Write_Val_Point */
+
+	if (res == true) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 1;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
+	}
+		
 		return res;
 	}
 
@@ -632,56 +623,62 @@ friend class CHM;
 		while (true) {
 			slot *K = key(kvs, idx);
 			slot *V = val(kvs, idx);
-			/**
-				@Begin
-				@Commit_point_define: V == NULL
-				@Potential_commit_point_label: Read_Val_Point
-				@Label: Get_Success_Point_1
-				@End
-			*/
+	/* Automatically generated code for commit point define: Get_Success_Point_1 */
 
-			if (K == NULL) return NULL; // A miss
+	if (V == NULL) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 2;
+		cp_define->potential_cp_label_num = 0;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
 			
+
+			if (K == NULL) return NULL; 			
 			if (keyeq(K, key_slot, hashes, idx, fullhash)) {
-				// Key hit! Check if table-resize in progress
-				if (!is_prime(V)) {
-					/**
-						@Begin
-						@Commit_point_define: true
-						@Potential_commit_point_label: Read_Val_Point
-						@Label: Get_Success_Point_2
-						@End
-					*/
-					return (V == TOMBSTONE) ? NULL : V; // Return this value
-				}
-				// Otherwise, finish the copy & retry in the new table
-				return get_impl(topmap, chm->copy_slot_and_check(topmap, kvs,
+								if (!is_prime(V)) {
+	/* Automatically generated code for commit point define: Get_Success_Point_2 */
+
+	if (true) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 3;
+		cp_define->potential_cp_label_num = 0;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+					
+					return (V == TOMBSTONE) ? NULL : V; 				}
+								return get_impl(topmap, chm->copy_slot_and_check(topmap, kvs,
 					idx, key_slot), key_slot, fullhash);
 			}
 
 			if (++reprobe_cnt >= REPROBE_LIMIT ||
 				key_slot == TOMBSTONE) {
-				// Retry in new table
-				// Atomic read (acquire) can be here 
-				kvs_data *newkvs = chm->_newkvs.load(memory_order_acquire);
-				/**
-					@Begin
-					@Commit_point_define_check: newkvs == NULL
-					@Label: Get_Success_Point_3
-					@End
-				*/
+												kvs_data *newkvs = chm->_newkvs.load(memory_order_acquire);
+	/* Automatically generated code for commit point define check: Get_Success_Point_3 */
+
+	if (newkvs == NULL) {
+		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
+		cp_define_check->label_num = 4;
+		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define_check->type = CP_DEFINE_CHECK;
+		annotation_cp_define_check->annotation = cp_define_check;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	}
+				
 				return newkvs == NULL ? NULL : get_impl(topmap,
 					topmap->help_copy(newkvs), key_slot, fullhash);
 			}
 
-			idx = (idx + 1) & (len - 1); // Reprobe by 1
-		}
+			idx = (idx + 1) & (len - 1); 		}
 	}
 
-	// A wrapper of the essential function putIfMatch()
-	TypeV* putIfMatch(TypeK *key, TypeV *value, slot *old_val) {
-		// TODO: Should throw an exception rather return NULL
-		if (old_val == NULL) {
+		TypeV* putIfMatch(TypeK *key, TypeV *value, slot *old_val) {
+				if (old_val == NULL) {
 			return NULL;
 		}
 		slot *key_slot = new slot(false, key);
@@ -689,19 +686,12 @@ friend class CHM;
 		slot *value_slot = new slot(false, value);
 		kvs_data *kvs = _kvs.load(memory_order_acquire);
 		slot *res = putIfMatch(this, kvs, key_slot, value_slot, old_val);
-		// Only when copy_slot() call putIfMatch() will it return NULL
-		MODEL_ASSERT (res != NULL); 
+				MODEL_ASSERT (res != NULL); 
 		MODEL_ASSERT (!is_prime(res));
 		return res == TOMBSTONE ? NULL : (TypeV*) res->_ptr;
 	}
 
-	/**
-		Put, Remove, PutIfAbsent, etc will call this function. Return the old
-		value. If the returned value is equals to the expVal (or expVal is
-		NO_MATCH_OLD), then this function puts the val_slot to the table 'kvs'.
-		Only copy_slot will pass a NULL expVal, and putIfMatch only returns a
-		NULL if passed a NULL expVal.
-	*/
+	
 	static slot* putIfMatch(cliffc_hashtable *topmap, kvs_data *kvs, slot
 		*key_slot, slot *val_slot, slot *expVal) {
 		MODEL_ASSERT (val_slot != NULL);
@@ -714,61 +704,39 @@ friend class CHM;
 		int *hashes = get_hashes(kvs);
 		int idx = fullhash & (len - 1);
 
-		// Claim a key slot
-		int reprobe_cnt = 0;
+				int reprobe_cnt = 0;
 		slot *K;
 		slot *V;
 		kvs_data *newkvs;
 		
-		while (true) { // Spin till we get a key slot
-			K = key(kvs, idx);
+		while (true) { 			K = key(kvs, idx);
 			V = val(kvs, idx);
-			if (K == NULL) { // Get a free slot
-				if (val_slot == TOMBSTONE) return val_slot;
-				// Claim the null key-slot
-				if (CAS_key(kvs, idx, NULL, key_slot)) {
-					chm->_slots.fetch_add(1, memory_order_relaxed); // Inc key-slots-used count
-					hashes[idx] = fullhash; // Memorize full hash
-					break;
+			if (K == NULL) { 				if (val_slot == TOMBSTONE) return val_slot;
+								if (CAS_key(kvs, idx, NULL, key_slot)) {
+					chm->_slots.fetch_add(1, memory_order_relaxed); 					hashes[idx] = fullhash; 					break;
 				}
-				K = key(kvs, idx); // CAS failed, get updated value
-				MODEL_ASSERT (K != NULL);
+				K = key(kvs, idx); 				MODEL_ASSERT (K != NULL);
 			}
 
-			// Key slot not null, there exists a Key here
-			if (keyeq(K, key_slot, hashes, idx, fullhash))
-				break; // Got it
-			
-			// Notice that the logic here should be consistent with that of get.
-			// The first predicate means too many reprobes means nothing in the
-			// old table.
-			if (++reprobe_cnt >= reprobe_limit(len) ||
-				K == TOMBSTONE) { // Found a Tombstone key, no more keys
-				newkvs = chm->resize(topmap, kvs);
-				// Help along an existing copy
-				if (expVal != NULL) topmap->help_copy(newkvs);
+						if (keyeq(K, key_slot, hashes, idx, fullhash))
+				break; 			
+												if (++reprobe_cnt >= reprobe_limit(len) ||
+				K == TOMBSTONE) { 				newkvs = chm->resize(topmap, kvs);
+								if (expVal != NULL) topmap->help_copy(newkvs);
 				return putIfMatch(topmap, newkvs, key_slot, val_slot, expVal);
 			}
 
-			idx = (idx + 1) & (len - 1); // Reprobe
-		} // End of spinning till we get a Key slot
-
-		if (val_slot == V) return V; // Fast cutout for no-change
-	
-		// Here it tries to resize cause it doesn't want other threads to stop
-		// its progress (eagerly try to resize soon)
-		newkvs = chm->_newkvs.load(memory_order_acquire);
+			idx = (idx + 1) & (len - 1); 		} 
+		if (val_slot == V) return V; 	
+						newkvs = chm->_newkvs.load(memory_order_acquire);
 		if (newkvs == NULL &&
 			((V == NULL && chm->table_full(reprobe_cnt, len)) || is_prime(V)))
-			newkvs = chm->resize(topmap, kvs); // Force the copy to start
-		
-		// Finish the copy and then put it in the new table
-		if (newkvs != NULL)
+			newkvs = chm->resize(topmap, kvs); 		
+				if (newkvs != NULL)
 			return putIfMatch(topmap, chm->copy_slot_and_check(topmap, kvs, idx,
 				expVal), key_slot, val_slot, expVal);
 		
-		// Decided to update the existing table
-		while (true) {
+				while (true) {
 			MODEL_ASSERT (!is_prime(V));
 
 			if (expVal != NO_MATCH_OLD &&
@@ -776,46 +744,58 @@ friend class CHM;
 				(expVal != MATCH_ANY || V == TOMBSTONE || V == NULL) &&
 				!(V == NULL && expVal == TOMBSTONE) &&
 				(expVal == NULL || !valeq(expVal, V))) {
-				/**
-					@Begin
-					@Commit_point_define: expVal == TOMBSTONE
-					@Potential_commit_point_label: Read_Val_Point
-					@Label: PutIfAbsent_Fail_Point
-						# This is a check for the PutIfAbsent() when the value
-						# is not absent
-					@End
-				*/
-				/**
-					@Begin
-					@Commit_point_define: expVal != NULL && val_slot == TOMBSTONE
-					@Potential_commit_point_label: Read_Val_Point
-					@Label: RemoveIfMatch_Fail_Point
-					@End
-				*/
-				/**
-					@Begin
-					@Commit_point_define: !valeq(expVal, V)
-					@Potential_commit_point_label: Read_Val_Point
-					@Label: ReplaceIfMatch_Fail_Point
-					@End
-				*/
-				return V; // Do not update!
-			}
+	/* Automatically generated code for commit point define: PutIfAbsent_Fail_Point */
+
+	if (expVal == TOMBSTONE) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 5;
+		cp_define->potential_cp_label_num = 0;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+				
+	/* Automatically generated code for commit point define: RemoveIfMatch_Fail_Point */
+
+	if (expVal != NULL && val_slot == TOMBSTONE) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 6;
+		cp_define->potential_cp_label_num = 0;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+				
+	/* Automatically generated code for commit point define: ReplaceIfMatch_Fail_Point */
+
+	if (! valeq ( expVal , V )) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 7;
+		cp_define->potential_cp_label_num = 0;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+				
+				return V; 			}
 
 			if (CAS_val(kvs, idx, V, val_slot)) {
-				/**
-					@Begin
-					# The only point where a successful put happens
-					@Commit_point_define: true
-					@Potential_commit_point_label: Write_Val_Point
-					@Label: Write_Success_Point
-					@End
-				*/
-				if (expVal != NULL) { // Not called by a table-copy
-					// CAS succeeded, should adjust size
-					// Both normal put's and table-copy calls putIfMatch, but
-					// table-copy does not increase the number of live K/V pairs
-					if ((V == NULL || V == TOMBSTONE) &&
+	/* Automatically generated code for commit point define: Write_Success_Point */
+
+	if (true) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 8;
+		cp_define->potential_cp_label_num = 1;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+				
+				if (expVal != NULL) { 																				if ((V == NULL || V == TOMBSTONE) &&
 						val_slot != TOMBSTONE)
 						chm->_size.fetch_add(1, memory_order_relaxed);
 					if (!(V == NULL || V == TOMBSTONE) &&
@@ -824,23 +804,32 @@ friend class CHM;
 				}
 				return (V == NULL && expVal != NULL) ? TOMBSTONE : V;
 			}
-			// Else CAS failed
-			V = val(kvs, idx);
+						V = val(kvs, idx);
 			if (is_prime(V))
 				return putIfMatch(topmap, chm->copy_slot_and_check(topmap, kvs,
 					idx, expVal), key_slot, val_slot, expVal);
 		}
 	}
 
-	// Help along an existing table-resize. This is a fast cut-out wrapper.
-	kvs_data* help_copy(kvs_data *helper) {
+		kvs_data* help_copy(kvs_data *helper) {
 		kvs_data *topkvs = _kvs.load(memory_order_acquire);
 		CHM *topchm = get_chm(topkvs);
-		// No cpy in progress
-		if (topchm->_newkvs.load(memory_order_acquire) == NULL) return helper;
+				if (topchm->_newkvs.load(memory_order_acquire) == NULL) return helper;
 		topchm->help_copy_impl(this, topkvs, false);
 		return helper;
 	}
 };
+template<typename TypeK, typename TypeV>
+void** cliffc_hashtable<TypeK, TypeV>::func_ptr_table;
+template<typename TypeK, typename TypeV>
+anno_hb_init** cliffc_hashtable<TypeK, TypeV>::hb_init_table;
+template<typename TypeK, typename TypeV>
+spec_table * cliffc_hashtable<TypeK, TypeV>::map;
+template<typename TypeK, typename TypeV>
+spec_table * cliffc_hashtable<TypeK, TypeV>::id_map;
+template<typename TypeK, typename TypeV>
+id_tag_t * cliffc_hashtable<TypeK, TypeV>::tag;
+
 
 #endif
+

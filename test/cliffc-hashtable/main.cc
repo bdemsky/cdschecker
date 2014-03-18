@@ -99,25 +99,21 @@ int user_main(int argc, char *argv[]) {
 
 	thrd_create(&t1, threadA, NULL);
 	thrd_create(&t2, threadB, NULL);
-	//thrd_create(&t3, threadC, NULL);
-	//thrd_create(&t4, threadD, NULL);
-
+		
 	thrd_join(t1);
 	thrd_join(t2);
-	//thrd_join(t3);
-	//thrd_join(t4);
-	
+			
 	if (val1 == NULL) {
 		cout << "val1: NULL" << endl;
 	} else {
 		cout << val1->get() << endl;
 	}
-	//MODEL_ASSERT(val1 == NULL || val1->get() == 2 || val1->get() == 81);
-	if (val2 == NULL) {
+		if (val2 == NULL) {
 		cout << "val2: NULL" << endl;
 	} else {
 		cout << val2->get() << endl;
 	}
 	return 0;
 }
+
 

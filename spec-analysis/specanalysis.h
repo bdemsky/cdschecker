@@ -61,7 +61,7 @@ typedef struct commit_point_node {
 	edge_list_t *edges;
 
 	// For DFS
-	int color;
+	int color; // 0 -> undiscovered; 1 -> discovered; 2 -> visited
 	int finish_time_stamp;
 	
 	void addEdge(commit_point_node *next, cp_edge_type type) {
@@ -70,16 +70,17 @@ typedef struct commit_point_node {
 		}
 		ModelAction *op = next->operation;
 		// Special routine for RF
-		model_print("%d\n", op->get_type());
+		//model_print("%d\n", op->get_type());
 		if (type == RF) {
 			if (op->get_type() == ATOMIC_READ) {
 				edges->push_back(new commit_point_edge(type, next));
-				model_print("RF read\n");
+				//model_print("RF read\n");
 			} else {
 				edges->push_front(new commit_point_edge(type, next));
-				model_print("RF non-read\n");
+				//model_print("RF non-read\n");
 			}
 		} else {
+			//model_print("non-RF\n");
 			//model_print("non-RF\n");
 			edges->push_back(new commit_point_edge(type, next));
 		}
@@ -125,6 +126,7 @@ class SPECAnalysis : public TraceAnalysis {
 		*iter, const ModelAction *anno);
 	void buildEdges();
 	node_list_t* sortCPGraph();
+	bool isCyclic();
 	bool check(node_list_t *sorted_commit_points);
 	void freeCPNodes();
 	void test();
