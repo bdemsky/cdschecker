@@ -34,7 +34,8 @@ typedef HashTable<call_id_t, node_list_t*, uintptr_t, 4> hb_table_t;
 
 
 typedef enum cp_edge_type {
-	HB, MO, RF // Happens-before, Modification-order & Reads-from
+	HB, MO, RF, // Happens-before, Modification-order & Reads-from
+	RBW // Read-before-write(for RF)
 } edge_type;
 
 typedef struct commit_point_edge {
@@ -69,21 +70,31 @@ typedef struct commit_point_node {
 			edges = new edge_list_t();
 		}
 		ModelAction *op = next->operation;
+		commit_point_edge *new_edge = new commit_point_edge(type, next);
+		edges->push_back(new_edge);
+		/*
 		// Special routine for RF
-		//model_print("%d\n", op->get_type());
 		if (type == RF) {
 			if (op->get_type() == ATOMIC_READ) {
 				edges->push_back(new commit_point_edge(type, next));
-				//model_print("RF read\n");
+				//model_print("Read %d: RF read\n", op->get_seq_number());
 			} else {
 				edges->push_front(new commit_point_edge(type, next));
-				//model_print("RF non-read\n");
+				//model_print("NonRead %d: RF read\n", op->get_seq_number());
 			}
 		} else {
 			//model_print("non-RF\n");
-			//model_print("non-RF\n");
-			edges->push_back(new commit_point_edge(type, next));
+			//model_print("NonRF %d\n", op->get_seq_number());
+			edges->push_front(new commit_point_edge(type, next));
 		}
+		
+		for (edge_list_t::iterator iter = edges->begin(); iter != edges->end();
+			iter++) {
+			commit_point_edge *e = *iter;
+			int index = distance(edges->begin(), iter);
+			model_print("Edge%d: %d\n", index, e->next_node->operation->get_seq_number());
+		}
+		*/
 	}
 
 	MEMALLOC
@@ -130,7 +141,8 @@ class SPECAnalysis : public TraceAnalysis {
 	bool check(node_list_t *sorted_commit_points);
 	void freeCPNodes();
 	void test();
-	void dumpGraph();
+	void dumpGraph(node_list_t *sorted_commit_points);
+	void dumpDotGraph();
 	void dumpNode(commit_point_node *node);
 	void traverseActions(action_list_t *actions);
 };

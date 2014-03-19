@@ -55,12 +55,13 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	node_list_t *sorted_commit_points = sortCPGraph();
 	if (sorted_commit_points == NULL) {
 		model_print("Wired data structure, fail to check!\n");
+		dumpGraph(sorted_commit_points);
 		return;
 	}
-	//dumpGraph();
 	bool passed = check(sorted_commit_points);
 	if (!passed) {
 		model_print("Error exists!!\n");
+		dumpGraph(sorted_commit_points);
 	} else {
 		//model_print("Passed all the safety checks!\n");
 	}
@@ -87,7 +88,7 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		if (!passed) {
 			model_print("Interface %d failed\n", interface_num);
 			model_print("ID: %d\n", __ID__);
-			model_print("Error exists in simple check!!\n");
+			model_print("Error exists in correctness check!!\n");
 			return false;
 		}
 		//model_print("%d interface call passed\n", interface_num);
@@ -137,8 +138,9 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 							// Check hb here
 							if (!n1->begin->happens_before(n2->end)) {
 								model_print("Error exists in hb check!!\n");
-								//dumpNode(n1);
-								//dumpNode(n2);
+								dumpNode(n1);
+								dumpNode(n2);
+								model_print("HB violation ends!!\n");
 								return false;
 							} else {
 								//model_print("hey passed one HB check!\n");
@@ -163,9 +165,19 @@ bool SPECAnalysis::isCyclic() {
 }
 
 
+static void dumpNodeUtil(commit_point_node *node, const char *msg) {
+	ModelAction *act = node->operation;
+	model_print("%s node: %d, %d, %d\n", msg, act->get_seq_number(), act->get_tid(),
+		node->interface_num);
+}
+
 /**
 	Topologically sort the commit points graph; If they are not restricted to
-	any of the HB, MO & RF rules, they should keep their trace order (to);
+	any of the HB, MO & RF rules, they should keep their trace order;
+	Here are some rules:
+	1. If there's multiple outgoing reads-from edges, read nodes are
+	prioritized;
+	2. 
 */
 node_list_t* SPECAnalysis::sortCPGraph() {
 	node_list_t *sorted_list = new node_list_t();
@@ -187,6 +199,7 @@ node_list_t* SPECAnalysis::sortCPGraph() {
 			stack->pop_back();
 			if (node->color == 0) { // Just discover this node before
 				node->color = 1;
+				//dumpNodeUtil(node, "Out of stack discovered");
 				stack->push_back(node);
 				if (node->edges != NULL) { // Push back undiscovered nodes
 					// Cautious!! Push HB & MO edges first then RF
@@ -194,11 +207,15 @@ node_list_t* SPECAnalysis::sortCPGraph() {
 						node->edges->rbegin(); rit != node->edges->rend(); rit++) {
 						commit_point_node *next_node = (*rit)->next_node;
 						if (next_node->color == 1) { // back edge -> cycle
+							dumpNodeUtil(next_node, "cycle");
 							model_print("There exists cycles in this graph!\n");
 							return NULL;
 						}
 						if (next_node->color == 0) {
 							stack->push_back(next_node);
+							//dumpNodeUtil(next_node, "Discovered");
+						} else {
+							//dumpNodeUtil(next_node, "Visited");
 						}
 					}
 				}
@@ -213,6 +230,12 @@ node_list_t* SPECAnalysis::sortCPGraph() {
 	return sorted_list;
 }
 
+
+/**
+	Be cautious: The order of adding edges to the node matters. It should
+	cooperate with the sortCPGraph() method in order to prioritize some edges.
+	Read the comment in sortCPGraph().
+*/
 void SPECAnalysis::buildEdges() {
 	//model_print("Building edges...\n");
 	action_list_t::iterator iter1, iter2;
@@ -224,7 +247,9 @@ void SPECAnalysis::buildEdges() {
 				*act2 = *iter2;
 			commit_point_node *node1 = cpGraph->get(act1),	
 				*node2 = cpGraph->get(act2);
-			// When sorting, we favor RF, so we add RF edge first
+			// When sorting, we prioritize RF, so we add RF edge first
+			// Within RF, we prioritize the commit points that are read
+			// operations
 			if (act2->get_reads_from() == act1) {
 				node1->addEdge(node2, RF);
 				//dumpNode(node1);
@@ -245,6 +270,37 @@ void SPECAnalysis::buildEdges() {
 			}
 		}
 	}
+	// Need to build extra edges (RBW edges to prioritize reads in RF)
+	action_list_t::iterator iter;
+	for (iter = cpActions->begin(); iter != cpActions->end(); iter++) {
+		const ModelAction *act = *iter;
+		commit_point_node *node = cpGraph->get(act);
+		if (node->edges == NULL)
+			continue;
+		for (edge_list_t::iterator eIter1 = node->edges->begin(); eIter1 !=
+				node->edges->end(); eIter1++) {
+			commit_point_edge *e1 = *eIter1;
+			if (e1->type == RF && e1->next_node->operation->get_type() ==
+				ATOMIC_READ) {
+				for (edge_list_t::iterator eIter2 = node->edges->begin(); eIter2 !=
+					node->edges->end(); eIter2++) {
+					commit_point_edge *e2 = *eIter2;
+					if (e2->next_node->operation->get_type() != ATOMIC_READ
+						&& e2->type == RF && e1->next_node->operation->get_location() ==
+						e2->next_node->operation->get_location()) {
+						// Add the RBW edge
+						e1->next_node->addEdge(e2->next_node, RBW);
+						model_print("add a RBW edge\n");
+						//dumpNode(e1->next_node);
+						//dumpNode(e2->next_node);
+					}
+				}
+			}
+		}
+
+
+	}
+
 	//model_print("Finish building edges!\n");
 }
 
@@ -272,12 +328,16 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 	const ModelAction *act = *it;
 	thread_id_t tid = act->get_tid();
 	commit_point_node *node = new commit_point_node();
+	//Initialize the commit_point_node
 	spec_annotation *anno = (spec_annotation*) act->get_location();
 	assert(anno->type == INTERFACE_BEGIN);
 	anno_interface_begin *begin_anno = (anno_interface_begin*) anno->annotation;
 	int interface_num = begin_anno->interface_num;
 	node->interface_num = interface_num;
 	node->begin = act;
+	// Don't forget the color
+	node->color = 0;
+
 	anno_cp_define *cp_define;
 	anno_potential_cp_define *pcp_define;
 	// A list of potential commit points
@@ -431,11 +491,12 @@ void SPECAnalysis::dumpNode(commit_point_node *node) {
 	model_print("Node: %d, %d, %d\n", act->get_seq_number(), act->get_tid(),
 		node->interface_num);
 	if (node->edges == NULL) return;
-	for (edge_list_t::reverse_iterator rit =
-		node->edges->rbegin(); rit != node->edges->rend(); rit++) {
-		commit_point_node *next_node = (*rit)->next_node;
-		const char *relationMsg = (*rit)->type == HB ? "HB" : (*rit)->type == RF ?
-			"RF" : "MO";
+	for (edge_list_t::iterator it = node->edges->begin();
+		it != node->edges->end(); it++) {
+		commit_point_node *next_node = (*it)->next_node;
+		cp_edge_type type = (*it)->type;
+		const char *relationMsg = type == HB ? "HB" : type == RF ?
+			"RF" : type == MO ? "MO" : "RBW";
 		model_print("Edge: %d, %d, %s\n", next_node->operation->get_seq_number(),
 			next_node->interface_num, relationMsg);
 	}
@@ -452,13 +513,52 @@ void SPECAnalysis::dumpActions(action_list_t actions) {
 	}
 }*/
 
-void SPECAnalysis::dumpGraph() {
+void SPECAnalysis::dumpDotGraph() {
+	model_print("#---------- Dump Dot Graph Begin ----------\n");
+	model_print("digraph {\n");
+	action_list_t::iterator iter = cpActions->begin();
+	for (; iter != cpActions->end(); iter++) {
+		ModelAction *act = *iter;
+		commit_point_node *node = cpGraph->get(act);
+
+		model_print("\tn%d[label=\"%d_%d\"];\n", act->get_seq_number(),
+			act->get_seq_number(), node->interface_num);
+		if (node->edges == NULL) return;
+		for (edge_list_t::iterator it = node->edges->begin();
+			it != node->edges->end(); it++) {
+			commit_point_node *next_node = (*it)->next_node;
+			cp_edge_type type = (*it)->type;
+			const char *relationMsg = type == HB ? "HB" : type == RF ?
+				"RF" : type == MO ? "MO" : "RBW";
+			model_print("\tn%d->n%d[label=\"%s\"];\n", act->get_seq_number(),
+				next_node->operation->get_seq_number(), relationMsg);
+		}
+	}
+	model_print("}\n");
+	model_print("---------- Dump Dot Graph End ----------\n");
+}
+
+void SPECAnalysis::dumpGraph(node_list_t *sorted_commit_points) {
 	model_print("---------- Dump Graph Begin ----------\n");
+	model_print("Name: Seq, TID, Interface\n");
 	action_list_t::iterator iter = cpActions->begin();
 	for (; iter != cpActions->end(); iter++) {
 		ModelAction *act = *iter;
 		commit_point_node *node = cpGraph->get(act);
 		dumpNode(node);
+	}
+
+	dumpDotGraph();
+
+	model_print("---------- Sorted Nodes --------------\n");
+	if (sorted_commit_points == NULL) {
+		return;
+	}
+	node_list_t::iterator nodeIter;
+	for (nodeIter = sorted_commit_points->begin(); nodeIter !=
+		sorted_commit_points->end(); nodeIter++) {
+		commit_point_node *n = *nodeIter;
+		dumpNode(n);
 	}
 	model_print("---------- Dump Graph End ----------\n");
 }
