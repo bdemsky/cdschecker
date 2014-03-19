@@ -14,6 +14,7 @@ SPECAnalysis::SPECAnalysis()
 	execution = NULL;
 	func_table = NULL;
 	hb_rules = new hbrule_list_t();
+	isBrokenExecution = false;
 }
 
 SPECAnalysis::~SPECAnalysis() {
@@ -38,12 +39,14 @@ bool SPECAnalysis::option(char * opt) {
 }
 
 void SPECAnalysis::analyze(action_list_t *actions) {
-	if (trace_num_cnt % 1000 == 0)
+	//if (trace_num_cnt % 1000 == 0)
 		model_print("SPECAnalysis analyzing: %d!\n", trace_num_cnt);
 	trace_num_cnt++;
 	//traverseActions(actions);
 	
 	buildCPGraph(actions);
+	if (isBrokenExecution)
+		return;
 	if (func_table == NULL) {
 		model_print("Missing the entry point annotation!\n");
 		return;
@@ -473,8 +476,14 @@ void SPECAnalysis::buildCPGraph(action_list_t *actions) {
 				node = getCPNode(actions, &iter);
 				if (node != NULL) {
 					// Store the graph in a hashtable
-					cpGraph->put(node->operation, node);
-					cpActions->push_back(node->operation);
+					if (node->operation == NULL) {
+						isBrokenExecution = true;
+						model_print("Wired, Null action!!\n");
+						return;
+					} else {
+						cpGraph->put(node->operation, node);
+						cpActions->push_back(node->operation);
+					}
 				}
 				break;
 			default:

@@ -54,10 +54,11 @@ inline static bool Write_Trylock_check_action(void *info, call_id_t __ID__, thre
 	rwlock_t * rw = theInfo->rw;
 
 	bool __COND_SAT__ = ! writer_lock_acquired && reader_lock_cnt == 0;
+	/*
 	model_print("__RET__: %d\n", __RET__);
 	model_print("writer_lock_acquired: %d\n", writer_lock_acquired);
 	model_print("reader_lock_cnt: %d\n", reader_lock_cnt);
-	model_print("__COND_SAT__: %d\n", __COND_SAT__);
+	model_print("__COND_SAT__: %d\n", __COND_SAT__);*/
 	if ( __COND_SAT__ ) writer_lock_acquired = true ;
 	check_passed = __COND_SAT__ ? __RET__ == 1 : __RET__ == 0;
 	if (!check_passed) {

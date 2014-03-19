@@ -118,6 +118,8 @@ class SPECAnalysis : public TraceAnalysis {
 	ModelExecution *execution;
 	void **func_table;
 	hbrule_list_t *hb_rules;
+	bool isBrokenExecution;
+
 
 	/**
 	 * Hashtable that contains all the commit point nodes, the reason to use the
