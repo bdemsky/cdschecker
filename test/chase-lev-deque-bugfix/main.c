@@ -15,7 +15,6 @@ int c;
 
 static void task(void * param) {
 	a=steal(q);
-	a=steal(q);
 }
 
 int user_main(int argc, char **argv)

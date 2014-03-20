@@ -159,15 +159,15 @@ t_element * read_fetch() {
 	
 t_element * __wrapper__read_fetch() {
 		unsigned int rdwr = m_rdwr.load(mo_acquire);
-	/* Automatically generated code for commit point define check: Fetch_Succ_Point1 */
+	/* Automatically generated code for potential commit point: Fetch_Potential_Point */
 
-	if (( rdwr >> 16 ) & 0xFFFF == rdwr & 0xFFFF) {
-		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 0;
-		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define_check->type = CP_DEFINE_CHECK;
-		annotation_cp_define_check->annotation = cp_define_check;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	if (true) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 0;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
 	}
 		
 		unsigned int rd,wr;
@@ -175,7 +175,19 @@ t_element * __wrapper__read_fetch() {
 			rd = (rdwr>>16) & 0xFFFF;
 			wr = rdwr & 0xFFFF;
 
-			if ( wr == rd ) { 				return false;
+	/* Automatically generated code for commit point define: Fetch_Fail_Point */
+
+	if (true) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 1;
+		cp_define->potential_cp_label_num = 0;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+			if ( wr == rd ) { 				
+				return false;
 			}
 			
 			bool succ = m_rdwr.compare_exchange_weak(rdwr,rdwr+(1<<16),mo_acq_rel);
@@ -189,11 +201,11 @@ t_element * __wrapper__read_fetch() {
 				rl::backoff bo;
 		while ( true ) {
 			unsigned int tmp = m_written.load(mo_acquire);
-	/* Automatically generated code for commit point define check: Fetch_Succ_Point2 */
+	/* Automatically generated code for commit point define check: Fetch_Succ_Point */
 
 	if (( tmp & 0xFFFF ) == wr) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 1;
+		cp_define_check->label_num = 2;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -279,7 +291,7 @@ void __wrapper__write_publish(t_element * elem)
 
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 2;
+		cp_define_check->label_num = 3;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;

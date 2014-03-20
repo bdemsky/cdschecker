@@ -25,7 +25,6 @@ int take(Deque * q) {
 	annotation_interface_begin->annotation = interface_begin;
 	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
 	int __RET__ = __wrapper__take(q);
-	model_print("take: %d\n", __RET__);
 	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
 	hb_condition->interface_num = 0; // Take
 	hb_condition->hb_condition_num = 0;
@@ -134,7 +133,6 @@ void push(Deque * q, int x) {
 	annotation_interface_begin->annotation = interface_begin;
 	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
 	__wrapper__push(q, x);
-	model_print("push: %d\n", x);
 	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
 	hb_condition->interface_num = 1; // Push
 	hb_condition->hb_condition_num = 0;
@@ -192,7 +190,6 @@ int steal(Deque * q) {
 	annotation_interface_begin->annotation = interface_begin;
 	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
 	int __RET__ = __wrapper__steal(q);
-	model_print("steal: %d\n", __RET__);
 	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
 	hb_condition->interface_num = 2; // Steal
 	hb_condition->hb_condition_num = 0;
@@ -274,6 +271,7 @@ int __wrapper__steal(Deque * q) {
 	}
 		
 		if (!succ) {
+			
 			return ABORT;
 		}
 	}

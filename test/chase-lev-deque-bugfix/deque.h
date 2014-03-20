@@ -59,7 +59,7 @@ inline static call_id_t Steal_id(void *info, thread_id_t __TID__) {
 	int __RET__ = theInfo->__RET__;
 	Deque * q = theInfo->q;
 
-	call_id_t __ID__ = size ( __deque ) == 0 ? DEFAULT_CALL_ID : get_id ( front ( __deque ) );
+	call_id_t __ID__ = ( __RET__ == EMPTY || __RET__ == ABORT ) ? DEFAULT_CALL_ID : get_id ( front ( __deque ) );
 	return __ID__;
 }
 /* End of ID function: Steal */
@@ -96,7 +96,7 @@ inline static call_id_t Take_id(void *info, thread_id_t __TID__) {
 	int __RET__ = theInfo->__RET__;
 	Deque * q = theInfo->q;
 
-	call_id_t __ID__ = size ( __deque ) == 0 ? DEFAULT_CALL_ID : get_id ( back ( __deque ) );
+	call_id_t __ID__ = __RET__ == EMPTY ? DEFAULT_CALL_ID : get_id ( back ( __deque ) );
 	return __ID__;
 }
 /* End of ID function: Take */

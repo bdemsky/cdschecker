@@ -39,7 +39,7 @@ bool SPECAnalysis::option(char * opt) {
 }
 
 void SPECAnalysis::analyze(action_list_t *actions) {
-	if (trace_num_cnt % 1000 == 0)
+	//if (trace_num_cnt % 1000 == 0)
 		model_print("SPECAnalysis analyzing: %d!\n", trace_num_cnt);
 	trace_num_cnt++;
 	//traverseActions(actions);
@@ -385,7 +385,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 								node->operation = pcp_info->operation;
 								node->cp_label_num = pcp_info->label_num;
 							} else {
-								model_print("Multiple commit points.\n");
+								model_print("CP_DEFINE, Multiple commit points.\n");
 								return NULL;
 							}
 						}
@@ -398,7 +398,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 				node->operation = getPrevAction(actions, &it, act);
 				node->cp_label_num = cp_define_check->label_num;
 				if (hasCommitPoint) {
-					model_print("Multiple commit points.\n");
+					model_print("CP_DEFINE_CHECK, Multiple commit points.\n");
 					return NULL;
 				}
 				hasCommitPoint = true;
