@@ -39,7 +39,7 @@ bool SPECAnalysis::option(char * opt) {
 }
 
 void SPECAnalysis::analyze(action_list_t *actions) {
-	//if (trace_num_cnt % 1000 == 0)
+	if (trace_num_cnt % 1000 == 0)
 		model_print("SPECAnalysis analyzing: %d!\n", trace_num_cnt);
 	trace_num_cnt++;
 	//traverseActions(actions);
@@ -62,6 +62,8 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		return;
 	}
 	bool passed = check(sorted_commit_points);
+
+	//dumpGraph(sorted_commit_points);
 	if (!passed) {
 		model_print("Error exists!!\n");
 		dumpGraph(sorted_commit_points);
@@ -288,12 +290,10 @@ void SPECAnalysis::buildEdges() {
 				for (edge_list_t::iterator eIter2 = node->edges->begin(); eIter2 !=
 					node->edges->end(); eIter2++) {
 					commit_point_edge *e2 = *eIter2;
-					if (e2->next_node->operation->get_type() != ATOMIC_READ
-						&& e2->type == RF && e1->next_node->operation->get_location() ==
-						e2->next_node->operation->get_location()) {
+					if (e2->next_node->operation->get_type() != ATOMIC_READ) {
 						// Add the RBW edge
-						e1->next_node->addEdge(e2->next_node, RBW);
-						model_print("add a RBW edge\n");
+						//e1->next_node->addEdge(e2->next_node, RBW);
+						//model_print("add a RBW edge\n");
 						//dumpNode(e1->next_node);
 						//dumpNode(e2->next_node);
 					}
@@ -307,6 +307,8 @@ void SPECAnalysis::buildEdges() {
 	//model_print("Finish building edges!\n");
 }
 
+// Given the current iterator and the annotation, return the latest operation in
+// the trace of that thread
 ModelAction* SPECAnalysis::getPrevAction(action_list_t *actions,
 	action_list_t::iterator *iter, const ModelAction *anno) {
 	action_list_t::iterator it = *iter;
@@ -343,6 +345,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 
 	anno_cp_define *cp_define;
 	anno_potential_cp_define *pcp_define;
+	anno_cp_define_check *cp_define_check;
 	// A list of potential commit points
 	pcp_list_t *pcp_list = new pcp_list_t();
 	potential_cp_info *pcp_info;
@@ -380,6 +383,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 							if (!hasCommitPoint) {
 								hasCommitPoint = true;
 								node->operation = pcp_info->operation;
+								node->cp_label_num = pcp_info->label_num;
 							} else {
 								model_print("Multiple commit points.\n");
 								return NULL;
@@ -390,7 +394,9 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 				break;
 			case CP_DEFINE_CHECK:
 				//model_print("CP_DEFINE_CHECK\n");
+				cp_define_check = (anno_cp_define_check*) anno->annotation;
 				node->operation = getPrevAction(actions, &it, act);
+				node->cp_label_num = cp_define_check->label_num;
 				if (hasCommitPoint) {
 					model_print("Multiple commit points.\n");
 					return NULL;
@@ -497,8 +503,8 @@ void SPECAnalysis::freeCPNodes() {
 
 void SPECAnalysis::dumpNode(commit_point_node *node) {
 	ModelAction *act = node->operation;
-	model_print("Node: %d, %d, %d\n", act->get_seq_number(), act->get_tid(),
-		node->interface_num);
+	model_print("Node: %d, %d, %d__%d\n", act->get_seq_number(), act->get_tid(),
+		node->interface_num, node->cp_label_num);
 	if (node->edges == NULL) return;
 	for (edge_list_t::iterator it = node->edges->begin();
 		it != node->edges->end(); it++) {

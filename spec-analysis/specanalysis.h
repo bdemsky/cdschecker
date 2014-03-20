@@ -14,6 +14,8 @@
 struct commit_point_node;
 struct commit_point_edge;
 
+// Record the a potential commit point information, including the potential
+// commit point label number and the corresponding operation
 typedef struct potential_cp_info {
 	int label_num;
 	ModelAction *operation;
@@ -52,13 +54,14 @@ typedef struct commit_point_edge {
 } commit_point_edge;
 
 typedef struct commit_point_node {
-	const ModelAction *begin;
-	ModelAction *operation;
+	const ModelAction *begin; // Interface begin annotation
+	ModelAction *operation; // Commit point operation
 	hbcond_list_t *hb_conds;
 	call_id_t __ID__;
-	int interface_num;
+	int interface_num; // Interface number
+	int cp_label_num; // Commit point label number
 	void *info;
-	const ModelAction *end;
+	const ModelAction *end; // Interface end annotation
 	edge_list_t *edges;
 
 	// For DFS

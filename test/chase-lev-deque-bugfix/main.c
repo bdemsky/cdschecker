@@ -13,29 +13,24 @@ int a;
 int b;
 int c;
 
-static void task1(void * param) {
+static void task(void * param) {
 	a=steal(q);
-}
-
-static void task2(void * param) {
-	a=take(q);
+	a=steal(q);
 }
 
 int user_main(int argc, char **argv)
 {
 	__sequential_init();
 	
-	thrd_t t1, t2;
+	thrd_t t;
 	q=create();
+	thrd_create(&t, task, 0);
 	push(q, 1);
 	push(q, 2);
-	thrd_create(&t1, task1, 0);
-	thrd_create(&t2, task2, 0);
 	push(q, 4);
 	b=take(q);
 	c=take(q);
-	thrd_join(t1);
-	thrd_join(t2);
+	thrd_join(t);
 
 	bool correct=true;
 	if (a!=1 && a!=2 && a!=4 && a!= EMPTY)

@@ -1,5 +1,6 @@
 #ifndef DEQUE_H
 #define DEQUE_H
+
 #include <spec_lib.h>
 #include <stdlib.h>
 #include <cdsannotate.h>

@@ -7,7 +7,7 @@
 #include <cdsannotate.h>
 #include <specannotation.h>
 #include <model_memory.h>
-#include <common.h>
+#include "common.h"
 
 #include "librace.h"
 
@@ -53,17 +53,7 @@ inline static bool Write_Trylock_check_action(void *info, call_id_t __ID__, thre
 	int __RET__ = theInfo->__RET__;
 	rwlock_t * rw = theInfo->rw;
 
-	bool __COND_SAT__ = ! writer_lock_acquired && reader_lock_cnt == 0;
-	/*
-	model_print("__RET__: %d\n", __RET__);
-	model_print("writer_lock_acquired: %d\n", writer_lock_acquired);
-	model_print("reader_lock_cnt: %d\n", reader_lock_cnt);
-	model_print("__COND_SAT__: %d\n", __COND_SAT__);*/
-	if ( __COND_SAT__ ) writer_lock_acquired = true ;
-	check_passed = __COND_SAT__ ? __RET__ == 1 : __RET__ == 0;
-	if (!check_passed) {
-		return false;
-	}
+	if ( __RET__ == 1 ) writer_lock_acquired = true ;
 	return true;
 }
 /* End of check action function: Write_Trylock */
@@ -242,37 +232,65 @@ inline static void __sequential_init() {
 	func_ptr_table[2 * 4 + 1] = (void*) &Read_Unlock_check_action;
 	func_ptr_table[2 * 0] = (void*) &Read_Lock_id;
 	func_ptr_table[2 * 0 + 1] = (void*) &Read_Lock_check_action;
-	/* Write_Unlock(true) -> Write_Lock(true) */
+	/* Read_Unlock(true) -> Write_Lock(true) */
 	struct anno_hb_init *hbConditionInit0 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
-	hbConditionInit0->interface_num_before = 5; // Write_Unlock
+	hbConditionInit0->interface_num_before = 4; // Read_Unlock
 	hbConditionInit0->hb_condition_num_before = 0; // 
 	hbConditionInit0->interface_num_after = 1; // Write_Lock
 	hbConditionInit0->hb_condition_num_after = 0; // 
-	/* Write_Unlock(true) -> Write_Trylock(HB_Write_Trylock_Succ) */
+	/* Read_Unlock(true) -> Write_Trylock(HB_Write_Trylock_Succ) */
 	struct anno_hb_init *hbConditionInit1 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
-	hbConditionInit1->interface_num_before = 5; // Write_Unlock
+	hbConditionInit1->interface_num_before = 4; // Read_Unlock
 	hbConditionInit1->hb_condition_num_before = 0; // 
 	hbConditionInit1->interface_num_after = 3; // Write_Trylock
-	hbConditionInit1->hb_condition_num_after = 0; // HB_Write_Trylock_Succ
-	/* Write_Unlock(true) -> Read_Lock(true) */
+	hbConditionInit1->hb_condition_num_after = 2; // HB_Write_Trylock_Succ
+	/* Read_Unlock(true) -> Read_Lock(true) */
 	struct anno_hb_init *hbConditionInit2 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
-	hbConditionInit2->interface_num_before = 5; // Write_Unlock
+	hbConditionInit2->interface_num_before = 4; // Read_Unlock
 	hbConditionInit2->hb_condition_num_before = 0; // 
 	hbConditionInit2->interface_num_after = 0; // Read_Lock
 	hbConditionInit2->hb_condition_num_after = 0; // 
-	/* Write_Unlock(true) -> Read_Trylock(HB_Read_Trylock_Succ) */
+	/* Read_Unlock(true) -> Read_Trylock(HB_Read_Trylock_Succ) */
 	struct anno_hb_init *hbConditionInit3 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
-	hbConditionInit3->interface_num_before = 5; // Write_Unlock
+	hbConditionInit3->interface_num_before = 4; // Read_Unlock
 	hbConditionInit3->hb_condition_num_before = 0; // 
 	hbConditionInit3->interface_num_after = 2; // Read_Trylock
-	hbConditionInit3->hb_condition_num_after = 1; // HB_Read_Trylock_Succ
+	hbConditionInit3->hb_condition_num_after = 3; // HB_Read_Trylock_Succ
+	/* Write_Unlock(true) -> Write_Lock(true) */
+	struct anno_hb_init *hbConditionInit4 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
+	hbConditionInit4->interface_num_before = 5; // Write_Unlock
+	hbConditionInit4->hb_condition_num_before = 0; // 
+	hbConditionInit4->interface_num_after = 1; // Write_Lock
+	hbConditionInit4->hb_condition_num_after = 0; // 
+	/* Write_Unlock(true) -> Write_Trylock(HB_Write_Trylock_Succ) */
+	struct anno_hb_init *hbConditionInit5 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
+	hbConditionInit5->interface_num_before = 5; // Write_Unlock
+	hbConditionInit5->hb_condition_num_before = 0; // 
+	hbConditionInit5->interface_num_after = 3; // Write_Trylock
+	hbConditionInit5->hb_condition_num_after = 2; // HB_Write_Trylock_Succ
+	/* Write_Unlock(true) -> Read_Lock(true) */
+	struct anno_hb_init *hbConditionInit6 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
+	hbConditionInit6->interface_num_before = 5; // Write_Unlock
+	hbConditionInit6->hb_condition_num_before = 0; // 
+	hbConditionInit6->interface_num_after = 0; // Read_Lock
+	hbConditionInit6->hb_condition_num_after = 0; // 
+	/* Write_Unlock(true) -> Read_Trylock(HB_Read_Trylock_Succ) */
+	struct anno_hb_init *hbConditionInit7 = (struct anno_hb_init*) malloc(sizeof(struct anno_hb_init));
+	hbConditionInit7->interface_num_before = 5; // Write_Unlock
+	hbConditionInit7->hb_condition_num_before = 0; // 
+	hbConditionInit7->interface_num_after = 2; // Read_Trylock
+	hbConditionInit7->hb_condition_num_after = 3; // HB_Read_Trylock_Succ
 	/* Init hb_init_table */
-	hb_init_table = (anno_hb_init**) malloc(sizeof(anno_hb_init*) * 4);
-	#define HB_INIT_TABLE_SIZE 4
+	hb_init_table = (anno_hb_init**) malloc(sizeof(anno_hb_init*) * 8);
+	#define HB_INIT_TABLE_SIZE 8
 	hb_init_table[0] = hbConditionInit0;
 	hb_init_table[1] = hbConditionInit1;
 	hb_init_table[2] = hbConditionInit2;
 	hb_init_table[3] = hbConditionInit3;
+	hb_init_table[4] = hbConditionInit4;
+	hb_init_table[5] = hbConditionInit5;
+	hb_init_table[6] = hbConditionInit6;
+	hb_init_table[7] = hbConditionInit7;
 	/* Pass init info, including function table info & HB rules */
 	struct anno_init *anno_init = (struct anno_init*) malloc(sizeof(struct anno_init));
 	anno_init->func_table = func_ptr_table;
@@ -444,7 +462,7 @@ int read_trylock(rwlock_t * rw) {
 	if (__RET__ == 1) {
 		struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
 		hb_condition->interface_num = 2; // Read_Trylock
-		hb_condition->hb_condition_num = 1;
+		hb_condition->hb_condition_num = 3;
 		struct spec_annotation *annotation_hb_condition = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_hb_condition->type = HB_CONDITION;
 		annotation_hb_condition->annotation = hb_condition;
@@ -523,7 +541,7 @@ int write_trylock(rwlock_t * rw) {
 	if (__RET__ == 1) {
 		struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
 		hb_condition->interface_num = 3; // Write_Trylock
-		hb_condition->hb_condition_num = 0;
+		hb_condition->hb_condition_num = 2;
 		struct spec_annotation *annotation_hb_condition = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_hb_condition->type = HB_CONDITION;
 		annotation_hb_condition->annotation = hb_condition;
@@ -545,7 +563,8 @@ int write_trylock(rwlock_t * rw) {
 
 int __wrapper__write_trylock(rwlock_t * rw)
 {
-	int priorvalue = atomic_fetch_sub_explicit(&rw->lock, RW_LOCK_BIAS, memory_order_acquire);
+	int priorvalue = atomic_fetch_sub_explicit(&rw->lock, RW_LOCK_BIAS,
+	memory_order_relaxed);
 	/* Automatically generated code for potential commit point: Potential_Write_Trylock_Point */
 
 	if (true) {
@@ -556,7 +575,7 @@ int __wrapper__write_trylock(rwlock_t * rw)
 		annotation_potential_cp_define->annotation = potential_cp_define;
 		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
 	}
-	
+		
 	if (priorvalue == RW_LOCK_BIAS) {
 	/* Automatically generated code for commit point define: Write_Trylock_Succ_Point */
 
@@ -599,6 +618,14 @@ void read_unlock(rwlock_t * rw) {
 	annotation_interface_begin->annotation = interface_begin;
 	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
 	__wrapper__read_unlock(rw);
+	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
+	hb_condition->interface_num = 4; // Read_Unlock
+	hb_condition->hb_condition_num = 0;
+	struct spec_annotation *annotation_hb_condition = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+	annotation_hb_condition->type = HB_CONDITION;
+	annotation_hb_condition->annotation = hb_condition;
+	cdsannotate(SPEC_ANALYSIS, annotation_hb_condition);
+
 	Read_Unlock_info* info = (Read_Unlock_info*) malloc(sizeof(Read_Unlock_info));
 	info->rw = rw;
 	struct anno_interface_end *interface_end = (struct anno_interface_end*) malloc(sizeof(struct anno_interface_end));
@@ -679,10 +706,10 @@ static void a(void *obj)
 {
 	int i;
 	for(i = 0; i < 2; i++) {
-		if ((i % 2) == 0) {/*
+		if ((i % 2) == 0) {
 			read_lock(&mylock);
 						printf("%d\n", shareddata);
-			read_unlock(&mylock);*/
+			read_unlock(&mylock);
 		} else {
 			write_lock(&mylock);
 						shareddata = 47;
@@ -696,11 +723,10 @@ static void b(void *obj)
 	int i;
 	for(i = 0; i < 2; i++) {
 		if ((i % 2) == 0) {
-			/*
 			if (read_trylock(&mylock) == 1) {
 				printf("%d\n", shareddata);
 				read_unlock(&mylock);
-			}*/
+			}
 		} else {
 			if (write_trylock(&mylock) == 1) {
 				shareddata = 47;
