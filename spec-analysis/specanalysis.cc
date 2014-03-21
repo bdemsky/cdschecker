@@ -39,7 +39,7 @@ bool SPECAnalysis::option(char * opt) {
 }
 
 void SPECAnalysis::analyze(action_list_t *actions) {
-	//if (trace_num_cnt % 1000 == 0)
+	if (trace_num_cnt % 1000 == 0)
 		model_print("SPECAnalysis analyzing: %d!\n", trace_num_cnt);
 	trace_num_cnt++;
 	//traverseActions(actions);
@@ -290,9 +290,12 @@ void SPECAnalysis::buildEdges() {
 				for (edge_list_t::iterator eIter2 = node->edges->begin(); eIter2 !=
 					node->edges->end(); eIter2++) {
 					commit_point_edge *e2 = *eIter2;
-					if (e2->next_node->operation->get_type() != ATOMIC_READ) {
+					if (e2->next_node->operation->get_type() != ATOMIC_READ &&
+						e2->next_node->operation->get_location() ==
+						e1->next_node->operation->get_location() &&
+						e2->type != RF) {
 						// Add the RBW edge
-						//e1->next_node->addEdge(e2->next_node, RBW);
+						e1->next_node->addEdge(e2->next_node, RBW);
 						//model_print("add a RBW edge\n");
 						//dumpNode(e1->next_node);
 						//dumpNode(e2->next_node);
