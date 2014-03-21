@@ -363,7 +363,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 		switch (anno->type) {
 			case POTENTIAL_CP_DEFINE:
 				//model_print("POTENTIAL_CP_DEFINE\n");
-				// Just wanna make a faster check
+				// Make a faster check
 				pcp_defined = true;
 				pcp_define = (anno_potential_cp_define*) anno->annotation;
 				pcp_info = new potential_cp_info();
@@ -383,14 +383,14 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 						!= pcp_list->end(); pcp_it++) {
 						pcp_info = *pcp_it;
 						if (cp_define->potential_cp_label_num == pcp_info->label_num) {
-							if (!hasCommitPoint) {
+							//if (!hasCommitPoint) {
 								hasCommitPoint = true;
 								node->operation = pcp_info->operation;
 								node->cp_label_num = pcp_info->label_num;
-							} else {
-								model_print("CP_DEFINE, Multiple commit points.\n");
-								return NULL;
-							}
+							//} else {
+							//	model_print("CP_DEFINE, Multiple commit points.\n");
+							//	return NULL;
+							//}
 						}
 					}
 				}
@@ -421,8 +421,10 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 			case INTERFACE_END:
 				//model_print("INTERFACE_END\n");
 				if (!hasCommitPoint) {
-					model_print("Exception: tid_%d\tinterface %d without commit points!\n",
+					model_print("Exception: %d, tid_%d\tinterface %d without commit points!\n",
+						act->get_seq_number(),
 						node->begin->get_tid(), node->interface_num);
+					traverseActions(actions);
 					return NULL;
 				}
 				node->end = act;
@@ -613,35 +615,41 @@ void SPECAnalysis::traverseActions(action_list_t *actions) {
 				break;
 			case INTERFACE_BEGIN:
 				begin_anno = (anno_interface_begin*) anno->annotation;
-				model_print("tid_%d:\tINTERFACE_BEGIN \tinter_num: %d\n",
+				model_print("seq_%d, tid_%d:\tINTERFACE_BEGIN \tinter_num: %d\n",
+					act->get_seq_number(),
 					act->get_tid(), begin_anno->interface_num);
 				interface_num = begin_anno->interface_num;
 				break;
 			case POTENTIAL_CP_DEFINE:
 				pcp_define = (anno_potential_cp_define*) anno->annotation;
-				model_print("tid_%d:\tPOTENTIAL_CP_DEFINE \tlabel: %d\n",
+				model_print("seq_%d, tid_%d:\tPOTENTIAL_CP_DEFINE \tlabel: %d\n",
+					act->get_seq_number(),
 					act->get_tid(), pcp_define->label_num);
 				break;
 			case CP_DEFINE:
 				cp_define = (anno_cp_define*) anno->annotation;
-				model_print("tid_%d:\tCP_DEFINE \tpotential_label: %d, label: %d\n",
+				model_print("seq_%d, tid_%d:\tCP_DEFINE \tpotential_label: %d, label: %d\n",
+					act->get_seq_number(),
 					act->get_tid(), cp_define->potential_cp_label_num,
 						cp_define->label_num);
 				break;
 			case CP_DEFINE_CHECK:
 				cp_define_check = (anno_cp_define_check*) anno->annotation;
-				model_print("tid_%d\tCP_DEFINE_CHECK \tlabel_num: %d\n",
+				model_print("seq_%d, tid_%d\tCP_DEFINE_CHECK \tlabel_num: %d\n",
+					act->get_seq_number(),
 					act->get_tid(), cp_define_check->label_num);
 				break;
 			case INTERFACE_END:
 				end_anno = (anno_interface_end*) anno->annotation;
-				model_print("tid_%d\tINTERFACE_END \tinter_num: %d\n",
+				model_print("seq_%d, tid_%d\tINTERFACE_END \tinter_num: %d\n",
+					act->get_seq_number(),
 					act->get_tid(), end_anno->interface_num);
 				break;
 			case HB_CONDITION:
 				hb_condition = (anno_hb_condition*) anno->annotation;
-				model_print("tid_%d\tHB_CONDITION \tinter_num: %d; hb_cond_num: %d\n",
-				act->get_tid(), hb_condition->interface_num,
+				model_print("seq_%d, tid_%d\tHB_CONDITION \tinter_num: %d; hb_cond_num: %d\n",
+					act->get_seq_number(),
+					act->get_tid(), hb_condition->interface_num,
 					hb_condition->hb_condition_num);
 				break;
 			default:

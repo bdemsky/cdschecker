@@ -15,6 +15,7 @@
 #include <cdsannotate.h>
 #include <specannotation.h>
 #include <model_memory.h>
+#include "common.h" 
 
 using namespace std;
 
@@ -88,17 +89,16 @@ if ( id1 == NULL || id2 == NULL ) return false ;
 return ( * id1 ) . tag == ( * id2 ) . tag ;
 }
 
-inline static id_tag_t getKeyTag ( TypeK * key ) {
-if ( spec_table_contains ( id_map , key ) ) {
-id_tag_t * cur_tag = MODEL_MALLOC ( sizeof ( id_tag_t ) ) ;
-* cur_tag = current ( tag ) ;
-spec_table_put ( id_map , key , cur_tag ) ;
+inline static call_id_t getKeyTag ( TypeK * key ) {
+if ( ! spec_table_contains ( id_map , key ) ) {
+call_id_t cur_id = current ( tag ) ;
+spec_table_put ( id_map , key , ( void * ) cur_id ) ;
 next ( tag ) ;
-return cur_tag ;
+return cur_id ;
 }
 else {
-id_tag_t * res = ( id_tag_t * ) spec_table_get ( id_map , key ) ;
-return * res ;
+call_id_t res = ( call_id_t ) spec_table_get ( id_map , key ) ;
+return res ;
 }
 }
 
@@ -293,6 +293,7 @@ friend class CHM;
 		void help_copy_impl(cliffc_hashtable *topmap, kvs_data *oldkvs,
 			bool copy_all) {
 			MODEL_ASSERT (get_chm(oldkvs) == this);
+			model_print("help_copy_impl\n");
 			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 			int oldlen = oldkvs->_size;
 			int min_copy_work = oldlen > 1024 ? 1024 : oldlen;
@@ -394,16 +395,18 @@ friend class CHM;
 
 	public:
 	cliffc_hashtable() {
-								kvs_data *kvs = new kvs_data(Default_Init_Size);
+	__sequential_init();
+								
+		kvs_data *kvs = new kvs_data(Default_Init_Size);
 		void *chm = (void*) new CHM(0);
 		kvs->_data[0].store(chm, memory_order_relaxed);
 		_kvs.store(kvs, memory_order_release);
 	}
 
 	cliffc_hashtable(int init_size) {
+						
 	__sequential_init();
-								
-
+		
 		kvs_data *kvs = new kvs_data(init_size);
 		void *chm = (void*) new CHM(0);
 		kvs->_data[0].store(chm, memory_order_relaxed);
@@ -722,6 +725,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 				break; 			
 												if (++reprobe_cnt >= reprobe_limit(len) ||
 				K == TOMBSTONE) { 				newkvs = chm->resize(topmap, kvs);
+				model_print("resize1\n");
 								if (expVal != NULL) topmap->help_copy(newkvs);
 				return putIfMatch(topmap, newkvs, key_slot, val_slot, expVal);
 			}
@@ -730,8 +734,10 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 		if (val_slot == V) return V; 	
 						newkvs = chm->_newkvs.load(memory_order_acquire);
 		if (newkvs == NULL &&
-			((V == NULL && chm->table_full(reprobe_cnt, len)) || is_prime(V)))
-			newkvs = chm->resize(topmap, kvs); 		
+			((V == NULL && chm->table_full(reprobe_cnt, len)) || is_prime(V))) {
+			model_print("resize2\n");
+			newkvs = chm->resize(topmap, kvs); 		}
+		
 				if (newkvs != NULL)
 			return putIfMatch(topmap, chm->copy_slot_and_check(topmap, kvs, idx,
 				expVal), key_slot, val_slot, expVal);
@@ -770,7 +776,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 				
 	/* Automatically generated code for commit point define: ReplaceIfMatch_Fail_Point */
 
-	if (! valeq ( expVal , V )) {
+	if (expVal != NULL && ! valeq ( expVal , V )) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 7;
 		cp_define->potential_cp_label_num = 0;

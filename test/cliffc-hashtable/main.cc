@@ -53,66 +53,49 @@ cliffc_hashtable<IntWrapper, IntWrapper> *table;
 IntWrapper *val1, *val2;
 
 void threadA(void *arg) {
-	IntWrapper *k1 = new IntWrapper(3), *k2 = new IntWrapper(5),
+	
+	IntWrapper *k1 = new IntWrapper(3), *k2 = new IntWrapper(2),
 		*k3 = new IntWrapper(1024), *k4 = new IntWrapper(1025);
 	IntWrapper *v1 = new IntWrapper(1024), *v2 = new IntWrapper(1025),
 		*v3 = new IntWrapper(73), *v4 = new IntWrapper(81);
+	
 	table->put(k1, v1);
 	table->put(k2, v2);
+			
 	val1 = table->get(k3);
-	table->put(k3, v3);
+	if (val1 != NULL)
+		model_print("val1: %d\n", val1->_val);
+	else
+		model_print("val1: NULL\n");
+		
 }
 
 void threadB(void *arg) {
-	IntWrapper *k1 = new IntWrapper(3), *k2 = new IntWrapper(5),
-		*k3 = new IntWrapper(1024), *k4 = new IntWrapper(1025);
-	IntWrapper *v1 = new IntWrapper(1024), *v2 = new IntWrapper(1025),
-		*v3 = new IntWrapper(73), *v4 = new IntWrapper(81);
-	table->put(k1, v3);
-	table->put(k2, v4);
-	val1 = table->get(k2);
-}
-
-void threadC(void *arg) {
-	IntWrapper *k1 = new IntWrapper(3), *k2 = new IntWrapper(5),
-		*k3 = new IntWrapper(1024), *k4 = new IntWrapper(1025);
-	IntWrapper *v1 = new IntWrapper(1024), *v2 = new IntWrapper(1025),
-		*v3 = new IntWrapper(73), *v4 = new IntWrapper(81);
-	table->put(k1, v1);
-	table->put(k2, v2);
-	val2 = table->get(k1);
+	
 }
 
 void threadMain(void *arg) {
-	for (int i = 200; i < 300; i++) {
-		IntWrapper *k = new IntWrapper(i), *v = new IntWrapper(i * 2);
-		table->put(k, v);
+	
+	IntWrapper *k1 = new IntWrapper(3), *k2 = new IntWrapper(5),
+		*k3 = new IntWrapper(1024), *k4 = new IntWrapper(1025);
+	IntWrapper *v1 = new IntWrapper(1024), *v2 = new IntWrapper(1025),
+		*v3 = new IntWrapper(73), *v4 = new IntWrapper(81);
+	table->put(k3, v3);
 	}
-}
 
 int user_main(int argc, char *argv[]) {
-	thrd_t t1, t2, t3, t4;
-	table = new cliffc_hashtable<IntWrapper, IntWrapper>();
+	thrd_t t1, t2;
+	table = new cliffc_hashtable<IntWrapper, IntWrapper>(2);
 	val1 = NULL;
 	val2 = NULL;
-	threadMain(NULL);
-
+	
 	thrd_create(&t1, threadA, NULL);
 	thrd_create(&t2, threadB, NULL);
-		
+	threadMain(NULL);
+
 	thrd_join(t1);
 	thrd_join(t2);
-			
-	if (val1 == NULL) {
-		cout << "val1: NULL" << endl;
-	} else {
-		cout << val1->get() << endl;
-	}
-		if (val2 == NULL) {
-		cout << "val2: NULL" << endl;
-	} else {
-		cout << val2->get() << endl;
-	}
+	
 	return 0;
 }
 
