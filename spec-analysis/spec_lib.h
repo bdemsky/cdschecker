@@ -100,6 +100,8 @@ bool remove_at_index(spec_list *list, int idx);
 
 void* elem_at_index(spec_list *list, int idx);
 
+bool has_elem(spec_list *list, void *elem);
+
 spec_list* sub_list(spec_list *list, int from, int to);
 
 /* End of sequential list */

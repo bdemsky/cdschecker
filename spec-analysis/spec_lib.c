@@ -205,6 +205,14 @@ void* elem_at_index(spec_list *list, int idx) {
 	return n == NULL ? NULL : n->data;
 }
 
+bool has_elem(spec_list *list, void *elem) {
+	for (int i = 0; i < list->size; i++) {
+		if (elem_at_index(list, i) == elem)
+			return true;
+	}
+	return false;
+}
+
 spec_list* sub_list(spec_list *list, int from, int to) {
 	if (from < 0 || to > list->size || from >= to)
 		return NULL;
