@@ -305,6 +305,7 @@ void SPECAnalysis::buildEdges() {
 		}
 	}
 	// Add extra edges for the initial 'read' operations
+	/*
 	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
 		const ModelAction *act1 = *iter1;
 		commit_point_node *node1 = cpGraph->get(act1);
@@ -324,7 +325,7 @@ void SPECAnalysis::buildEdges() {
 				}
 			}
 		}
-	}
+	}*/
 	//model_print("Finish building edges!\n");
 }
 
