@@ -138,6 +138,7 @@ class SPECAnalysis : public TraceAnalysis {
 	void buildCPGraph(action_list_t *actions);
 	commit_point_node* getCPNode(action_list_t *actions, action_list_t::iterator
 		*iter);
+	bool hasAnEdge(const ModelAction *act1, const ModelAction *act2);
 	ModelAction* getPrevAction(action_list_t *actions, action_list_t::iterator
 		*iter, const ModelAction *anno);
 	void buildEdges();

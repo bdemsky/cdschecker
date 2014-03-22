@@ -303,11 +303,40 @@ void SPECAnalysis::buildEdges() {
 				}
 			}
 		}
-
-
 	}
-
+	// Add extra edges for the initial 'read' operations
+	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
+		const ModelAction *act1 = *iter1;
+		commit_point_node *node1 = cpGraph->get(act1);
+		action_list_t::iterator iter2;
+		for (iter2++; iter2 != cpActions->end(); iter2++) {
+			const ModelAction *act2 = *iter2;
+			commit_point_node *node2 = cpGraph->get(act2);
+			if (act1->get_location() == act2->get_location()) { // Same location 
+				const ModelAction *rfAction1 = act1->get_reads_from(),
+					*rfAction2 = act2->get_reads_from();
+				if (act1->get_type() == ATOMIC_READ && act2->get_type() !=
+					ATOMIC_READ && hasAnEdge(rfAction1, act2)) {
+					node1->addEdge(node2, RBW);
+				} else if (act1->get_type() != ATOMIC_READ && act2->get_type() ==
+					ATOMIC_READ && hasAnEdge(rfAction2, act1)) {
+					node2->addEdge(node1, RBW);
+				}
+			}
+		}
+	}
 	//model_print("Finish building edges!\n");
+}
+
+bool SPECAnalysis::hasAnEdge(const ModelAction *act1, const ModelAction *act2) {
+	if (act2->get_reads_from() == act1)
+		return true;
+	if (act1->happens_before(act2))
+		return true;
+	CycleGraph *mo_graph = execution->get_mo_graph();
+	if (mo_graph->checkReachable(act1, act2))
+		return true;
+	return false;
 }
 
 // Given the current iterator and the annotation, return the latest operation in
