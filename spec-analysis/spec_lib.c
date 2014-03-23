@@ -77,7 +77,8 @@ void free_spec_list(spec_list *list) {
 }
 
 void* front(spec_list *list) {
-	return list->head == NULL ? NULL : list->head->data;
+	void *res = list->head == NULL ? NULL : list->head->data;
+	return res;
 }
 
 void* back(spec_list *list) {

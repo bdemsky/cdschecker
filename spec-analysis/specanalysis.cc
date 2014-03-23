@@ -56,6 +56,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	buildEdges();
 	
 	node_list_t *sorted_commit_points = sortCPGraph();
+
 	if (sorted_commit_points == NULL) {
 		model_print("Wired data structure, fail to check!\n");
 		dumpGraph(sorted_commit_points);
@@ -90,6 +91,7 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		call_id_t __ID__ = id_func(info, __TID__);
 		node->__ID__ = __ID__;
 		passed = check_action(info, __ID__, __TID__);
+		//model_print("hey!\n");
 		if (!passed) {
 			model_print("Interface %d failed\n", interface_num);
 			model_print("ID: %d\n", __ID__);
