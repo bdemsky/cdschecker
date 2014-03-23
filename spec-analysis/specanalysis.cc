@@ -313,8 +313,11 @@ void SPECAnalysis::buildEdges() {
 		const ModelAction *act1 = *iter1;
 		commit_point_node *node1 = cpGraph->get(act1);
 		action_list_t::iterator iter2 = cpActions->begin();
-		iter2++;
+		iter2 = iter1++;
+		iter1--;
+		//model_print("hey1\n");
 		for (; iter2 != cpActions->end(); iter2++) {
+			//model_print("hey2\n");
 			const ModelAction *act2 = *iter2;
 			commit_point_node *node2 = cpGraph->get(act2);
 			if (act1->get_location() == act2->get_location()) { // Same location 

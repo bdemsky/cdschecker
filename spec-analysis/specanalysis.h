@@ -78,6 +78,8 @@ typedef struct commit_point_node {
 			if (e->next_node == next && e->type == type)
 				return;
 		}
+
+		//model_print("hey\n");
 		commit_point_edge *new_edge = new commit_point_edge(type, next);
 		edges->push_back(new_edge);
 		/*
