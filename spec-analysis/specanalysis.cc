@@ -277,6 +277,7 @@ void SPECAnalysis::buildEdges() {
 			}
 		}
 	}
+	/*
 	// Need to build extra edges (RBW edges to prioritize reads in RF)
 	action_list_t::iterator iter;
 	for (iter = cpActions->begin(); iter != cpActions->end(); iter++) {
@@ -305,7 +306,7 @@ void SPECAnalysis::buildEdges() {
 				}
 			}
 		}
-	}
+	}*/
 	// Add extra edges for the initial 'read' operations
 	
 	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
@@ -319,6 +320,8 @@ void SPECAnalysis::buildEdges() {
 			if (act1->get_location() == act2->get_location()) { // Same location 
 				const ModelAction *rfAction1 = act1->get_reads_from(),
 					*rfAction2 = act2->get_reads_from();
+				if (act1 == rfAction2 || act2 == rfAction1)
+					continue;
 				if (act1->get_type() == ATOMIC_READ && act2->get_type() !=
 					ATOMIC_READ && hasAnEdge(rfAction1, act2)) {
 					node1->addEdge(node2, RBW);
