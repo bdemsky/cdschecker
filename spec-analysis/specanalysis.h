@@ -72,10 +72,16 @@ typedef struct commit_point_node {
 		if (edges == NULL) {
 			edges = new edge_list_t();
 		}
-		ModelAction *op = next->operation;
+		for (edge_list_t::iterator iter = edges->begin(); iter != edges->end();
+			iter++) {
+			commit_point_edge *e = *iter;
+			if (e->next_node == next && e->type == type)
+				return;
+		}
 		commit_point_edge *new_edge = new commit_point_edge(type, next);
 		edges->push_back(new_edge);
 		/*
+		ModelAction *op = next->operation;
 		// Special routine for RF
 		if (type == RF) {
 			if (op->get_type() == ATOMIC_READ) {
