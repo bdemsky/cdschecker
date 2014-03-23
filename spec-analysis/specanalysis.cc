@@ -307,12 +307,13 @@ void SPECAnalysis::buildEdges() {
 		}
 	}
 	// Add extra edges for the initial 'read' operations
-	/*
+	
 	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
 		const ModelAction *act1 = *iter1;
 		commit_point_node *node1 = cpGraph->get(act1);
-		action_list_t::iterator iter2;
-		for (iter2++; iter2 != cpActions->end(); iter2++) {
+		action_list_t::iterator iter2 = cpActions->begin();
+		iter2++;
+		for (; iter2 != cpActions->end(); iter2++) {
 			const ModelAction *act2 = *iter2;
 			commit_point_node *node2 = cpGraph->get(act2);
 			if (act1->get_location() == act2->get_location()) { // Same location 
@@ -327,7 +328,7 @@ void SPECAnalysis::buildEdges() {
 				}
 			}
 		}
-	}*/
+	}
 	//model_print("Finish building edges!\n");
 }
 
