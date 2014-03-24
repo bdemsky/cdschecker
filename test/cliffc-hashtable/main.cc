@@ -51,52 +51,80 @@ class IntWrapper {
 
 cliffc_hashtable<IntWrapper, IntWrapper> *table;
 IntWrapper *val1, *val2;
+IntWrapper *k0, *k1, *k2, *k3, *k4, *k5;
+IntWrapper *v0, *v1, *v2, *v3, *v4, *v5;
 
 void threadA(void *arg) {
-	
-	IntWrapper *k1 = new IntWrapper(3), *k2 = new IntWrapper(2),
-		*k3 = new IntWrapper(1024), *k4 = new IntWrapper(1025);
-	IntWrapper *v1 = new IntWrapper(1024), *v2 = new IntWrapper(1025),
-		*v3 = new IntWrapper(73), *v4 = new IntWrapper(81);
-	
 	table->put(k1, v1);
-	table->put(k2, v2);
-			
+	//table->put(k2, v2);
+	//table->put(k3, v3);
+	/*
 	val1 = table->get(k3);
 	if (val1 != NULL)
 		model_print("val1: %d\n", val1->_val);
 	else
-		model_print("val1: NULL\n");
-		
+		model_print("val1: NULL\n");*/
+	//table->put(k3, v3);
+	
 }
 
 void threadB(void *arg) {
-	
+	table->put(k1, v1);
+	table->put(k2, v4);
+	table->put(k3, v3);
 }
 
 void threadMain(void *arg) {
-	
-	IntWrapper *k1 = new IntWrapper(3), *k2 = new IntWrapper(5),
-		*k3 = new IntWrapper(1024), *k4 = new IntWrapper(1025);
-	IntWrapper *v1 = new IntWrapper(1024), *v2 = new IntWrapper(1025),
-		*v3 = new IntWrapper(73), *v4 = new IntWrapper(81);
-	table->put(k3, v3);
-	}
+	val1 = table->get(k1);
+	val2 = table->get(k2);
+	if (val1 != NULL)
+		model_print("val1: %d\n", val1->_val);
+	else
+		model_print("val1: NULL\n");
+	if (val2 != NULL)
+		model_print("val2: %d\n", val2->_val);
+	else
+		model_print("val2: NULL\n");
+}
 
 int user_main(int argc, char *argv[]) {
 	thrd_t t1, t2;
 	table = new cliffc_hashtable<IntWrapper, IntWrapper>(2);
-	val1 = NULL;
-	val2 = NULL;
-	
+    k1 = new IntWrapper(3);
+	k2 = new IntWrapper(5);
+	k3 = new IntWrapper(11);
+	k4 = new IntWrapper(7);
+	k5 = new IntWrapper(13);
+
+	v1 = new IntWrapper(1024);
+	v2 = new IntWrapper(47);
+	v3 = new IntWrapper(73);
+	v4 = new IntWrapper(81);
+	v5 = new IntWrapper(99);
+
+	v0 = new IntWrapper(2048);
+	table->put(k1, v0);
+	table->put(k2, v0);
+	model_print("hey\n");
 	thrd_create(&t1, threadA, NULL);
 	thrd_create(&t2, threadB, NULL);
 	threadMain(NULL);
 
 	thrd_join(t1);
 	thrd_join(t2);
-	
+	/*
+	if (val1 == NULL) {
+		cout << "val1: NULL" << endl;
+	} else {
+		cout << val1->get() << endl;
+	}
+	//MODEL_ASSERT(val1 == NULL || val1->get() == 2 || val1->get() == 81);
+	if (val2 == NULL) {
+		cout << "val2: NULL" << endl;
+	} else {
+		cout << val2->get() << endl;
+	}
+	*/
 	return 0;
 }
-
 
