@@ -88,9 +88,14 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		void *info = node->info;
 		///model_print("Here1, inter_name: %d\n", interface_num);
 		thread_id_t __TID__ = node->operation->get_tid();
+		
+		//model_print("hey_id1\n");
 		call_id_t __ID__ = id_func(info, __TID__);
+		//model_print("hey_id2\n");
 		node->__ID__ = __ID__;
+		//model_print("hey_check1\n");
 		passed = check_action(info, __ID__, __TID__);
+		//model_print("hey_check2\n");
 		//model_print("hey!\n");
 		if (!passed) {
 			model_print("Interface %d failed\n", interface_num);
