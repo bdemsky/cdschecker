@@ -57,6 +57,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	
 	node_list_t *sorted_commit_points = sortCPGraph();
 
+	
 	if (sorted_commit_points == NULL) {
 		model_print("Wired data structure, fail to check!\n");
 		dumpGraph(sorted_commit_points);
@@ -70,6 +71,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		dumpGraph(sorted_commit_points);
 	} else {
 		//model_print("Passed all the safety checks!\n");
+		//dumpGraph(sorted_commit_points);
 	}
 }
 
