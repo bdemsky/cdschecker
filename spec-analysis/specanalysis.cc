@@ -51,7 +51,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		return;
 	}
 
-	//traverseActions(actions);
+	traverseActions(actions);
 	
 	buildCPGraph(actions);
 	if (isBrokenExecution)
@@ -79,7 +79,8 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		dumpGraph(sorted_commit_points);
 	} else {
 		//model_print("Passed all the safety checks!\n");
-		dumpGraph(sorted_commit_points);
+		//traverseActions(actions);
+		//dumpGraph(sorted_commit_points);
 	}
 }
 
@@ -459,6 +460,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 	anno_cp_define *cp_define;
 	anno_potential_cp_define *pcp_define;
 	anno_cp_define_check *cp_define_check;
+	anno_cp_clear *cp_clear;
 	// A list of potential commit points
 	pcp_list_t *pcp_list = new pcp_list_t();
 	potential_cp_info *pcp_info;
@@ -487,6 +489,8 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 			case CP_DEFINE:
 				//model_print("CP_DEFINE\n");
 				cp_define = (anno_cp_define*) anno->annotation;
+				if (node->interface_num != cp_define->interface_num)
+					continue;
 				if (!pcp_defined) {
 					// Fast check 
 					break;
@@ -514,11 +518,30 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 			case CP_DEFINE_CHECK:
 				//model_print("CP_DEFINE_CHECK\n");
 				cp_define_check = (anno_cp_define_check*) anno->annotation;
+				if (node->interface_num != cp_define_check->interface_num)
+					continue;
 				operation = getPrevAction(actions, &it, act);
 				// Add the commit_point_define_check operation
 				node->operations->push_back(operation);
 				hasCommitPoint = true;
 				break;
+			
+			case CP_CLEAR:
+				//model_print("CP_CLEAR\n");
+				cp_clear = (anno_cp_clear*) anno->annotation;
+				if (node->interface_num != cp_clear->interface_num)
+					continue;
+				hasCorrespondingPCP = false;
+				hasCommitPoint = false;
+				// Destroy the previous list of potential commit points
+				deletePcpList(pcp_list);
+				// Get a new list of potential commit points
+				pcp_list = new pcp_list_t();
+				// Also destroy the previous list of commit points
+				delete node->operations;
+				node->operations = new action_list_t();
+				break;
+
 			case HB_CONDITION:
 				//model_print("HB_CONDITION\n");
 				hb_cond = (anno_hb_condition*) anno->annotation;
@@ -730,6 +753,7 @@ void SPECAnalysis::traverseActions(action_list_t *actions) {
 		anno_interface_begin *begin_anno;
 		anno_interface_end *end_anno;
 		anno_cp_define_check *cp_define_check;
+		anno_cp_clear *cp_clear;
 		anno_potential_cp_define *pcp_define;
 		anno_cp_define *cp_define;
 		int interface_num;
@@ -764,6 +788,13 @@ void SPECAnalysis::traverseActions(action_list_t *actions) {
 					act->get_seq_number(),
 					act->get_tid(), cp_define_check->label_num);
 				break;
+			case CP_CLEAR:
+				cp_clear = (anno_cp_clear*) anno->annotation;
+				model_print("seq_%d, tid_%d\tCP_CLEAR \tlabel_num: %d\n",
+					act->get_seq_number(),
+					act->get_tid(), cp_clear->label_num);
+				break;
+
 			case INTERFACE_END:
 				end_anno = (anno_interface_end*) anno->annotation;
 				model_print("seq_%d, tid_%d\tINTERFACE_END \tinter_num: %d\n",
