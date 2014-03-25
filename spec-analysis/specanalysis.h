@@ -20,11 +20,11 @@ typedef struct potential_cp_info {
 	int label_num;
 	ModelAction *operation;
 
-	MEMALLOC
+	SNAPSHOTALLOC
 } potential_cp_info;
 
-typedef HashTable<const ModelAction*, commit_point_node*, uintptr_t, 4> node_table_t;
-typedef SnapList<ModelAction*> action_list_t;
+typedef HashTable<ModelAction*, commit_point_node*, uintptr_t, 4> node_table_t;
+//typedef SnapList<ModelAction*> action_list_t;
 
 typedef SnapList<commit_point_edge*> edge_list_t;
 typedef SnapList<potential_cp_info*> pcp_list_t;
@@ -49,7 +49,7 @@ typedef struct commit_point_edge {
 		next_node = next;
 	}
 
-	MEMALLOC
+	SNAPSHOTALLOC
 
 } commit_point_edge;
 
@@ -59,14 +59,14 @@ typedef struct commit_point_edge {
 	stores a list of ModelAction* and the list to reorder interface calls
 */
 typedef struct commit_point_node {
-	const ModelAction *begin; // Interface begin annotation
-	action_list_t operations; // List of Commit point operation
+	ModelAction *begin; // Interface begin annotation
+	action_list_t *operations; // List of Commit point operation
 	hbcond_list_t *hb_conds;
 	call_id_t __ID__;
 	int interface_num; // Interface number
 	//int cp_label_num; // Commit point label number
 	void *info;
-	const ModelAction *end; // Interface end annotation
+	ModelAction *end; // Interface end annotation
 	edge_list_t *edges;
 
 	// For DFS
@@ -113,7 +113,7 @@ typedef struct commit_point_node {
 		*/
 	}
 
-	MEMALLOC
+	SNAPSHOTALLOC
 
 } commit_point_node;
 
@@ -129,7 +129,7 @@ class SPECAnalysis : public TraceAnalysis {
 	virtual bool option(char *);
 	virtual void finish();
 
-	MEMALLOC
+	SNAPSHOTALLOC
  private:
 	ModelExecution *execution;
 	void **func_table;
@@ -153,7 +153,7 @@ class SPECAnalysis : public TraceAnalysis {
 		*iter);
 	bool hasAnEdge(const ModelAction *act1, const ModelAction *act2);
 	ModelAction* getPrevAction(action_list_t *actions, action_list_t::iterator
-		*iter, const ModelAction *anno);
+		*iter, ModelAction *anno);
 	void buildEdges();
 	node_list_t* sortCPGraph();
 	bool isCyclic();

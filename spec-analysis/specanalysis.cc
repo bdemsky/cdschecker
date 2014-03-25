@@ -91,7 +91,7 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		check_action_func_t check_action = (check_action_func_t) func_table[2 * interface_num + 1];
 		void *info = node->info;
 		///model_print("Here1, inter_name: %d\n", interface_num);
-		thread_id_t __TID__ = node->operation->get_tid();
+		thread_id_t __TID__ = node->begin->get_tid();
 		
 		//model_print("hey_id1\n");
 		call_id_t __ID__ = id_func(info, __TID__);
@@ -182,9 +182,11 @@ bool SPECAnalysis::isCyclic() {
 
 
 static void dumpNodeUtil(commit_point_node *node, const char *msg) {
+	/*
 	ModelAction *act = node->operation;
 	model_print("%s node: %d, %d, %d\n", msg, act->get_seq_number(), act->get_tid(),
 		node->interface_num);
+	*/
 }
 
 /**
@@ -258,7 +260,7 @@ void SPECAnalysis::buildEdges() {
 	CycleGraph *mo_graph = execution->get_mo_graph();
 	for (iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
 		for (iter2 = iter1, iter2++; iter2 != cpActions->end(); iter2++) {
-			const ModelAction *begin1 = *iter1,
+			ModelAction *begin1 = *iter1,
 				*begin2 = *iter2,
 				*act1, *act2;
 			commit_point_node *node1 = cpGraph->get(begin1),
@@ -298,7 +300,7 @@ void SPECAnalysis::buildEdges() {
 
 	for (iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
 		for (iter2 = iter1, iter2++; iter2 != cpActions->end(); iter2++) {
-			const ModelAction *begin1 = *iter1,
+			ModelAction *begin1 = *iter1,
 				*begin2 = *iter2,
 				*act1, *act2;
 			commit_point_node *node1 = cpGraph->get(begin1),
@@ -354,7 +356,7 @@ void SPECAnalysis::buildEdges() {
 	
 	// Add extra edges for the initial 'read' operations
 	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
-		const ModelAction *act1 = *iter1;
+		ModelAction *act1 = *iter1;
 		commit_point_node *node1 = cpGraph->get(act1);
 		action_list_t::iterator iter2 = cpActions->begin();
 		iter2 = iter1++;
@@ -362,7 +364,7 @@ void SPECAnalysis::buildEdges() {
 		//model_print("hey1\n");
 		for (; iter2 != cpActions->end(); iter2++) {
 			//model_print("hey2\n");
-			const ModelAction *act2 = *iter2;
+			ModelAction *act2 = *iter2;
 			commit_point_node *node2 = cpGraph->get(act2);
 			if (act1->get_location() == act2->get_location()) { // Same location 
 				const ModelAction *rfAction1 = act1->get_reads_from(),
@@ -396,7 +398,7 @@ bool SPECAnalysis::hasAnEdge(const ModelAction *act1, const ModelAction *act2) {
 // Given the current iterator and the annotation, return the latest operation in
 // the trace of that thread
 ModelAction* SPECAnalysis::getPrevAction(action_list_t *actions,
-	action_list_t::iterator *iter, const ModelAction *anno) {
+	action_list_t::iterator *iter, ModelAction *anno) {
 	action_list_t::iterator it = *iter;
 	int cnt = 0;
 	ModelAction *act;
@@ -426,7 +428,7 @@ ModelAction* SPECAnalysis::getPrevAction(action_list_t *actions,
 commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t::iterator
 	*iter) {
 	action_list_t::iterator it = *iter;
-	const ModelAction *act = *it;
+	ModelAction *act = *it;
 	thread_id_t tid = act->get_tid();
 	commit_point_node *node = new commit_point_node();
 	//Initialize the commit_point_node
@@ -447,7 +449,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 	potential_cp_info *pcp_info;
 	ModelAction *operation = NULL;
 	bool hasCommitPoint = false, pcp_defined = false;
-	bool hasCorrespoindingPCP = false;
+	bool hasCorrespondingPCP = false;
 	node->operations = new action_list_t();
 	for (it++; it != actions->end(); it++) {
 		act = *it;
@@ -550,7 +552,7 @@ void SPECAnalysis::buildCPGraph(action_list_t *actions) {
 	cpActions = new action_list_t();
 	action_list_t::iterator begin_anno_iter = actions->begin(), iter;
 	for (; begin_anno_iter != actions->end(); begin_anno_iter++) {
-		const ModelAction *act = *begin_anno_iter;
+		ModelAction *act = *begin_anno_iter;
 		if (act->get_type() != ATOMIC_ANNOTATION)
 			continue;
 		if (act->get_value() != SPEC_ANALYSIS)
@@ -603,9 +605,15 @@ void SPECAnalysis::freeCPNodes() {
 }
 
 void SPECAnalysis::dumpNode(commit_point_node *node) {
-	ModelAction *act = node->operation;
-	model_print("Node: %d, %d, %d__%d\n", act->get_seq_number(), act->get_tid(),
-		node->interface_num, node->cp_label_num);
+	action_list_t *operations = node->operations;
+	model_print("Node: seq_%d, tid_%d, inter_%d\n", node->begin->get_seq_number(),
+		node->begin->get_tid(), node->interface_num);
+	for (action_list_t::iterator opIter = operations->begin(); opIter !=
+		operations->end(); opIter++) {
+		ModelAction *act = *opIter;
+		model_print(", __%d\n", act->get_seq_number());
+	}
+	model_print("\n");
 	if (node->edges == NULL) return;
 	for (edge_list_t::iterator it = node->edges->begin();
 		it != node->edges->end(); it++) {
@@ -613,7 +621,7 @@ void SPECAnalysis::dumpNode(commit_point_node *node) {
 		cp_edge_type type = (*it)->type;
 		const char *relationMsg = type == HB ? "HB" : type == RF ?
 			"RF" : type == MO ? "MO" : "RBW";
-		model_print("Edge: %d, %d, %s\n", next_node->operation->get_seq_number(),
+		model_print("Edge: seq_%d, inter_%d, %s\n", next_node->begin->get_seq_number(),
 			next_node->interface_num, relationMsg);
 	}
 }
@@ -630,6 +638,7 @@ void SPECAnalysis::dumpActions(action_list_t actions) {
 }*/
 
 void SPECAnalysis::dumpDotGraph() {
+	/*
 	model_print("#---------- Dump Dot Graph Begin ----------\n");
 	model_print("digraph {\n");
 	action_list_t::iterator iter = cpActions->begin();
@@ -652,6 +661,7 @@ void SPECAnalysis::dumpDotGraph() {
 	}
 	model_print("}\n");
 	model_print("---------- Dump Dot Graph End ----------\n");
+	*/
 }
 
 void SPECAnalysis::dumpGraph(node_list_t *sorted_commit_points) {
@@ -682,7 +692,7 @@ void SPECAnalysis::dumpGraph(node_list_t *sorted_commit_points) {
 void SPECAnalysis::traverseActions(action_list_t *actions) {
 	action_list_t::iterator iter = actions->begin();
 	for (; iter != actions->end(); iter++) {
-		const ModelAction *act = *iter;
+		ModelAction *act = *iter;
 		if (act->get_type() != ATOMIC_ANNOTATION)
 			continue;
 		//model_print("FUNC_TABLE_INIT%d\n", act->get_value());
