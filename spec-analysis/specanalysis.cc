@@ -44,7 +44,14 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	if (trace_num_cnt % 1000 == 0)
 		model_print("SPECAnalysis analyzing: %d!\n", trace_num_cnt);
 	trace_num_cnt++;
-	//traverseActions(actions);
+	// Ever before running any analysis, check if the execution is buggy
+	if (execution->have_bug_reports()) {
+		model_print("No need to run SPEC checker if there's CDSChecker bug.\n");
+		execution->print_summary();
+		return;
+	}
+
+	traverseActions(actions);
 	
 	buildCPGraph(actions);
 	if (isBrokenExecution)
@@ -442,6 +449,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 	spec_annotation *anno = (spec_annotation*) act->get_location();
 	assert(anno->type == INTERFACE_BEGIN);
 	anno_interface_begin *begin_anno = (anno_interface_begin*) anno->annotation;
+	anno_interface_end* end_anno;
 	int interface_num = begin_anno->interface_num;
 	node->interface_num = interface_num;
 	node->begin = act;
@@ -525,6 +533,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 				break;
 			case INTERFACE_END:
 				//model_print("INTERFACE_END\n");
+				end_anno = (anno_interface_end*) anno->annotation;
 				if (!hasCommitPoint) {
 					model_print("Exception: %d, tid_%d\tinterface %d without commit points!\n",
 						act->get_seq_number(),
@@ -533,7 +542,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 					return NULL;
 				}
 				node->end = act;
-				node->info = ((anno_interface_end*) anno->annotation)->info;
+				node->info = end_anno->info;
 				return node;
 			default:
 				break;

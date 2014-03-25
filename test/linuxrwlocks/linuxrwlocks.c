@@ -563,8 +563,7 @@ int write_trylock(rwlock_t * rw) {
 
 int __wrapper__write_trylock(rwlock_t * rw)
 {
-	int priorvalue = atomic_fetch_sub_explicit(&rw->lock, RW_LOCK_BIAS,
-	memory_order_relaxed);
+	int priorvalue = atomic_fetch_sub_explicit(&rw->lock, RW_LOCK_BIAS, memory_order_acquire);
 	/* Automatically generated code for potential commit point: Potential_Write_Trylock_Point */
 
 	if (true) {
