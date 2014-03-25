@@ -24,22 +24,26 @@ typedef struct Data {
 atomic<Data*> data;
 	
 /* All other user-defined structs */
-static Data * _cur_data;
+static int data1;
+static int data2;
+static int data3;
 /* All other user-defined functions */
-inline static bool equals ( Data * ptr1 , Data * ptr2 ) {
-return ptr1 == ptr2 ;
-}
-
 /* Definition of interface info struct: Write */
 typedef struct Write_info {
-Data * new_data;
+Data * __RET__;
+int d1;
+int d2;
+int d3;
 } Write_info;
 /* End of info struct definition: Write */
 
 /* ID function of interface: Write */
 inline static call_id_t Write_id(void *info, thread_id_t __TID__) {
 	Write_info* theInfo = (Write_info*)info;
-	Data * new_data = theInfo->new_data;
+	Data * __RET__ = theInfo->__RET__;
+	int d1 = theInfo->d1;
+	int d2 = theInfo->d2;
+	int d3 = theInfo->d3;
 
 	call_id_t __ID__ = 0;
 	return __ID__;
@@ -50,9 +54,14 @@ inline static call_id_t Write_id(void *info, thread_id_t __TID__) {
 inline static bool Write_check_action(void *info, call_id_t __ID__, thread_id_t __TID__) {
 	bool check_passed;
 	Write_info* theInfo = (Write_info*)info;
-	Data * new_data = theInfo->new_data;
+	Data * __RET__ = theInfo->__RET__;
+	int d1 = theInfo->d1;
+	int d2 = theInfo->d2;
+	int d3 = theInfo->d3;
 
-	_cur_data = new_data ;
+	data1 += d1 ;
+	data2 += d2 ;
+	data3 += d3 ;
 	return true;
 }
 /* End of check action function: Write */
@@ -79,8 +88,7 @@ inline static bool Read_check_action(void *info, call_id_t __ID__, thread_id_t _
 	Read_info* theInfo = (Read_info*)info;
 	Data * __RET__ = theInfo->__RET__;
 
-	Data * _Old_Data = _cur_data ;
-	check_passed = equals ( __RET__ , _Old_Data );
+	check_passed = data1 == __RET__ -> data1 && data2 == __RET__ -> data2 && data3 == __RET__ -> data3;
 	if (!check_passed)
 		return false;
 	return true;
@@ -127,7 +135,9 @@ inline static void __sequential_init() {
 	init->annotation = anno_init;
 	cdsannotate(SPEC_ANALYSIS, init);
 
-	_cur_data = NULL ;
+	data1 = 0 ;
+	data2 = 0 ;
+	data3 = 0 ;
 }
 /* End of Global construct generation in class */
 
@@ -170,18 +180,19 @@ Data * __wrapper__read() {
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 0;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
 	}
-	
+		
 		return res;
 }
 
-void __wrapper__write(Data * new_data);
+Data * __wrapper__write(int d1, int d2, int d3);
 
-void write(Data * new_data) {
+Data * write(int d1, int d2, int d3) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 1; // Write
@@ -189,7 +200,7 @@ void write(Data * new_data) {
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
 	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
-	__wrapper__write(new_data);
+	Data * __RET__ = __wrapper__write(d1, d2, d3);
 	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
 	hb_condition->interface_num = 1; // Write
 	hb_condition->hb_condition_num = 0;
@@ -199,7 +210,10 @@ void write(Data * new_data) {
 	cdsannotate(SPEC_ANALYSIS, annotation_hb_condition);
 
 	Write_info* info = (Write_info*) malloc(sizeof(Write_info));
-	info->new_data = new_data;
+	info->__RET__ = __RET__;
+	info->d1 = d1;
+	info->d2 = d2;
+	info->d3 = d3;
 	struct anno_interface_end *interface_end = (struct anno_interface_end*) malloc(sizeof(struct anno_interface_end));
 	interface_end->interface_num = 1; // Write
 	interface_end->info = info;
@@ -207,19 +221,25 @@ void write(Data * new_data) {
 	annoation_interface_end->type = INTERFACE_END;
 	annoation_interface_end->annotation = interface_end;
 	cdsannotate(SPEC_ANALYSIS, annoation_interface_end);
+	return __RET__;
 }
 
-void __wrapper__write(Data * new_data) {
-	Data *prev = data.load(memory_order_relaxed);
+Data * __wrapper__write(int d1, int d2, int d3) {
 	bool succ = false;
+	Data *tmp = (Data*) malloc(sizeof(Data));
 	do {
-		succ = data.compare_exchange_strong(prev, new_data,
-			memory_order_acq_rel, memory_order_relaxed); 
+		Data *prev = data.load(memory_order_acquire);
+                tmp->data1 = prev->data1 + d1;
+	    tmp->data2 = prev->data2 + d2;
+	    tmp->data3 = prev->data3 + d3;
+        succ = data.compare_exchange_strong(prev, tmp,
+            memory_order_acq_rel, memory_order_relaxed);
 	/* Automatically generated code for commit point define check: Write_Success_Point */
 
 	if (succ) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 1;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -227,36 +247,24 @@ void __wrapper__write(Data * new_data) {
 	}
 		
 	} while (!succ);
-	}
+		return tmp;
+}
+
 
 void threadA(void *arg) {
-	Data *dataA = (Data*) malloc(sizeof(Data));
-	dataA->data1 = 3;
-	dataA->data2 = 2;
-	dataA->data3 = 1;
-	write(dataA);
+	write(1, 0, 0);
 }
 
 void threadB(void *arg) {
-	Data *dataB = read();
-	printf("ThreadB data1: %d\n", dataB->data1);
-	printf("ThreadB data2: %d\n", dataB->data2);
-	printf("ThreadB data3: %d\n", dataB->data3);
+	write(0, 1, 0);
 }
 
 void threadC(void *arg) {
-	Data *dataC = read();
-	printf("ThreadC data1: %d\n", dataC->data1);
-	printf("ThreadC data2: %d\n", dataC->data2);
-	printf("ThreadC data3: %d\n", dataC->data3);
+	write(0, 0, 1);
 }
 
 void threadD(void *arg) {
-	Data *dataD = (Data*) malloc(sizeof(Data));
-	dataD->data1 = -3;
-	dataD->data2 = -2;
-	dataD->data3 = -1;
-	write(dataD);
+	Data *dataC = read();
 }
 
 int user_main(int argc, char **argv) {
@@ -264,12 +272,12 @@ int user_main(int argc, char **argv) {
 	
 	
 	thrd_t t1, t2, t3, t4;
-	data.store(NULL, memory_order_relaxed);
-	Data *data_init = (Data*) malloc(sizeof(Data));
-	data_init->data1 = 0;
-	data_init->data2 = 0;
-	data_init->data3 = 0;
-	write(data_init);
+	Data *dataInit = (Data*) malloc(sizeof(Data));
+	dataInit->data1 = 0;
+	dataInit->data2 = 0;
+	dataInit->data3 = 0;
+	atomic_init(&data, dataInit);
+	write(0, 0, 0);
 
 	thrd_create(&t1, threadA, NULL);
 	thrd_create(&t2, threadB, NULL);

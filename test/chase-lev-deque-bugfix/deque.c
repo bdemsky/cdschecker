@@ -50,13 +50,15 @@ int __wrapper__take(Deque * q) {
 	size_t b = atomic_load_explicit(&q->bottom, memory_order_relaxed) - 1;
 	Array *a = (Array *) atomic_load_explicit(&q->array, memory_order_relaxed);
 	atomic_store_explicit(&q->bottom, b, memory_order_relaxed);
+	
 	atomic_thread_fence(memory_order_seq_cst);
 	size_t t = atomic_load_explicit(&q->top, memory_order_relaxed);
-	/* Automatically generated code for commit point define check: Take_Point_1 */
+	/* Automatically generated code for commit point define check: Take_Point1 */
 
 	if (t > b) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 0;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -73,6 +75,7 @@ int __wrapper__take(Deque * q) {
 	if (t != b) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 1;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -81,13 +84,14 @@ int __wrapper__take(Deque * q) {
 		
 		if (t == b) {
 			
-			bool succ = atomic_compare_exchange_strong_explicit(&q->top, &t, t +
+						bool succ = atomic_compare_exchange_strong_explicit(&q->top, &t, t +
 				1, memory_order_seq_cst, memory_order_relaxed);
 	/* Automatically generated code for commit point define check: Take_Point3 */
 
-	if (succ) {
+	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 2;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -119,9 +123,9 @@ void resize(Deque *q) {
 	for(i=top; i < bottom; i++) {
 		atomic_store_explicit(&new_a->buffer[i % new_size], atomic_load_explicit(&a->buffer[i % size], memory_order_relaxed), memory_order_relaxed);
 	}
+	
 	atomic_store_explicit(&q->array, new_a, memory_order_release);
-	printf("resize\n");
-}
+	}
 
 
 void push(Deque * q, int x) {
@@ -155,6 +159,7 @@ void push(Deque * q, int x) {
 
 void __wrapper__push(Deque * q, int x) {
 	size_t b = atomic_load_explicit(&q->bottom, memory_order_relaxed);
+	
 	size_t t = atomic_load_explicit(&q->top, memory_order_acquire);
 	Array *a = (Array *) atomic_load_explicit(&q->array, memory_order_relaxed);
 	if (b - t > atomic_load_explicit(&a->size, memory_order_relaxed) - 1)  {
@@ -168,11 +173,13 @@ void __wrapper__push(Deque * q, int x) {
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 3;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
 	}
+	
 	
 	atomic_thread_fence(memory_order_release);
 	
@@ -212,14 +219,16 @@ int steal(Deque * q) {
 }
 
 int __wrapper__steal(Deque * q) {
-	size_t t = atomic_load_explicit(&q->top, memory_order_acquire);
-	atomic_thread_fence(memory_order_seq_cst);
+		size_t t = atomic_load_explicit(&q->top, memory_order_acquire);
+		atomic_thread_fence(memory_order_seq_cst);
+	
 	size_t b = atomic_load_explicit(&q->bottom, memory_order_acquire);
 	/* Automatically generated code for commit point define check: Steal_Point1 */
 
 	if (t >= b) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 4;
+		cp_define_check->interface_num = 2;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -228,6 +237,7 @@ int __wrapper__steal(Deque * q) {
 	
 	int x = EMPTY;
 	if (t < b) {
+		
 		
 		Array *a = (Array *) atomic_load_explicit(&q->array, memory_order_acquire);
 		int size = atomic_load_explicit(&a->size, memory_order_relaxed);
@@ -243,14 +253,15 @@ int __wrapper__steal(Deque * q) {
 		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
 	}
 		
-		
+		 
 		bool succ = atomic_compare_exchange_strong_explicit(&q->top, &t, t + 1,
 			memory_order_seq_cst, memory_order_relaxed);
-	/* Automatically generated code for commit point define check: Steal_Point4 */
+	/* Automatically generated code for commit point define check: Steal_Point2 */
 
 	if (! succ) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 6;
+		cp_define_check->interface_num = 2;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -264,6 +275,7 @@ int __wrapper__steal(Deque * q) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 7;
 		cp_define->potential_cp_label_num = 5;
+		cp_define->interface_num = 2;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;

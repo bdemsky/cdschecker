@@ -182,6 +182,7 @@ void __wrapper__lock(guard * I) {
 	if (pred == NULL) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 0;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -190,8 +191,8 @@ void __wrapper__lock(guard * I) {
 		
 		if ( pred != NULL ) {
 						
-						pred->next.store(me, std::mo_release );
-
+															pred->next.store(me, std::mo_release );
+			
 			
 									rl::linear_backoff bo;
 			int my_gate = 1;
@@ -202,12 +203,13 @@ void __wrapper__lock(guard * I) {
 	if (my_gate == 0) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 1;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
 	}
-				
+													
 				thrd_yield();
 			}
 		}
@@ -245,8 +247,8 @@ void unlock(guard * I) {
 void __wrapper__unlock(guard * I) {
 		mcs_node * me = &(I->m_node);
 
-		mcs_node * next = me->next.load(std::mo_acquire);
-		if ( next == NULL )
+				mcs_node * next = me->next.load(std::mo_acquire);
+				if ( next == NULL )
 		{
 			mcs_node * tail_was_me = me;
 			bool success;
@@ -257,6 +259,7 @@ void __wrapper__unlock(guard * I) {
 	if (success == true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 2;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -270,8 +273,8 @@ void __wrapper__unlock(guard * I) {
 
 						rl::linear_backoff bo;
 			for(;;) {
-				next = me->next.load(std::mo_acquire);
-				if ( next != NULL )
+								next = me->next.load(std::mo_acquire);
+								if ( next != NULL )
 					break;
 				thrd_yield();
 			}
@@ -284,6 +287,7 @@ void __wrapper__unlock(guard * I) {
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 3;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;

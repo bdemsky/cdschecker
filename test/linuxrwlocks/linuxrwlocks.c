@@ -357,6 +357,7 @@ void __wrapper__read_lock(rwlock_t * rw)
 	if (priorvalue > 0) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 0;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -374,6 +375,7 @@ void __wrapper__read_lock(rwlock_t * rw)
 	if (priorvalue > 0) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 1;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -422,6 +424,7 @@ void __wrapper__write_lock(rwlock_t * rw)
 	if (priorvalue == RW_LOCK_BIAS) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 2;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -439,6 +442,7 @@ void __wrapper__write_lock(rwlock_t * rw)
 	if (priorvalue == RW_LOCK_BIAS) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 3;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -503,6 +507,7 @@ int __wrapper__read_trylock(rwlock_t * rw)
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 5;
 		cp_define->potential_cp_label_num = 4;
+		cp_define->interface_num = 2;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -517,6 +522,7 @@ int __wrapper__read_trylock(rwlock_t * rw)
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 6;
 		cp_define->potential_cp_label_num = 4;
+		cp_define->interface_num = 2;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -582,6 +588,7 @@ int __wrapper__write_trylock(rwlock_t * rw)
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 8;
 		cp_define->potential_cp_label_num = 7;
+		cp_define->interface_num = 3;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -596,6 +603,7 @@ int __wrapper__write_trylock(rwlock_t * rw)
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 9;
 		cp_define->potential_cp_label_num = 7;
+		cp_define->interface_num = 3;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -644,6 +652,7 @@ void __wrapper__read_unlock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 10;
+		cp_define_check->interface_num = 4;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -690,11 +699,14 @@ void __wrapper__write_unlock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 11;
+		cp_define_check->interface_num = 5;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
 	}
+	
+
 	
 }
 
@@ -707,8 +719,7 @@ static void a(void *obj)
 	for(i = 0; i < 2; i++) {
 		if ((i % 2) == 0) {
 			read_lock(&mylock);
-						printf("%d\n", shareddata);
-			read_unlock(&mylock);
+									read_unlock(&mylock);
 		} else {
 			write_lock(&mylock);
 						shareddata = 47;
@@ -723,13 +734,11 @@ static void b(void *obj)
 	for(i = 0; i < 2; i++) {
 		if ((i % 2) == 0) {
 			if (read_trylock(&mylock) == 1) {
-				printf("%d\n", shareddata);
-				read_unlock(&mylock);
+								read_unlock(&mylock);
 			}
 		} else {
 			if (write_trylock(&mylock) == 1) {
-				shareddata = 47;
-				write_unlock(&mylock);
+								write_unlock(&mylock);
 			}
 		}
 	}

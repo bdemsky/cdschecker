@@ -2,7 +2,7 @@ include ../benchmarks.mk
 
 TESTNAME = mpmc-queue
 TESTS = mpmc-queue mpmc-1r2w mpmc-2r1w mpmc-queue-rdwr
-TESTS += mpmc-queue-noinit mpmc-1r2w-noinit mpmc-2r1w-noinit mpmc-rdwr-noinit
+TESTS += mpmc-queue-noinit mpmc-1r2w-noinit mpmc-2r1w-noinit mpmc-rdwr-noinit mpmc-rdwr-noinit1
 
 all: $(TESTS)
 
@@ -14,6 +14,7 @@ mpmc-queue-noinit: CPPFLAGS += -DCONFIG_MPMC_READERS=2 -DCONFIG_MPMC_WRITERS=2 -
 mpmc-1r2w-noinit: CPPFLAGS += -DCONFIG_MPMC_READERS=1 -DCONFIG_MPMC_WRITERS=2 -DCONFIG_MPMC_NO_INITIAL_ELEMENT
 mpmc-2r1w-noinit: CPPFLAGS += -DCONFIG_MPMC_READERS=2 -DCONFIG_MPMC_WRITERS=1 -DCONFIG_MPMC_NO_INITIAL_ELEMENT
 mpmc-rdwr-noinit: CPPFLAGS += -DCONFIG_MPMC_READERS=0 -DCONFIG_MPMC_WRITERS=0 -DCONFIG_MPMC_RDWR=2 -DCONFIG_MPMC_NO_INITIAL_ELEMENT
+mpmc-rdwr1-noinit: CPPFLAGS += -DCONFIG_MPMC_READERS=0 -DCONFIG_MPMC_WRITERS=0 -DCONFIG_MPMC_RDWR=1 -DCONFIG_MPMC_NO_INITIAL_ELEMENT
 
 $(TESTS): $(TESTNAME).cc $(TESTNAME).h 
 	$(CXX) -o $@ $< $(SPEC_OBJ) $(CXXFLAGS) $(LDFLAGS)

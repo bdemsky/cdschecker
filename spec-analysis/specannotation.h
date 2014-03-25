@@ -12,7 +12,7 @@ typedef bool (*check_action_func_t)(void *info, call_id_t id, thread_id_t tid);
 
 typedef enum spec_anno_type {
 	INIT, INTERFACE_BEGIN, POTENTIAL_CP_DEFINE, CP_DEFINE,
-	CP_DEFINE_CHECK, INTERFACE_END, HB_CONDITION
+	CP_DEFINE_CHECK, CP_CLEAR, INTERFACE_END, HB_CONDITION
 } spec_anno_type;
 
 typedef
@@ -80,12 +80,21 @@ typedef
 struct anno_cp_define {
 	int label_num;
 	int potential_cp_label_num;
+	int interface_num;
 } anno_cp_define;
 
 typedef
 struct anno_cp_define_check {
 	int label_num;
+	int interface_num;
 } anno_cp_define_check;
+
+typedef
+struct anno_cp_clear {
+	int label_num;
+	int interface_num;
+} anno_cp_clear;
+
 
 typedef
 struct anno_hb_condition {

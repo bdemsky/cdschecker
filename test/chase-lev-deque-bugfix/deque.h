@@ -39,11 +39,16 @@ return e ;
 }
 
 inline static call_id_t get_id ( void * wrapper ) {
-return ( ( tag_elem_t * ) wrapper ) -> id ;
+tag_elem_t * res = ( tag_elem_t * ) wrapper ;
+if ( res == NULL ) {
+return 0 ;
+}
+return res -> id ;
 }
 
 inline static int get_data ( void * wrapper ) {
-return ( ( tag_elem_t * ) wrapper ) -> data ;
+tag_elem_t * res = ( tag_elem_t * ) wrapper ;
+return res -> data ;
 }
 
 /* Definition of interface info struct: Steal */
@@ -72,11 +77,13 @@ inline static bool Steal_check_action(void *info, call_id_t __ID__, thread_id_t 
 	Deque * q = theInfo->q;
 
 	int _Old_Val = EMPTY ;
+	if ( __RET__ != EMPTY && __RET__ != ABORT ) {
 	if ( size ( __deque ) > 0 ) {
 	_Old_Val = get_data ( front ( __deque ) ) ;
 	pop_front ( __deque ) ;
 	}
-	check_passed = _Old_Val == __RET__;
+	}
+	check_passed = _Old_Val == __RET__ || __RET__ == EMPTY || __RET__ == ABORT;
 	if (!check_passed)
 		return false;
 	return true;
@@ -109,9 +116,11 @@ inline static bool Take_check_action(void *info, call_id_t __ID__, thread_id_t _
 	Deque * q = theInfo->q;
 
 	int _Old_Val = EMPTY ;
+	if ( __RET__ != EMPTY ) {
 	if ( size ( __deque ) > 0 ) {
 	_Old_Val = get_data ( back ( __deque ) ) ;
 	pop_back ( __deque ) ;
+	}
 	}
 	check_passed = _Old_Val == __RET__;
 	if (!check_passed)

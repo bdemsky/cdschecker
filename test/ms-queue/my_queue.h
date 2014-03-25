@@ -59,6 +59,7 @@ free ( e ) ;
 }
 
 inline static call_id_t get_id ( void * wrapper ) {
+if ( wrapper == NULL ) return 0 ;
 return ( ( tag_elem_t * ) wrapper ) -> id ;
 }
 
@@ -91,8 +92,14 @@ inline static bool Dequeue_check_action(void *info, call_id_t __ID__, thread_id_
 	 unsigned int __RET__ = theInfo->__RET__;
 	queue_t * q = theInfo->q;
 
-	unsigned int _Old_Val = get_data ( front ( __queue ) ) ;
+	unsigned int _Old_Val = 0 ;
+	if ( size ( __queue ) > 0 ) {
+	_Old_Val = get_data ( front ( __queue ) ) ;
 	pop_front ( __queue ) ;
+	}
+	else {
+	_Old_Val = 0 ;
+	}
 	check_passed = _Old_Val == __RET__;
 	if (!check_passed)
 		return false;

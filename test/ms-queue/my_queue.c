@@ -10,7 +10,7 @@
 #define acquire memory_order_acquire
 
 #define MAX_FREELIST 4 
-#define INITIAL_FREE 2 
+#define INITIAL_FREE 3 
 
 #define POISON_IDX 0x666
 
@@ -22,10 +22,10 @@ static unsigned int new_node()
 	int i;
 	int t = get_thread_num();
 	for (i = 0; i < MAX_FREELIST; i++) {
-				unsigned int node = free_lists[t][i];
-		if (node) {
-						free_lists[t][i] = 0;
-			return node;
+		unsigned int node = load_32(&free_lists[t][i]);
+				if (node) {
+			store_32(&free_lists[t][i], 0);
+						return node;
 		}
 	}
 	
@@ -42,12 +42,12 @@ static void reclaim(unsigned int node)
 	
 	for (i = 0; i < MAX_FREELIST; i++) {
 		
-				unsigned int idx = free_lists[t][i];
-
+		unsigned int idx = load_32(&free_lists[t][i]);
+		
 		
 		if (idx == 0) {
-						free_lists[t][i] = node;
-			return;
+			store_32(&free_lists[t][i], node);
+						return;
 		}
 	}
 	
@@ -112,25 +112,29 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	pointer tmp;
 
 	node = new_node();
-		q->nodes[node].value = val;
-	tmp = atomic_load_explicit(&q->nodes[node].next, relaxed);
+	store_32(&q->nodes[node].value, val);
+		tmp = atomic_load_explicit(&q->nodes[node].next, relaxed);
 	set_ptr(&tmp, 0); 	atomic_store_explicit(&q->nodes[node].next, tmp, relaxed);
 
 	while (!success) {
+		
 		tail = atomic_load_explicit(&q->tail, acquire);
+		
 		next = atomic_load_explicit(&q->nodes[get_ptr(tail)].next, acquire);
-		if (tail == atomic_load_explicit(&q->tail, relaxed)) {
+				if (tail == atomic_load_explicit(&q->tail, relaxed)) {
 
 			
 			
 			if (get_ptr(next) == 0) { 				pointer value = MAKE_POINTER(node, get_count(next) + 1);
-				success = atomic_compare_exchange_strong_explicit(&q->nodes[get_ptr(tail)].next,
-						&next, value, release, release);
+				
+								success = atomic_compare_exchange_strong_explicit(&q->nodes[get_ptr(tail)].next,
+						&next, value, release, relaxed);
 	/* Automatically generated code for commit point define check: Enqueue_Success_Point */
 
 	if (success == true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 0;
+		cp_define_check->interface_num = 0;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -139,19 +143,25 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 				
 			}
 			if (!success) {
+								
 				unsigned int ptr = get_ptr(atomic_load_explicit(&q->nodes[get_ptr(tail)].next, acquire));
 				pointer value = MAKE_POINTER(ptr,
 						get_count(tail) + 1);
-				atomic_compare_exchange_strong_explicit(&q->tail,
-						&tail, value, release, release);
-				thrd_yield();
+				
+								bool succ = false;
+				succ = atomic_compare_exchange_strong_explicit(&q->tail,
+						&tail, value, release, relaxed);
+				if (succ) {
+									}
+								thrd_yield();
 			}
 		}
 	}
-	atomic_compare_exchange_strong_explicit(&q->tail,
+	
+		atomic_compare_exchange_strong_explicit(&q->tail,
 			&tail,
 			MAKE_POINTER(node, get_count(tail) + 1),
-			release, release);
+			release, relaxed);
 }
 
 
@@ -194,10 +204,12 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	pointer next;
 
 	while (!success) {
+		
 		head = atomic_load_explicit(&q->head, acquire);
 		tail = atomic_load_explicit(&q->tail, relaxed);
+		
 		next = atomic_load_explicit(&q->nodes[get_ptr(head)].next, acquire);
-		if (atomic_load_explicit(&q->head, relaxed) == head) {
+				if (atomic_load_explicit(&q->head, relaxed) == head) {
 			if (get_ptr(head) == get_ptr(tail)) {
 
 				
@@ -207,6 +219,7 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 1;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -214,22 +227,28 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	}
 				if (get_ptr(next) == 0) { 					
 					return 0; 				}
-				atomic_compare_exchange_strong_explicit(&q->tail,
+				
+								bool succ = false;
+				succ = atomic_compare_exchange_strong_explicit(&q->tail,
 						&tail,
 						MAKE_POINTER(get_ptr(next), get_count(tail) + 1),
-						release, release);
-				thrd_yield();
+						release, relaxed);
+				if (succ) {
+									}
+								thrd_yield();
 			} else {
-								value = q->nodes[get_ptr(next)].value;
-				success = atomic_compare_exchange_strong_explicit(&q->head,
+				value = load_32(&q->nodes[get_ptr(next)].value);
+								
+								success = atomic_compare_exchange_strong_explicit(&q->head,
 						&head,
 						MAKE_POINTER(get_ptr(next), get_count(head) + 1),
-						release, release);
+						release, relaxed);
 	/* Automatically generated code for commit point define check: Dequeue_Success_Point */
 
 	if (success == true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 2;
+		cp_define_check->interface_num = 1;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;

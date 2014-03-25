@@ -29,12 +29,12 @@ static void main_task(void *param)
 
 	if (!pid) {
 		input[0] = 17;
-		enqueue(queue, input[0]);
+				enqueue(queue, input[0]);
 		output[0] = dequeue(queue);
 	} else {
 		input[1] = 37;
 		enqueue(queue, input[1]);
-		output[1] = dequeue(queue);
+						output[0] = dequeue(queue);
 	}
 }
 
@@ -47,8 +47,7 @@ int user_main(int argc, char **argv)
 	unsigned int in_sum = 0, out_sum = 0;
 
 	queue = calloc(1, sizeof(*queue));
-	MODEL_ASSERT(queue);
-
+	
 	num_threads = procs;
 	threads = malloc(num_threads * sizeof(thrd_t));
 	param = malloc(num_threads * sizeof(*param));
@@ -63,15 +62,7 @@ int user_main(int argc, char **argv)
 	for (i = 0; i < num_threads; i++)
 		thrd_join(threads[i]);
 
-	for (i = 0; i < num_threads; i++) {
-		in_sum += input[i];
-		out_sum += output[i];
-	}
-	for (i = 0; i < num_threads; i++)
-		printf("input[%d] = %u\n", i, input[i]);
-	for (i = 0; i < num_threads; i++)
-		printf("output[%d] = %u\n", i, output[i]);
-	
+
 	free(param);
 	free(threads);
 	free(queue);

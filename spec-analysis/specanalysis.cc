@@ -41,8 +41,8 @@ bool SPECAnalysis::option(char * opt) {
 }
 
 void SPECAnalysis::analyze(action_list_t *actions) {
-	if (trace_num_cnt % 1000 == 0)
-		model_print("SPECAnalysis analyzing: %d!\n", trace_num_cnt);
+	//if (trace_num_cnt % 1000 == 0)
+		//model_print("SPECAnalysis analyzing: %d!\n", trace_num_cnt);
 	trace_num_cnt++;
 	// Ever before running any analysis, check if the execution is buggy
 	if (execution->have_bug_reports()) {
@@ -51,7 +51,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		return;
 	}
 
-	traverseActions(actions);
+	//traverseActions(actions);
 	
 	buildCPGraph(actions);
 	if (isBrokenExecution)
@@ -534,9 +534,9 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 				hasCorrespondingPCP = false;
 				hasCommitPoint = false;
 				// Destroy the previous list of potential commit points
-				deletePcpList(pcp_list);
+				//deletePcpList(pcp_list);
 				// Get a new list of potential commit points
-				pcp_list = new pcp_list_t();
+				//pcp_list = new pcp_list_t();
 				// Also destroy the previous list of commit points
 				delete node->operations;
 				node->operations = new action_list_t();

@@ -267,7 +267,8 @@ friend class CHM;
 		}
 	
 		kvs_data* resize(cliffc_hashtable *topmap, kvs_data *kvs) {
-						kvs_data *newkvs = _newkvs.load(memory_order_acquire);
+						
+			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 			if (newkvs != NULL)
 				return newkvs;
 	
@@ -281,7 +282,8 @@ friend class CHM;
 						if (newsz <= oldlen) newsz = oldlen << 1;
 						if (newsz < oldlen) newsz = oldlen;
 	
-						newkvs = _newkvs.load(memory_order_acquire);
+						
+			newkvs = _newkvs.load(memory_order_acquire);
 						if (newkvs != NULL) return newkvs;
 	
 			newkvs = new kvs_data(newsz);
@@ -289,13 +291,16 @@ friend class CHM;
 						newkvs->_data[0].store(chm, memory_order_relaxed);
 	
 			kvs_data *cur_newkvs; 
-						if ((cur_newkvs = _newkvs.load(memory_order_acquire)) != NULL)
+						
+			if ((cur_newkvs = _newkvs.load(memory_order_acquire)) != NULL)
 				return cur_newkvs;
 						kvs_data *desired = (kvs_data*) NULL;
 			kvs_data *expected = (kvs_data*) newkvs; 
-			if (!_newkvs.compare_exchange_strong(desired, expected, memory_order_release,
+			
+						if (!_newkvs.compare_exchange_strong(desired, expected, memory_order_release,
 					memory_order_relaxed)) {
 								delete newkvs;
+				
 				newkvs = _newkvs.load(memory_order_acquire);
 			}
 			return newkvs;
@@ -304,6 +309,7 @@ friend class CHM;
 		void help_copy_impl(cliffc_hashtable *topmap, kvs_data *oldkvs,
 			bool copy_all) {
 			MODEL_ASSERT (get_chm(oldkvs) == this);
+			
 			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 			int oldlen = oldkvs->_size;
 			int min_copy_work = oldlen > 1024 ? 1024 : oldlen;
@@ -315,7 +321,7 @@ friend class CHM;
 				if (panic_start == -1) { 					copyidx = _copy_idx.load(memory_order_relaxed);
 					while (copyidx < (oldlen << 1) &&
 						!_copy_idx.compare_exchange_strong(copyidx, copyidx +
-							min_copy_work, memory_order_release, memory_order_relaxed))
+							min_copy_work, memory_order_relaxed, memory_order_relaxed))
 						copyidx = _copy_idx.load(memory_order_relaxed);
 					if (!(copyidx < (oldlen << 1)))
 						panic_start = copyidx;
@@ -336,6 +342,7 @@ friend class CHM;
 	
 		kvs_data* copy_slot_and_check(cliffc_hashtable *topmap, kvs_data
 			*oldkvs, int idx, void *should_help) {
+			
 			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 						if (copy_slot(topmap, idx, oldkvs, newkvs))
 				copy_check_and_promote(topmap, oldkvs, 1); 			return (should_help == NULL) ? newkvs : topmap->help_copy(newkvs);
@@ -356,7 +363,9 @@ friend class CHM;
 	
 						if (copyDone + workdone == oldlen &&
 				topmap->_kvs.load(memory_order_relaxed) == oldkvs) {
+				
 				kvs_data *newkvs = _newkvs.load(memory_order_acquire);
+				
 				topmap->_kvs.compare_exchange_strong(oldkvs, newkvs, memory_order_release,
 					memory_order_relaxed);
 			}
@@ -457,7 +466,20 @@ TypeV * get(TypeK * key) {
 TypeV * __wrapper__get(TypeK * key) {
 		slot *key_slot = new slot(false, key);
 		int fullhash = hash(key_slot);
+		
 		kvs_data *kvs = _kvs.load(memory_order_acquire);
+	/* Automatically generated code for commit point define check: Get_ReadKVS */
+
+	if (true) {
+		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
+		cp_define_check->label_num = 0;
+		cp_define_check->interface_num = 0;
+		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define_check->type = CP_DEFINE_CHECK;
+		annotation_cp_define_check->annotation = cp_define_check;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	}
+		
 		slot *V = get_impl(this, kvs, key_slot, fullhash);
 		if (V == NULL) return NULL;
 		MODEL_ASSERT (!is_prime(V));
@@ -544,7 +566,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 0;
+		potential_cp_define->label_num = 1;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -557,12 +579,13 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 	
 		static inline slot* val(kvs_data *kvs, int idx) {
 		MODEL_ASSERT (idx >= 0 && idx < kvs->_size);
-						slot *res = (slot*) kvs->_data[idx * 2 + 3].load(memory_order_acquire);
+						
+		slot *res = (slot*) kvs->_data[idx * 2 + 3].load(memory_order_acquire);
 	/* Automatically generated code for potential commit point: Read_Val_Point */
 
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 1;
+		potential_cp_define->label_num = 2;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -613,20 +636,33 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 	}
 	
 			static inline bool CAS_key(kvs_data *kvs, int idx, void *expected, void *desired) {
-		return kvs->_data[2 * idx + 2].compare_exchange_strong(expected,
+		bool res = kvs->_data[2 * idx + 2].compare_exchange_strong(expected,
 			desired, memory_order_relaxed, memory_order_relaxed);
+	/* Automatically generated code for potential commit point: Write_Key_Point */
+
+	if (res) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 3;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
+	}
+		
+		return res;
 	}
 
 	
 			static inline bool CAS_val(kvs_data *kvs, int idx, void *expected, void
 		*desired) {
+		
 		bool res =  kvs->_data[2 * idx + 3].compare_exchange_strong(expected,
 			desired, memory_order_acq_rel, memory_order_relaxed);
 	/* Automatically generated code for potential commit point: Write_Val_Point */
 
 	if (res) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 2;
+		potential_cp_define->label_num = 4;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -646,12 +682,13 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 		int reprobe_cnt = 0;
 		while (true) {
 			slot *K = key(kvs, idx);
-	/* Automatically generated code for commit point define: Get_Success_Point_1 */
+	/* Automatically generated code for commit point define: Get_Point1 */
 
 	if (K == NULL) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 3;
-		cp_define->potential_cp_label_num = 0;
+		cp_define->label_num = 5;
+		cp_define->potential_cp_label_num = 1;
+		cp_define->interface_num = 0;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -660,18 +697,31 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 			
 			slot *V = val(kvs, idx);
 			
-
 			if (K == NULL) {
 								return NULL; 			}
 			
 			if (keyeq(K, key_slot, hashes, idx, fullhash)) {
 								if (!is_prime(V)) {
-	/* Automatically generated code for commit point define: Get_Success_Point_2 */
+	/* Automatically generated code for commit point clear: Get_Clear */
+
+	if (true) {
+		struct anno_cp_clear *cp_clear = (struct anno_cp_clear*) malloc(sizeof(struct anno_cp_clear));
+		cp_clear->label_num = 6;
+		cp_clear->interface_num = 0;
+		struct spec_annotation *annotation_cp_clear = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_clear->type = CP_CLEAR;
+		annotation_cp_clear->annotation = cp_clear;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_clear);
+	}
+					
+
+	/* Automatically generated code for commit point define: Get_Point2 */
 
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 4;
-		cp_define->potential_cp_label_num = 1;
+		cp_define->label_num = 7;
+		cp_define->potential_cp_label_num = 2;
+		cp_define->interface_num = 0;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -685,17 +735,8 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 			if (++reprobe_cnt >= REPROBE_LIMIT ||
 				key_slot == TOMBSTONE) {
-												kvs_data *newkvs = chm->_newkvs.load(memory_order_acquire);
-	/* Automatically generated code for commit point define check: Get_Success_Point_3 */
-
-	if (newkvs == NULL) {
-		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 5;
-		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define_check->type = CP_DEFINE_CHECK;
-		annotation_cp_define_check->annotation = cp_define_check;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
-	}
+												
+				kvs_data *newkvs = chm->_newkvs.load(memory_order_acquire);
 				
 				return newkvs == NULL ? NULL : get_impl(topmap,
 					topmap->help_copy(newkvs), key_slot, fullhash);
@@ -711,7 +752,20 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 		slot *key_slot = new slot(false, key);
 
 		slot *value_slot = new slot(false, value);
+		
 		kvs_data *kvs = _kvs.load(memory_order_acquire);
+	/* Automatically generated code for commit point define check: Put_ReadKVS */
+
+	if (true) {
+		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
+		cp_define_check->label_num = 8;
+		cp_define_check->interface_num = 1;
+		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define_check->type = CP_DEFINE_CHECK;
+		annotation_cp_define_check->annotation = cp_define_check;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	}
+		
 		slot *res = putIfMatch(this, kvs, key_slot, value_slot, old_val);
 				MODEL_ASSERT (res != NULL); 
 		MODEL_ASSERT (!is_prime(res));
@@ -740,6 +794,19 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 			V = val(kvs, idx);
 			if (K == NULL) { 				if (val_slot == TOMBSTONE) return val_slot;
 								if (CAS_key(kvs, idx, NULL, key_slot)) {
+	/* Automatically generated code for commit point define: Put_WriteKey */
+
+	if (true) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 9;
+		cp_define->potential_cp_label_num = 3;
+		cp_define->interface_num = 1;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+					
 					chm->_slots.fetch_add(1, memory_order_relaxed); 					hashes[idx] = fullhash; 					break;
 				}
 				K = key(kvs, idx); 				MODEL_ASSERT (K != NULL);
@@ -755,7 +822,9 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 			idx = (idx + 1) & (len - 1); 		} 
 		if (val_slot == V) return V; 	
-						newkvs = chm->_newkvs.load(memory_order_acquire);
+						
+		newkvs = chm->_newkvs.load(memory_order_acquire);
+		
 		if (newkvs == NULL &&
 			((V == NULL && chm->table_full(reprobe_cnt, len)) || is_prime(V))) {
 						newkvs = chm->resize(topmap, kvs); 		}
@@ -772,51 +841,19 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 				(expVal != MATCH_ANY || V == TOMBSTONE || V == NULL) &&
 				!(V == NULL && expVal == TOMBSTONE) &&
 				(expVal == NULL || !valeq(expVal, V))) {
-	/* Automatically generated code for commit point define: PutIfAbsent_Fail_Point */
-
-	if (expVal == TOMBSTONE) {
-		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 6;
-		cp_define->potential_cp_label_num = 1;
-		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define->type = CP_DEFINE;
-		annotation_cp_define->annotation = cp_define;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
-	}
 				
-	/* Automatically generated code for commit point define: RemoveIfMatch_Fail_Point */
-
-	if (expVal != NULL && val_slot == TOMBSTONE) {
-		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 7;
-		cp_define->potential_cp_label_num = 1;
-		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define->type = CP_DEFINE;
-		annotation_cp_define->annotation = cp_define;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
-	}
 				
-	/* Automatically generated code for commit point define: ReplaceIfMatch_Fail_Point */
-
-	if (expVal != NULL && ! valeq ( expVal , V )) {
-		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 8;
-		cp_define->potential_cp_label_num = 1;
-		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define->type = CP_DEFINE;
-		annotation_cp_define->annotation = cp_define;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
-	}
 				
 				return V; 			}
 
 			if (CAS_val(kvs, idx, V, val_slot)) {
-	/* Automatically generated code for commit point define: Write_Success_Point */
+	/* Automatically generated code for commit point define: Put_Point */
 
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 9;
-		cp_define->potential_cp_label_num = 2;
+		cp_define->label_num = 10;
+		cp_define->potential_cp_label_num = 4;
+		cp_define->interface_num = 1;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -840,6 +877,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 	}
 
 		kvs_data* help_copy(kvs_data *helper) {
+		
 		kvs_data *topkvs = _kvs.load(memory_order_acquire);
 		CHM *topchm = get_chm(topkvs);
 				if (topchm->_newkvs.load(memory_order_relaxed) == NULL) return helper;

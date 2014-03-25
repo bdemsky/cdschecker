@@ -55,21 +55,19 @@ IntWrapper *k0, *k1, *k2, *k3, *k4, *k5;
 IntWrapper *v0, *v1, *v2, *v3, *v4, *v5;
 
 void threadA(void *arg) {
-	table->put(k3, v3);
 	table->put(k1, v4);
+	table->put(k3, v3);
 			
 		
 }
 
 void threadB(void *arg) {
-	table->put(k2, v1);
-
 			}
 
 void threadMain(void *arg) {
 	val1 = table->get(k1);
 	val2 = table->get(k2);
-		
+	
 }
 
 int user_main(int argc, char *argv[]) {
