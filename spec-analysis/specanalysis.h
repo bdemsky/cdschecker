@@ -155,7 +155,7 @@ class SPECAnalysis : public TraceAnalysis {
 	ModelAction* getPrevAction(action_list_t *actions, action_list_t::iterator
 		*iter, ModelAction *anno);
 	void buildEdges();
-	node_list_t* sortCPGraph();
+	node_list_t* sortCPGraph(action_list_t *actions);
 	bool isCyclic();
 	bool check(node_list_t *sorted_commit_points);
 	void freeCPNodes();

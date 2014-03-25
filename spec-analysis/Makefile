@@ -3,7 +3,7 @@ BASE := ..
 OBJECTS := specanalysis.o spec_lib.o testanalysis.o
 include $(BASE)/common.mk
 
-CPPFLAGS += -I$(BASE) -I$(BASE)/include -I.
+CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -O0 -g
 
 all: $(OBJECTS)
 

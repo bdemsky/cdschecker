@@ -55,36 +55,21 @@ IntWrapper *k0, *k1, *k2, *k3, *k4, *k5;
 IntWrapper *v0, *v1, *v2, *v3, *v4, *v5;
 
 void threadA(void *arg) {
-	table->put(k1, v1);
-	//table->put(k2, v2);
-	//table->put(k3, v3);
-	/*
-	val1 = table->get(k3);
-	if (val1 != NULL)
-		model_print("val1: %d\n", val1->_val);
-	else
-		model_print("val1: NULL\n");*/
-	//table->put(k3, v3);
-	
+	table->put(k3, v3);
+	table->put(k1, v4);
+			
+		
 }
 
 void threadB(void *arg) {
-	table->put(k1, v1);
-	table->put(k2, v4);
-	table->put(k3, v3);
-}
+	table->put(k2, v1);
+
+			}
 
 void threadMain(void *arg) {
 	val1 = table->get(k1);
 	val2 = table->get(k2);
-	if (val1 != NULL)
-		model_print("val1: %d\n", val1->_val);
-	else
-		model_print("val1: NULL\n");
-	if (val2 != NULL)
-		model_print("val2: %d\n", val2->_val);
-	else
-		model_print("val2: NULL\n");
+		
 }
 
 int user_main(int argc, char *argv[]) {
@@ -105,26 +90,14 @@ int user_main(int argc, char *argv[]) {
 	v0 = new IntWrapper(2048);
 	table->put(k1, v0);
 	table->put(k2, v0);
-	model_print("hey\n");
-	thrd_create(&t1, threadA, NULL);
+		thrd_create(&t1, threadA, NULL);
 	thrd_create(&t2, threadB, NULL);
 	threadMain(NULL);
 
 	thrd_join(t1);
 	thrd_join(t2);
-	/*
-	if (val1 == NULL) {
-		cout << "val1: NULL" << endl;
-	} else {
-		cout << val1->get() << endl;
-	}
-	//MODEL_ASSERT(val1 == NULL || val1->get() == 2 || val1->get() == 81);
-	if (val2 == NULL) {
-		cout << "val2: NULL" << endl;
-	} else {
-		cout << val2->get() << endl;
-	}
-	*/
+	
 	return 0;
 }
+
 

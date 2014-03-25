@@ -51,7 +51,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		return;
 	}
 
-	traverseActions(actions);
+	//traverseActions(actions);
 	
 	buildCPGraph(actions);
 	if (isBrokenExecution)
@@ -64,7 +64,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	if (cpActions->size() == 0) return;
 	buildEdges();
 	
-	node_list_t *sorted_commit_points = sortCPGraph();
+	node_list_t *sorted_commit_points = sortCPGraph(actions);
 
 	
 	if (sorted_commit_points == NULL) {
@@ -74,7 +74,6 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	}
 	bool passed = check(sorted_commit_points);
 
-	//dumpGraph(sorted_commit_points);
 	if (!passed) {
 		model_print("Error exists!!\n");
 		dumpGraph(sorted_commit_points);
@@ -212,7 +211,7 @@ static void dumpNodeUtil(commit_point_node *node, const char *msg) {
 	prioritized;
 	2. 
 */
-node_list_t* SPECAnalysis::sortCPGraph() {
+node_list_t* SPECAnalysis::sortCPGraph(action_list_t *actions) {
 	node_list_t *sorted_list = new node_list_t();
 	node_list_t *stack = new node_list_t();
 	int time_stamp = 1;
@@ -241,6 +240,7 @@ node_list_t* SPECAnalysis::sortCPGraph() {
 						commit_point_node *next_node = (*rit)->next_node;
 						if (next_node->color == 1) { // back edge -> cycle
 							dumpNodeUtil(next_node, "cycle");
+							traverseActions(actions);
 							model_print("There exists cycles in this graph!\n");
 							return NULL;
 						}
