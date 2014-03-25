@@ -15,7 +15,7 @@ SPEC_OBJ := $(SPEC_DIR)/spec_lib.o
 INCLUDE = -I$(BASE)/include -I$(BASE)/spec-analysis -I$(BASE)
 
 # C preprocessor flags
-CPPFLAGS += $(INCLUDE) -g
+CPPFLAGS += $(INCLUDE) -g -O3
 
 # C++ compiler flags
 CXXFLAGS += $(CPPFLAGS)
