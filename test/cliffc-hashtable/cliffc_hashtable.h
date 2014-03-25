@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <atomic>
+#include "stdio.h" 
 #ifdef STANDALONE
 #include <assert.h>
 #define MODEL_ASSERT assert 
@@ -267,6 +268,7 @@ friend class CHM;
 		}
 	
 		kvs_data* resize(cliffc_hashtable *topmap, kvs_data *kvs) {
+			model_print("hey\n");
 						
 			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 			if (newkvs != NULL)
@@ -468,17 +470,6 @@ TypeV * __wrapper__get(TypeK * key) {
 		int fullhash = hash(key_slot);
 		
 		kvs_data *kvs = _kvs.load(memory_order_acquire);
-	/* Automatically generated code for commit point define check: Get_ReadKVS */
-
-	if (true) {
-		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 0;
-		cp_define_check->interface_num = 0;
-		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define_check->type = CP_DEFINE_CHECK;
-		annotation_cp_define_check->annotation = cp_define_check;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
-	}
 		
 		slot *V = get_impl(this, kvs, key_slot, fullhash);
 		if (V == NULL) return NULL;
@@ -566,7 +557,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 1;
+		potential_cp_define->label_num = 0;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -585,7 +576,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 2;
+		potential_cp_define->label_num = 1;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -642,7 +633,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (res) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 3;
+		potential_cp_define->label_num = 2;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -662,7 +653,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (res) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 4;
+		potential_cp_define->label_num = 3;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -686,8 +677,8 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (K == NULL) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 5;
-		cp_define->potential_cp_label_num = 1;
+		cp_define->label_num = 4;
+		cp_define->potential_cp_label_num = 0;
 		cp_define->interface_num = 0;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
@@ -706,7 +697,7 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_cp_clear *cp_clear = (struct anno_cp_clear*) malloc(sizeof(struct anno_cp_clear));
-		cp_clear->label_num = 6;
+		cp_clear->label_num = 5;
 		cp_clear->interface_num = 0;
 		struct spec_annotation *annotation_cp_clear = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_clear->type = CP_CLEAR;
@@ -719,8 +710,8 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 7;
-		cp_define->potential_cp_label_num = 2;
+		cp_define->label_num = 6;
+		cp_define->potential_cp_label_num = 1;
 		cp_define->interface_num = 0;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
@@ -754,17 +745,6 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 		slot *value_slot = new slot(false, value);
 		
 		kvs_data *kvs = _kvs.load(memory_order_acquire);
-	/* Automatically generated code for commit point define check: Put_ReadKVS */
-
-	if (true) {
-		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 8;
-		cp_define_check->interface_num = 1;
-		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define_check->type = CP_DEFINE_CHECK;
-		annotation_cp_define_check->annotation = cp_define_check;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
-	}
 		
 		slot *res = putIfMatch(this, kvs, key_slot, value_slot, old_val);
 				MODEL_ASSERT (res != NULL); 
@@ -798,8 +778,8 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 9;
-		cp_define->potential_cp_label_num = 3;
+		cp_define->label_num = 7;
+		cp_define->potential_cp_label_num = 2;
 		cp_define->interface_num = 1;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
@@ -851,8 +831,8 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 10;
-		cp_define->potential_cp_label_num = 4;
+		cp_define->label_num = 8;
+		cp_define->potential_cp_label_num = 3;
 		cp_define->interface_num = 1;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;

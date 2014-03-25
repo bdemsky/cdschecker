@@ -55,47 +55,64 @@ IntWrapper *k0, *k1, *k2, *k3, *k4, *k5;
 IntWrapper *v0, *v1, *v2, *v3, *v4, *v5;
 
 void threadA(void *arg) {
-	table->put(k1, v4);
-	table->put(k3, v3);
-			
-		
+	IntWrapper *Res;
+	int res;
+	
+	Res = table->put(k2, v3);
+	res = Res == NULL ? 0 : Res->_val;
+	printf("Put1: key_%d, val_%d, res_%d\n", k2->_val, v3->_val, res);
+
+	Res = table->get(k1);
+	res = Res == NULL ? 0 : Res->_val;
+	printf("Get2: key_%d, res_%d\n", k1->_val, res);
 }
 
 void threadB(void *arg) {
-			}
+	IntWrapper *Res;
+	int res;
+	Res = table->put(k1, v2);
+	res = Res == NULL ? 0 : Res->_val;
+	printf("Put3: key_%d, val_%d, res_%d\n", k1->_val, v2->_val, res);
+	Res = table->get(k2);
+	res = Res == NULL ? 0 : Res->_val;
+	printf("Get4: key_%d, res_%d\n", k2->_val, res);
+}
 
-void threadMain(void *arg) {
-	val1 = table->get(k1);
-	val2 = table->get(k2);
-	
+void threadC(void *arg) {
+	IntWrapper *Res;
+	int res;
+	Res = table->get(k3);
+	Res = table->get(k2);
+	Res = table->get(k1);
 }
 
 int user_main(int argc, char *argv[]) {
-	thrd_t t1, t2;
-	table = new cliffc_hashtable<IntWrapper, IntWrapper>(2);
+	thrd_t t1, t2, t3;
+	table = new cliffc_hashtable<IntWrapper, IntWrapper>(32);
     k1 = new IntWrapper(3);
 	k2 = new IntWrapper(5);
 	k3 = new IntWrapper(11);
 	k4 = new IntWrapper(7);
 	k5 = new IntWrapper(13);
 
+	v0 = new IntWrapper(2048);
 	v1 = new IntWrapper(1024);
 	v2 = new IntWrapper(47);
 	v3 = new IntWrapper(73);
 	v4 = new IntWrapper(81);
 	v5 = new IntWrapper(99);
 
-	v0 = new IntWrapper(2048);
-	table->put(k1, v0);
-	table->put(k2, v0);
-		thrd_create(&t1, threadA, NULL);
+	printf("Thread begin! \n");
+	thrd_create(&t1, threadA, NULL);
 	thrd_create(&t2, threadB, NULL);
-	threadMain(NULL);
-
+	//thrd_create(&t3, threadB, NULL);
 	thrd_join(t1);
 	thrd_join(t2);
+	//thrd_join(t3);
 	
+	printf("Thread end! \n");
 	return 0;
 }
+
 
 
