@@ -73,7 +73,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		dumpGraph(sorted_commit_points);
 	} else {
 		//model_print("Passed all the safety checks!\n");
-		//dumpGraph(sorted_commit_points);
+		dumpGraph(sorted_commit_points);
 	}
 }
 
@@ -182,11 +182,19 @@ bool SPECAnalysis::isCyclic() {
 
 
 static void dumpNodeUtil(commit_point_node *node, const char *msg) {
-	/*
-	ModelAction *act = node->operation;
-	model_print("%s node: %d, %d, %d\n", msg, act->get_seq_number(), act->get_tid(),
-		node->interface_num);
-	*/
+	action_list_t *operations = node->operations;
+	model_print("Node: seq_%d, tid_%d, inter_%d", node->begin->get_seq_number(),
+		node->begin->get_tid(), node->interface_num);
+	for (action_list_t::iterator opIter = operations->begin(); opIter !=
+		operations->end(); opIter++) {
+		ModelAction *act = *opIter;
+		model_print("__%d", act->get_seq_number());
+	}
+	if (msg == NULL) {
+		model_print("\n");
+	} else {
+		model_print(", %s\n", msg);
+	}
 }
 
 /**
@@ -317,18 +325,16 @@ void SPECAnalysis::buildEdges() {
 					if (act1->get_location() == act2->get_location()) { // Same location 
 						const ModelAction *rfAction1 = act1->get_reads_from(),
 							*rfAction2 = act2->get_reads_from();
-					if (act1 == rfAction2 || act2 == rfAction1)
-						continue;
-					if (act1->get_type() == ATOMIC_READ && act2->get_type() !=
-						ATOMIC_READ && hasAnEdge(rfAction1, act2)) {
-						node1->addEdge(node2, RBW);
-					} else if (act1->get_type() != ATOMIC_READ && act2->get_type() ==
-						ATOMIC_READ && hasAnEdge(rfAction2, act1)) {
-						node2->addEdge(node1, RBW);
+						if (act1 == rfAction2 || act2 == rfAction1)
+							continue;
+						if (act1->get_type() == ATOMIC_READ && act2->get_type() !=
+							ATOMIC_READ && hasAnEdge(rfAction1, act2)) {
+							node1->addEdge(node2, RBW);
+						} else if (act1->get_type() != ATOMIC_READ && act2->get_type() ==
+							ATOMIC_READ && hasAnEdge(rfAction2, act1)) {
+							node2->addEdge(node1, RBW);
+						}
 					}
-					}
-
-
 					if (act2->get_reads_from() == act1) {
 						node1->addEdge(node2, RF);
 						//dumpNode(node1);
@@ -353,7 +359,7 @@ void SPECAnalysis::buildEdges() {
 			
 		}
 	}
-	
+	/*
 	// Add extra edges for the initial 'read' operations
 	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
 		ModelAction *act1 = *iter1;
@@ -381,6 +387,7 @@ void SPECAnalysis::buildEdges() {
 			}
 		}
 	}
+	*/
 	//model_print("Finish building edges!\n");
 }
 
@@ -605,15 +612,18 @@ void SPECAnalysis::freeCPNodes() {
 }
 
 void SPECAnalysis::dumpNode(commit_point_node *node) {
+	/*
 	action_list_t *operations = node->operations;
-	model_print("Node: seq_%d, tid_%d, inter_%d\n", node->begin->get_seq_number(),
+	model_print("Node: seq_%d, tid_%d, inter_%d", node->begin->get_seq_number(),
 		node->begin->get_tid(), node->interface_num);
 	for (action_list_t::iterator opIter = operations->begin(); opIter !=
 		operations->end(); opIter++) {
 		ModelAction *act = *opIter;
-		model_print(", __%d\n", act->get_seq_number());
+		model_print("__%d", act->get_seq_number());
 	}
 	model_print("\n");
+	*/
+	dumpNodeUtil(node, NULL);
 	if (node->edges == NULL) return;
 	for (edge_list_t::iterator it = node->edges->begin();
 		it != node->edges->end(); it++) {
