@@ -53,13 +53,18 @@ typedef struct commit_point_edge {
 
 } commit_point_edge;
 
+
+/**
+	Modify the commit_point_node to allow multipe commit points; basically it
+	stores a list of ModelAction* and the list to reorder interface calls
+*/
 typedef struct commit_point_node {
 	const ModelAction *begin; // Interface begin annotation
-	ModelAction *operation; // Commit point operation
+	action_list_t operations; // List of Commit point operation
 	hbcond_list_t *hb_conds;
 	call_id_t __ID__;
 	int interface_num; // Interface number
-	int cp_label_num; // Commit point label number
+	//int cp_label_num; // Commit point label number
 	void *info;
 	const ModelAction *end; // Interface end annotation
 	edge_list_t *edges;
@@ -159,6 +164,8 @@ class SPECAnalysis : public TraceAnalysis {
 	void dumpDotGraph();
 	void dumpNode(commit_point_node *node);
 	void traverseActions(action_list_t *actions);
+
+	void deletePcpList(pcp_list_t *pcp_list);
 };
 
 

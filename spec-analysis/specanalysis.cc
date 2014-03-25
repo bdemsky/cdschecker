@@ -9,6 +9,8 @@
 #include "modeltypes.h"
 
 
+/** Add ordering points **/
+
 SPECAnalysis::SPECAnalysis()
 {
 	execution = NULL;
@@ -256,66 +258,101 @@ void SPECAnalysis::buildEdges() {
 	CycleGraph *mo_graph = execution->get_mo_graph();
 	for (iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
 		for (iter2 = iter1, iter2++; iter2 != cpActions->end(); iter2++) {
-			// Build happens-before edges
-			const ModelAction *act1 = *iter1,
-				*act2 = *iter2;
-			commit_point_node *node1 = cpGraph->get(act1),	
-				*node2 = cpGraph->get(act2);
-			// When sorting, we prioritize RF, so we add RF edge first
-			// Within RF, we prioritize the commit points that are read
-			// operations
-			if (act2->get_reads_from() == act1) {
-				node1->addEdge(node2, RF);
-				//dumpNode(node1);
-			} else if (act1->get_reads_from() == act2) {
-				node2->addEdge(node1, RF);
-			} else { // Deal with HB or MO
-				if (act1->happens_before(act2)) {
-					node1->addEdge(node2, HB);
-				} else if (act2->happens_before(act1)) {
-					node2->addEdge(node1, HB);
-				} else { // Deal with MO
-					if (mo_graph->checkReachable(act1, act2)) {
-						node1->addEdge(node2, MO);
-					} else if (mo_graph->checkReachable(act2, act1)) {
-						node2->addEdge(node1, MO);
+			const ModelAction *begin1 = *iter1,
+				*begin2 = *iter2,
+				*act1, *act2;
+			commit_point_node *node1 = cpGraph->get(begin1),
+				*node2 = cpGraph->get(begin2);
+			// Iterate the commit point lists of both nodes to build edges
+			action_list_t::iterator cpIter1, cpIter2;
+			for (cpIter1 = node1->operations->begin(); cpIter1 !=
+				node1->operations->end(); cpIter1++) {
+				act1 = *cpIter1;
+				for (cpIter2 = node2->operations->begin(); cpIter2 !=
+					node2->operations->end(); cpIter2++) {
+					act2 = *cpIter2;
+					if (act2->get_reads_from() == act1) {
+						node1->addEdge(node2, RF);
+						//dumpNode(node1);
+					} else if (act1->get_reads_from() == act2) {
+						node2->addEdge(node1, RF);
+					} else { // Deal with HB or MO
+						if (act1->happens_before(act2)) {
+							node1->addEdge(node2, HB);
+						} else if (act2->happens_before(act1)) {
+							node2->addEdge(node1, HB);
+						} else { // Deal with MO
+							if (mo_graph->checkReachable(act1, act2)) {
+								node1->addEdge(node2, MO);
+							} else if (mo_graph->checkReachable(act2, act1)) {
+								node2->addEdge(node1, MO);
+							}
+						}
 					}
+
 				}
 			}
+			
 		}
 	}
-	/*
-	// Need to build extra edges (RBW edges to prioritize reads in RF)
-	action_list_t::iterator iter;
-	for (iter = cpActions->begin(); iter != cpActions->end(); iter++) {
-		const ModelAction *act = *iter;
-		commit_point_node *node = cpGraph->get(act);
-		if (node->edges == NULL)
-			continue;
-		for (edge_list_t::iterator eIter1 = node->edges->begin(); eIter1 !=
-				node->edges->end(); eIter1++) {
-			commit_point_edge *e1 = *eIter1;
-			if (e1->type == RF && e1->next_node->operation->get_type() ==
-				ATOMIC_READ) {
-				for (edge_list_t::iterator eIter2 = node->edges->begin(); eIter2 !=
-					node->edges->end(); eIter2++) {
-					commit_point_edge *e2 = *eIter2;
-					if (e2->next_node->operation->get_type() != ATOMIC_READ &&
-						e2->next_node->operation->get_location() ==
-						e1->next_node->operation->get_location() &&
-						e2->type != RF) {
-						// Add the RBW edge
-						e1->next_node->addEdge(e2->next_node, RBW);
-						//model_print("add a RBW edge\n");
-						//dumpNode(e1->next_node);
-						//dumpNode(e2->next_node);
+
+	for (iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
+		for (iter2 = iter1, iter2++; iter2 != cpActions->end(); iter2++) {
+			const ModelAction *begin1 = *iter1,
+				*begin2 = *iter2,
+				*act1, *act2;
+			commit_point_node *node1 = cpGraph->get(begin1),
+				*node2 = cpGraph->get(begin2);
+			// Iterate the commit point lists of both nodes to build extra edges
+			action_list_t::iterator cpIter1, cpIter2;
+			for (cpIter1 = node1->operations->begin(); cpIter1 !=
+				node1->operations->end(); cpIter1++) {
+				act1 = *cpIter1;
+				for (cpIter2 = node2->operations->begin(); cpIter2 !=
+					node2->operations->end(); cpIter2++) {
+					act2 = *cpIter2;
+
+					if (act1->get_location() == act2->get_location()) { // Same location 
+						const ModelAction *rfAction1 = act1->get_reads_from(),
+							*rfAction2 = act2->get_reads_from();
+					if (act1 == rfAction2 || act2 == rfAction1)
+						continue;
+					if (act1->get_type() == ATOMIC_READ && act2->get_type() !=
+						ATOMIC_READ && hasAnEdge(rfAction1, act2)) {
+						node1->addEdge(node2, RBW);
+					} else if (act1->get_type() != ATOMIC_READ && act2->get_type() ==
+						ATOMIC_READ && hasAnEdge(rfAction2, act1)) {
+						node2->addEdge(node1, RBW);
 					}
+					}
+
+
+					if (act2->get_reads_from() == act1) {
+						node1->addEdge(node2, RF);
+						//dumpNode(node1);
+					} else if (act1->get_reads_from() == act2) {
+						node2->addEdge(node1, RF);
+					} else { // Deal with HB or MO
+						if (act1->happens_before(act2)) {
+							node1->addEdge(node2, HB);
+						} else if (act2->happens_before(act1)) {
+							node2->addEdge(node1, HB);
+						} else { // Deal with MO
+							if (mo_graph->checkReachable(act1, act2)) {
+								node1->addEdge(node2, MO);
+							} else if (mo_graph->checkReachable(act2, act1)) {
+								node2->addEdge(node1, MO);
+							}
+						}
+					}
+
 				}
 			}
+			
 		}
-	}*/
-	// Add extra edges for the initial 'read' operations
+	}
 	
+	// Add extra edges for the initial 'read' operations
 	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
 		const ModelAction *act1 = *iter1;
 		commit_point_node *node1 = cpGraph->get(act1);
@@ -376,6 +413,16 @@ ModelAction* SPECAnalysis::getPrevAction(action_list_t *actions,
 	}
 }
 
+/**
+	Rule of getting the list of ordering points:
+	If there are a sequence of potential_commit_points, and a
+	commit_point_define, then the last closest potential_commit_point is an
+	ordering point;
+	If there is a commit point define check, then the closest atomic operation
+	is also an ordering point;
+	If we encounter a Clear_Ordering_Point annotation, we drop the previous list
+	of commit points (we don't have that annotation yet)
+*/
 commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t::iterator
 	*iter) {
 	action_list_t::iterator it = *iter;
@@ -398,7 +445,10 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 	// A list of potential commit points
 	pcp_list_t *pcp_list = new pcp_list_t();
 	potential_cp_info *pcp_info;
+	ModelAction *operation = NULL;
 	bool hasCommitPoint = false, pcp_defined = false;
+	bool hasCorrespoindingPCP = false;
+	node->operations = new action_list_t();
 	for (it++; it != actions->end(); it++) {
 		act = *it;
 		if (act->get_type() != ATOMIC_ANNOTATION || act->get_tid() != tid
@@ -425,31 +475,31 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 					break;
 				} else {
 					// Check if potential commit has been checked
+					hasCorrespondingPCP = false;
 					for (pcp_list_t::iterator pcp_it = pcp_list->begin(); pcp_it
 						!= pcp_list->end(); pcp_it++) {
 						pcp_info = *pcp_it;
 						if (cp_define->potential_cp_label_num == pcp_info->label_num) {
-							//if (!hasCommitPoint) {
-								hasCommitPoint = true;
-								node->operation = pcp_info->operation;
-								node->cp_label_num = pcp_info->label_num;
-							//} else {
-							//	model_print("CP_DEFINE, Multiple commit points.\n");
-							//	return NULL;
-							//}
+							hasCommitPoint = true;
+							hasCorrespondingPCP = true;
+							operation = pcp_info->operation;
 						}
+					}
+					if (hasCorrespondingPCP) {
+						node->operations->push_back(operation);
+						// Destroy the previous list of potential commit points
+						deletePcpList(pcp_list);
+						// Get a new list of potential commit points
+						pcp_list = new pcp_list_t();
 					}
 				}
 				break;
 			case CP_DEFINE_CHECK:
 				//model_print("CP_DEFINE_CHECK\n");
 				cp_define_check = (anno_cp_define_check*) anno->annotation;
-				node->operation = getPrevAction(actions, &it, act);
-				node->cp_label_num = cp_define_check->label_num;
-				if (hasCommitPoint) {
-					model_print("CP_DEFINE_CHECK, Multiple commit points.\n");
-					return NULL;
-				}
+				operation = getPrevAction(actions, &it, act);
+				// Add the commit_point_define_check operation
+				node->operations->push_back(operation);
 				hasCommitPoint = true;
 				break;
 			case HB_CONDITION:
@@ -480,14 +530,20 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 				break;
 		}
 	}
-	// Free the potential commit points list
+	deletePcpList(pcp_list);
+	return node;
+}
+
+
+// Free the potential commit points list
+void SPECAnalysis::deletePcpList(pcp_list_t *pcp_list) {
 	for (pcp_list_t::iterator free_it = pcp_list->begin(); free_it !=
 		pcp_list->end(); free_it++) {
 		delete *free_it;
 	}
 	delete pcp_list;
-	return node;
 }
+
 
 void SPECAnalysis::buildCPGraph(action_list_t *actions) {
 	cpGraph = new node_table_t();
@@ -533,14 +589,8 @@ void SPECAnalysis::buildCPGraph(action_list_t *actions) {
 				node = getCPNode(actions, &iter);
 				if (node != NULL) {
 					// Store the graph in a hashtable
-					if (node->operation == NULL) {
-						isBrokenExecution = true;
-						model_print("Wired, Null action!!\n");
-						return;
-					} else {
-						cpGraph->put(node->operation, node);
-						cpActions->push_back(node->operation);
-					}
+					cpGraph->put(node->begin, node);
+					cpActions->push_back(node->begin);
 				}
 				break;
 			default:
