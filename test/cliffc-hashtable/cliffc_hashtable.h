@@ -268,7 +268,7 @@ friend class CHM;
 		}
 	
 		kvs_data* resize(cliffc_hashtable *topmap, kvs_data *kvs) {
-			model_print("hey\n");
+			model_print("resizing\n");
 						
 			kvs_data *newkvs = _newkvs.load(memory_order_acquire);
 			if (newkvs != NULL)

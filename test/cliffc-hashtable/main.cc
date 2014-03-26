@@ -57,33 +57,52 @@ IntWrapper *v0, *v1, *v2, *v3, *v4, *v5;
 void threadA(void *arg) {
 	IntWrapper *Res;
 	int res;
+
+	table->put(k1, v1);
+	table->put(k1, v2);
+	table->put(k1, v4);
+
+	Res = table->get(k1);
+	Res = table->get(k1);
+	Res = table->get(k1);
 	
-	Res = table->put(k2, v3);
+	/*
 	res = Res == NULL ? 0 : Res->_val;
 	printf("Put1: key_%d, val_%d, res_%d\n", k2->_val, v3->_val, res);
-
+	
 	Res = table->get(k1);
 	res = Res == NULL ? 0 : Res->_val;
 	printf("Get2: key_%d, res_%d\n", k1->_val, res);
+	*/
 }
 
 void threadB(void *arg) {
 	IntWrapper *Res;
 	int res;
-	Res = table->put(k1, v2);
+	table->put(k1, v2);
+	table->put(k1, v3);
+	table->put(k1, v0);
+	Res = table->get(k1);
+	Res = table->get(k1);
+	Res = table->get(k1);
+	//Res = table->put(k4, v2);
+	/*
 	res = Res == NULL ? 0 : Res->_val;
 	printf("Put3: key_%d, val_%d, res_%d\n", k1->_val, v2->_val, res);
 	Res = table->get(k2);
 	res = Res == NULL ? 0 : Res->_val;
-	printf("Get4: key_%d, res_%d\n", k2->_val, res);
+	printf("Get4: key_%d, res_%d\n", k2->_val, res);*/
 }
 
 void threadC(void *arg) {
 	IntWrapper *Res;
 	int res;
+	//Res = table->get(k1);
+	/*
 	Res = table->get(k3);
 	Res = table->get(k2);
 	Res = table->get(k1);
+	*/
 }
 
 int user_main(int argc, char *argv[]) {
