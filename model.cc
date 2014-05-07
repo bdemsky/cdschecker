@@ -415,6 +415,12 @@ bool ModelChecker::should_terminate_execution()
 	return false;
 }
 
+/** @brief Restart ModelChecker upon returning to the run loop of the model checker. */
+void ModelChecker::restart()
+{
+
+}
+
 /** @brief Run ModelChecker for the user program */
 void ModelChecker::run()
 {

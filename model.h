@@ -47,6 +47,9 @@ public:
 
 	void run();
 
+	/** Restart the model checker, supposed to be called by the pluggin */
+	void restart();
+
 	/** @returns the context for the main model-checking system thread */
 	ucontext_t * get_system_context() { return &system_context; }
 
