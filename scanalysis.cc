@@ -5,8 +5,9 @@
 #include "execution.h"
 #include <sys/time.h>
 
+static int count = 3;
 
-SCAnalysis::SCAnalysis() :
+SCAnalysis::SCAnalysis(ModelChecker **model_ptr) :
 	cvmap(),
 	cyclic(false),
 	badrfset(),
@@ -103,6 +104,11 @@ void SCAnalysis::analyze(action_list_t *actions) {
 	if (time)
 		gettimeofday(&start, NULL);
 	action_list_t *list = generateSC(actions);
+	if (count > 0) {
+		count--;
+		model_print("restart here!\n");
+		(*model_ptr)->restart();
+	}
 	check_rf(list);
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
 		print_list(list);
@@ -139,6 +145,7 @@ bool SCAnalysis::merge(ClockVector *cv, const ModelAction *act, const ModelActio
 		return true;
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
+		model_print("Has a cycle\n");
 		//refuse to introduce cycles into clock vectors
 		return false;
 	}
@@ -455,4 +462,9 @@ void SCAnalysis::computeCV(action_list_t *list) {
 		}
 	}
 	model_free(last_act);
+}
+
+
+void breakCycle() {
+
 }

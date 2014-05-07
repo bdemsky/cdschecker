@@ -12,7 +12,8 @@ struct sc_statistics {
 
 class SCAnalysis : public TraceAnalysis {
  public:
-	SCAnalysis();
+	SCAnalysis(ModelChecker **model_ptr);
+	//SCAnalysis();
 	~SCAnalysis();
 	virtual void setExecution(ModelExecution * execution);
 	virtual void analyze(action_list_t *);

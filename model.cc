@@ -413,6 +413,12 @@ bool ModelChecker::should_terminate_execution()
 	return false;
 }
 
+/** @brief Restart ModelChecker; supposed to be called by the pluggin */
+void ModelChecker::restart()
+{
+	//run();
+}
+
 /** @brief Run ModelChecker for the user program */
 void ModelChecker::run()
 {

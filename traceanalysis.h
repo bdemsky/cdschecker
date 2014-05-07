@@ -4,6 +4,15 @@
 
 class TraceAnalysis {
  public:
+	/** Constructor for the analysis with the reference of the ModelChecker */
+
+	TraceAnalysis(ModelChecker **model_ptr) { this->model_ptr = model_ptr; }
+	
+	/** Constructor for the analysis without the reference of the ModelChecker */
+
+	TraceAnalysis() { this->model_ptr = NULL; }
+
+
 	/** setExecution is called once after installation with a reference to
 	 *  the ModelExecution object. */
 
@@ -31,5 +40,10 @@ class TraceAnalysis {
 	virtual void finish() = 0;
 
 	SNAPSHOTALLOC
+
+  //private:
+	/** Expose the reference of the model checker to the pluggin in order for
+	 * the pluggin to restart. */
+	ModelChecker **model_ptr;
 };
 #endif
