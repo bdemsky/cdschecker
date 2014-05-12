@@ -75,6 +75,9 @@ public:
 
 	MEMALLOC
 private:
+	/** Flag indicating whether to restart model checker */
+	bool restart_flag;
+
 	/** The scheduler to use: tracks the running/ready Threads */
 	Scheduler * const scheduler;
 	NodeStack * const node_stack;

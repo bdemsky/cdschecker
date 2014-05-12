@@ -23,6 +23,7 @@ ModelChecker *model;
 ModelChecker::ModelChecker(struct model_params params) :
 	/* Initialize default scheduler */
 	params(params),
+	restart_flag(false),
 	scheduler(new Scheduler()),
 	node_stack(new NodeStack()),
 	execution(new ModelExecution(this, &this->params, scheduler, node_stack)),
@@ -313,6 +314,14 @@ bool ModelChecker::next_execution()
 	if (complete)
 		earliest_diverge = NULL;
 
+	if (restart_flag) {
+		restart_flag = false;
+		diverge = NULL;
+		reset_to_initial_state();
+		node_stack->full_reset();
+		return true;
+	}
+
 	if ((diverge = execution->get_next_backtrack()) == NULL)
 		return false;
 
@@ -418,7 +427,7 @@ bool ModelChecker::should_terminate_execution()
 /** @brief Restart ModelChecker upon returning to the run loop of the model checker. */
 void ModelChecker::restart()
 {
-
+	restart_flag = true;
 }
 
 /** @brief Run ModelChecker for the user program */
