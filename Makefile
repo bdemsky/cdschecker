@@ -1,6 +1,7 @@
 include common.mk
 
 SPEC_DIR := spec-analysis
+SCFENCE_DIR := scfence
 
 OBJECTS := libthreads.o schedule.o model.o threads.o librace.o action.o \
 	   nodestack.o clockvector.o main.o snapshot-interface.o cyclegraph.o \
@@ -36,12 +37,16 @@ README.html: README.md
 
 
 SPEC_PLUGIN := $(SPEC_DIR)/specanalysis.o 
-SPEC_LIB := $(SPEC_DIR)/spec_lib.o 
+SPEC_LIB := $(SPEC_DIR)/spec_lib.o
+SCFENCE_PLUGIN :=$(SCFENCE_DIR)/scfence.o
 
 $(SPEC_PLUGIN):
 	$(MAKE) -C $(SPEC_DIR) # compile the specanalysis first
 
-$(LIB_SO): $(OBJECTS) $(SPEC_PLUGIN)
+$(SCFENCE_PLUGIN):
+	$(MAKE) -C $(SCFENCE_DIR)
+
+$(LIB_SO): $(OBJECTS) $(SPEC_PLUGIN) $(SCFENCE_PLUGIN)
 	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS)
 
 malloc.o: malloc.c
