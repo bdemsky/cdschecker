@@ -65,6 +65,7 @@ clean:
 	rm -f *.o *.so .*.d *.pdf *.dot
 	$(MAKE) -C $(TESTS_DIR) clean
 	$(MAKE) -C $(SPEC_DIR) clean
+	$(MAKE) -C $(SCFENCE_DIR) clean
 
 PHONY += mrclean
 mrclean: clean
