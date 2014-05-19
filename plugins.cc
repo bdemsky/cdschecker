@@ -6,12 +6,17 @@
 ModelVector<TraceAnalysis *> * registered_analysis;
 ModelVector<TraceAnalysis *> * installed_analysis;
 
+SCFence *wildcard_plugin;
+
 void register_plugins() {
 	registered_analysis=new ModelVector<TraceAnalysis *>();
 	installed_analysis=new ModelVector<TraceAnalysis *>();
 	registered_analysis->push_back(new SCAnalysis());
 	registered_analysis->push_back(new SPECAnalysis());
-	registered_analysis->push_back(new SCFence());
+
+	/** Initialize the wildcard_plugin */
+	wildcard_plugin = new SCFence();
+	registered_analysis->push_back(wildcard_plugin);
 }
 
 ModelVector<TraceAnalysis *> * getRegisteredTraceAnalysis() {
