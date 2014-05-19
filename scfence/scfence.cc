@@ -44,6 +44,11 @@ void SCFence::finish() {
 	model_print("Actions per execution: %llu\n", actionperexec);
 }
 
+
+memory_order SCFence::resolveWildcard(memory_order wildcard) {
+	return memory_order_relaxed;
+}
+
 bool SCFence::option(char * opt) {
 	if (strcmp(opt, "verbose")==0) {
 		print_always=true;

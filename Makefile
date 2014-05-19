@@ -9,7 +9,7 @@ OBJECTS := libthreads.o schedule.o model.o threads.o librace.o action.o \
 	   snapshot.o malloc.o mymemory.o common.o mutex.o promise.o conditionvariable.o \
 	   context.o scanalysis.o execution.o plugins.o libannotate.o
 
-CPPFLAGS += -Iinclude -I. -I$(SPEC_DIR)
+CPPFLAGS += -Iinclude -I. -I$(SPEC_DIR) -I$(SCFENCE_DIR)
 LDFLAGS := -ldl -lrt -rdynamic
 SHARED := -shared
 

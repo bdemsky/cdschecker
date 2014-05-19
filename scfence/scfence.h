@@ -1,14 +1,27 @@
-#ifndef SCANALYSIS_H
-#define SCANALYSIS_H
+#ifndef _SCFENCE_H
+#define _SCFENCE_H
 #include "traceanalysis.h"
+#include "scanalysis.h"
 #include "hashtable.h"
+#include "memoryorder.h"
 
+#ifdef __cplusplus
+using std::memory_order;
+#endif
+
+/* Forward declaration */
+class SCFence;
+
+extern SCFence *wildcard_plugin;
+
+/*
 struct sc_statistics {
 	unsigned long long elapsedtime;
 	unsigned int sccount;
 	unsigned int nonsccount;
 	unsigned long long actions;
 };
+*/
 
 class SCFence : public TraceAnalysis {
  public:
@@ -20,6 +33,7 @@ class SCFence : public TraceAnalysis {
 	virtual bool option(char *);
 	virtual void finish();
 
+	memory_order resolveWildcard(memory_order wildcard);
 
 	SNAPSHOTALLOC
  private:

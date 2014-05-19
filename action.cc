@@ -10,6 +10,8 @@
 #include "threads-model.h"
 #include "nodestack.h"
 
+#include "scfence.h"
+
 #define ACTION_INITIAL_CLOCK 0
 
 /** @brief A special value to represent a successful trylock */
@@ -33,7 +35,6 @@
 ModelAction::ModelAction(action_type_t type, memory_order order, void *loc,
 		uint64_t value, Thread *thread) :
 	type(type),
-	order(order),
 	location(loc),
 	value(value),
 	reads_from(NULL),
@@ -46,6 +47,13 @@ ModelAction::ModelAction(action_type_t type, memory_order order, void *loc,
 {
 	/* References to NULL atomic variables can end up here */
 	ASSERT(loc || type == ATOMIC_FENCE || type == MODEL_FIXUP_RELSEQ);
+
+	if (order >= memory_order_relaxed && order <= memory_order_seq_cst) {
+		this->order = order;
+	} else {
+		/* Decide the real memory order for wildcards */
+		this->order = wildcard_plugin->resolveWildcard(order);
+	}
 
 	Thread *t = thread ? thread : thread_current();
 	this->tid = t->get_id();
