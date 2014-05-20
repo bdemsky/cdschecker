@@ -45,8 +45,13 @@ void SCFence::finish() {
 }
 
 
-memory_order SCFence::resolveWildcard(memory_order wildcard) {
-	return memory_order_relaxed;
+void SCFence::inspectModelAction(ModelAction *act) {
+	if (act->get_mo() >= memory_order_relaxed && act->get_mo() <=
+		memory_order_seq_cst) {
+		return;
+	} else { // For wildcards
+		//if (wildcard
+	}
 }
 
 bool SCFence::option(char * opt) {

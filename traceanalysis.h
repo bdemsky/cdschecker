@@ -2,6 +2,7 @@
 #define TRACE_ANALYSIS_H
 #include "model.h"
 
+
 class TraceAnalysis {
  public:
 	/** setExecution is called once after installation with a reference to
@@ -29,6 +30,11 @@ class TraceAnalysis {
 	 *  used to print out results.  */
 
 	virtual void finish() = 0;
+
+	/** The method used to inspect the normal/abnormal model action. Though it
+	 * is called inspectModelAction, it could change the state of the
+	 * ModelAction */
+	virtual void inspectModelAction(ModelAction *act) {}
 
 	SNAPSHOTALLOC
 };

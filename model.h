@@ -72,7 +72,9 @@ public:
 	void add_trace_analysis(TraceAnalysis *a) {
 		trace_analyses.push_back(a);
 	}
-
+	void set_inspect_plugin(TraceAnalysis *a) {
+		inspect_plugin=a;
+	}
 	MEMALLOC
 private:
 	/** Flag indicating whether to restart model checker */
@@ -102,6 +104,7 @@ private:
 	ucontext_t system_context;
 
 	ModelVector<TraceAnalysis *> trace_analyses;
+	TraceAnalysis *inspect_plugin;
 
 	/** @brief The cumulative execution stats */
 	struct execution_stats stats;

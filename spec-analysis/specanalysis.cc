@@ -36,6 +36,8 @@ void SPECAnalysis::finish() {
 	model_print("SPECAnalysis finished!\n");
 }
 
+void SPECAnalysis::inspectModelAction(ModelAction *act) {}
+
 bool SPECAnalysis::option(char * opt) {
 	return true;
 }

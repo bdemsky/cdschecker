@@ -20,7 +20,6 @@ class SCAnalysis : public TraceAnalysis {
 	virtual bool option(char *);
 	virtual void finish();
 
-
 	SNAPSHOTALLOC
  private:
 	void update_stats();

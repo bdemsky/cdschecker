@@ -129,6 +129,8 @@ class SPECAnalysis : public TraceAnalysis {
 	virtual bool option(char *);
 	virtual void finish();
 
+    virtual void inspectModelAction(ModelAction *act);
+
 	SNAPSHOTALLOC
  private:
 	ModelExecution *execution;

@@ -30,7 +30,8 @@ ModelChecker::ModelChecker(struct model_params params) :
 	execution_number(1),
 	diverge(NULL),
 	earliest_diverge(NULL),
-	trace_analyses()
+	trace_analyses(),
+	inspect_plugin(NULL)
 {
 	memset(&stats,0,sizeof(struct execution_stats));
 }
@@ -395,6 +396,9 @@ uint64_t ModelChecker::switch_to_master(ModelAction *act)
 	Thread *old = thread_current();
 	scheduler->set_current_thread(NULL);
 	ASSERT(!old->get_pending());
+	if (inspect_plugin != NULL) {
+		inspect_plugin->inspectModelAction(act);
+	}
 	old->set_pending(act);
 	if (Thread::swap(old, &system_context) < 0) {
 		perror("swap threads");
