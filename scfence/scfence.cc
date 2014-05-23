@@ -5,6 +5,8 @@
 #include "execution.h"
 #include <sys/time.h>
 
+#include "model.h"
+
 
 SCFence::SCFence() :
 	cvmap(),
@@ -27,10 +29,11 @@ SCFence::~SCFence() {
 
 void SCFence::setExecution(ModelExecution * execution) {
 	this->execution=execution;
+	model->set_inspect_plugin(this);
 }
 
 const char * SCFence::name() {
-	const char * name = "SC";
+	const char * name = "SCFENCE";
 	return name;
 }
 
@@ -51,6 +54,7 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		return;
 	} else { // For wildcards
 		//if (wildcard
+		act->set_mo(memory_order_relaxed);
 	}
 }
 

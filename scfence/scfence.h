@@ -64,8 +64,8 @@ class SCFence : public TraceAnalysis {
 	struct sc_statistics *stats;
 	
 	/** Mapping: a wildcard action -> the specifc wildcard */
-	//HashTable<ModelAction *, memory_order, uintptr_t, 4> actOrderMap;
+	HashTable<ModelAction *, memory_order, uintptr_t, 4> actOrderMap;
 	/** Mapping: a wildcard -> the specifc ordering */
-	//HashTable<memory_order, memory_order, 4, 4> wildcardMap;
+	HashTable<memory_order, memory_order, memory_order, 4> wildcardMap;
 };
 #endif

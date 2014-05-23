@@ -10,7 +10,7 @@ include $(DIR)/Makefile
 
 DEPS := $(join $(addsuffix ., $(dir $(OBJECTS))), $(addsuffix .d, $(notdir $(OBJECTS))))
 
-CPPFLAGS += -I$(BASE) -I$(BASE)/include
+CPPFLAGS += -I$(BASE) -I$(BASE)/include -I$(BASE)/scfence
 
 all: $(OBJECTS)
 
