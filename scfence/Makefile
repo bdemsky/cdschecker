@@ -3,7 +3,7 @@ BASE := ..
 include $(BASE)/common.mk
 OBJECTS := scfence.o
 
-CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -O3
+CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -g
 
 all: $(OBJECTS)
 

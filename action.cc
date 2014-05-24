@@ -34,6 +34,7 @@ ModelAction::ModelAction(action_type_t type, memory_order order, void *loc,
 		uint64_t value, Thread *thread) :
 	type(type),
 	order(order),
+	original_order(order),
 	location(loc),
 	value(value),
 	reads_from(NULL),

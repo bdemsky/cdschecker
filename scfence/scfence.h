@@ -14,14 +14,67 @@ class SCFence;
 
 extern SCFence *wildcard_plugin;
 
-/*
-struct sc_statistics {
-	unsigned long long elapsedtime;
-	unsigned int sccount;
-	unsigned int nonsccount;
-	unsigned long long actions;
-};
-*/
+typedef struct sc_node {
+	ModelAction *act;
+	action_list_t *edges;
+
+	sc_node(ModelAction *act) {
+		this->act = act;
+		edges = new action_list_t(); 
+	}
+
+	void clear() {
+		edges->clear();
+	}
+
+	void addEdge(const ModelAction *act_next) {
+		for (action_list_t::iterator it = edges->begin(); it != edges->end(); it++) {
+			const ModelAction *act = *it;
+			if (act == act_next)
+				return;
+		}
+		edges->push_back(act_next);
+	}
+
+	SNAPSHOTALLOC
+} sc_node;
+
+typedef struct sc_graph {
+	HashTable<const ModelAction *, sc_node *, uintptr_t, 4> node_map;
+	action_list_t *actions;
+
+	sc_graph() : node_map() {}
+
+	void init(action_list_t *actions) {
+		this->actions = actions;
+		for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
+			node_map.put(*it, new sc_node(*it));
+		}
+	}
+
+	void clear() {
+		for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
+			const ModelAction *act = *it;
+			sc_node *n = node_map.get(act);
+			n->clear();
+		}
+		node_map.reset();
+	}
+
+	void addEdge(const ModelAction *act1, const ModelAction *act2) {
+		sc_node *n1 = node_map.get(act1);
+		n1->addEdge(act2);
+	}
+
+	/** Only call this function when you are sure there's a cycle involving act1
+	 * and act2
+	 */
+	action_list_t getCycleActions(const ModelAction *act1, const ModelAction *act2) {
+		
+	}
+
+	SNAPSHOTALLOC
+} sc_graph;
 
 class SCFence : public TraceAnalysis {
  public:
@@ -67,5 +120,9 @@ class SCFence : public TraceAnalysis {
 	HashTable<ModelAction *, memory_order, uintptr_t, 4> actOrderMap;
 	/** Mapping: a wildcard -> the specifc ordering */
 	HashTable<memory_order, memory_order, memory_order, 4> wildcardMap;
+
+	/** A map to remember the graph built so far*/
+	sc_graph graph;
+
 };
 #endif

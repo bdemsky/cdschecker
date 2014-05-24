@@ -6,6 +6,7 @@
 #include <sys/time.h>
 
 #include "model.h"
+#include "wildcard.h"
 
 
 SCFence::SCFence() :
@@ -19,7 +20,8 @@ SCFence::SCFence() :
 	print_buggy(true),
 	print_nonsc(false),
 	time(false),
-	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
+	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
+	graph()
 {
 }
 
@@ -116,7 +118,13 @@ void SCFence::analyze(action_list_t *actions) {
 	struct timeval finish;
 	if (time)
 		gettimeofday(&start, NULL);
+
+	// Initialize the graph
+	graph.init(actions);
+
 	action_list_t *list = generateSC(actions);
+	
+	/*
 	check_rf(list);
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
 		print_list(list);
@@ -125,6 +133,7 @@ void SCFence::analyze(action_list_t *actions) {
 		stats->elapsedtime+=((finish.tv_sec*1000000+finish.tv_usec)-(start.tv_sec*1000000+start.tv_usec));
 	}
 	update_stats();
+	*/
 }
 
 void SCFence::update_stats() {
@@ -153,9 +162,16 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 		return true;
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
+		
+		if (is_wildcard(act->get_original_mo())) {
+			model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
+		}
+		act->print();
+
 		//refuse to introduce cycles into clock vectors
 		return false;
 	}
+	graph.addEdge(act2, act);
 
 	return cv->merge(cv2);
 }
