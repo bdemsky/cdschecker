@@ -156,18 +156,25 @@ void SCFence::check_rf(action_list_t *list) {
 	}
 }
 
+void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2) {
+	const_actions_t *actions = graph.getCycleActions(act1, act2);
+	for (const_actions_t::iterator it = actions->begin(); it != actions->end();
+		it++) {
+		const ModelAction *act = *it;
+		if (is_wildcard(act->get_original_mo())) {
+			model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
+		}
+		act->print();
+	}
+}
+
 bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2) {
 	ClockVector *cv2 = cvmap.get(act2);
 	if (cv2 == NULL)
 		return true;
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
-		
-		if (is_wildcard(act->get_original_mo())) {
-			model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
-		}
-		act->print();
-
+		printCyclicChain(act2, act);
 		//refuse to introduce cycles into clock vectors
 		return false;
 	}

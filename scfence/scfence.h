@@ -14,13 +14,18 @@ class SCFence;
 
 extern SCFence *wildcard_plugin;
 
+typedef SnapList<const ModelAction *> const_actions_t;
+
 typedef struct sc_node {
 	ModelAction *act;
-	action_list_t *edges;
+	const_actions_t *edges;
+
+	// For traversal
+	int color;
 
 	sc_node(ModelAction *act) {
 		this->act = act;
-		edges = new action_list_t(); 
+		edges = new const_actions_t(); 
 	}
 
 	void clear() {
@@ -28,7 +33,7 @@ typedef struct sc_node {
 	}
 
 	void addEdge(const ModelAction *act_next) {
-		for (action_list_t::iterator it = edges->begin(); it != edges->end(); it++) {
+		for (const_actions_t::iterator it = edges->begin(); it != edges->end(); it++) {
 			const ModelAction *act = *it;
 			if (act == act_next)
 				return;
@@ -38,6 +43,9 @@ typedef struct sc_node {
 
 	SNAPSHOTALLOC
 } sc_node;
+
+
+typedef SnapList<sc_node *> sc_nodes_t;
 
 typedef struct sc_graph {
 	HashTable<const ModelAction *, sc_node *, uintptr_t, 4> node_map;
@@ -67,10 +75,43 @@ typedef struct sc_graph {
 	}
 
 	/** Only call this function when you are sure there's a cycle involving act1
-	 * and act2
+	 * and act2; It traverse the graph from act1 with DFS to find a path to
+	 * act2.
 	 */
-	action_list_t getCycleActions(const ModelAction *act1, const ModelAction *act2) {
-		
+	const_actions_t* getCycleActions(const ModelAction *act1, const ModelAction *act2) {
+		sc_nodes_t *stack = new sc_nodes_t();
+		const_actions_t *actions = new const_actions_t();
+		sc_node *n1 = node_map.get(act1),
+			*n2 = node_map.get(act2), *n;
+		stack->push_back(n1);
+		while (stack->size() != 0) {
+			n = stack->back();
+			stack->pop_back();
+			if (n->color == 0) {
+				n->color = 1;
+				stack->push_back(n);
+				// Push back the 'next' nodes
+				for (const_actions_t::iterator edge_it = n->edges->begin();
+					edge_it != n->edges->end(); edge_it++) {
+					sc_node *tmp_node = node_map.get(*edge_it);
+					model_print("hey!\n");
+					if (tmp_node == n2) { // Found it
+						model_print("hey1!\n");
+						for (sc_nodes_t::iterator it = stack->begin(); it !=
+							stack->end(); it++) {
+							actions->push_back((*it)->act);
+						}
+						actions->push_back(act2);
+						return actions;
+					}
+					if (tmp_node->color == 0)
+						stack->push_back(tmp_node);
+				}
+			} else if (n->color == 1) { // Just "visit" it, do nothing
+				n->color = 2;
+			}
+		}
+		return NULL;
 	}
 
 	SNAPSHOTALLOC
@@ -99,6 +140,7 @@ class SCFence : public TraceAnalysis {
 	bool processRead(ModelAction *read, ClockVector *cv);
 	int getNextActions(ModelAction **array);
 	bool merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2);
+	void printCyclicChain(const ModelAction *act1, const ModelAction *act2);
 	void check_rf(action_list_t *list);
 	void reset(action_list_t *list);
 	ModelAction* pruneArray(ModelAction**, int);
