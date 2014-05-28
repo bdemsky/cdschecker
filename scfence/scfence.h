@@ -4,6 +4,7 @@
 #include "scanalysis.h"
 #include "hashtable.h"
 #include "memoryorder.h"
+#include "action.h"
 
 #ifdef __cplusplus
 using std::memory_order;
@@ -23,7 +24,7 @@ typedef struct sc_node {
 	// For traversal
 	int color;
 
-	sc_node(const ModelAction *act) {
+	sc_node(ModelAction *act) {
 		this->act = act;
 		edges = new const_actions_t(); 
 	}
@@ -79,13 +80,15 @@ typedef struct sc_graph {
 			actions->end(); it++) {
 			sc_node *n = node_map.get(*it);
 			const ModelAction *act = n->act;
+			if (act->get_seq_number() == 0)
+				continue;
 			model_print("Node: %d:\n", act->get_seq_number());
 
 			for (const_actions_t::iterator edge_it = n->edges->begin(); edge_it
 				!= n->edges->end(); edge_it++) {
 				const ModelAction *next = *edge_it;
-				//model_print("%d --> %d\n", n->act->get_seq_number(),
-					//next->get_seq_number());
+			model_print("%d --> %d\n", n->act->get_seq_number(),
+					next->get_seq_number());
 			}
 		}
 	}
