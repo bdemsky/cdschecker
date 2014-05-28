@@ -17,13 +17,13 @@ extern SCFence *wildcard_plugin;
 typedef SnapList<const ModelAction *> const_actions_t;
 
 typedef struct sc_node {
-	ModelAction *act;
+	const ModelAction *act;
 	const_actions_t *edges;
 
 	// For traversal
 	int color;
 
-	sc_node(ModelAction *act) {
+	sc_node(const ModelAction *act) {
 		this->act = act;
 		edges = new const_actions_t(); 
 	}
@@ -74,6 +74,22 @@ typedef struct sc_graph {
 		n1->addEdge(act2);
 	}
 
+	void printGraph() {
+		for (action_list_t::iterator it = actions->begin(); it !=
+			actions->end(); it++) {
+			sc_node *n = node_map.get(*it);
+			const ModelAction *act = n->act;
+			model_print("Node: %d:\n", act->get_seq_number());
+
+			for (const_actions_t::iterator edge_it = n->edges->begin(); edge_it
+				!= n->edges->end(); edge_it++) {
+				const ModelAction *next = *edge_it;
+				//model_print("%d --> %d\n", n->act->get_seq_number(),
+					//next->get_seq_number());
+			}
+		}
+	}
+
 	/** Only call this function when you are sure there's a cycle involving act1
 	 * and act2; It traverse the graph from act1 with DFS to find a path to
 	 * act2.
@@ -94,9 +110,7 @@ typedef struct sc_graph {
 				for (const_actions_t::iterator edge_it = n->edges->begin();
 					edge_it != n->edges->end(); edge_it++) {
 					sc_node *tmp_node = node_map.get(*edge_it);
-					model_print("hey!\n");
 					if (tmp_node == n2) { // Found it
-						model_print("hey1!\n");
 						for (sc_nodes_t::iterator it = stack->begin(); it !=
 							stack->end(); it++) {
 							actions->push_back((*it)->act);

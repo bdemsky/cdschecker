@@ -24,6 +24,8 @@ TESTS_DIR := test
 MARKDOWN := doc/Markdown/Markdown.pl
 
 all: $(LIB_SO) tests README.html
+	$(MAKE) -C $(SPEC_DIR)
+	$(MAKE) -C $(SCFENCE_DIR)
 
 debug: CPPFLAGS += -DCONFIG_DEBUG
 debug: all

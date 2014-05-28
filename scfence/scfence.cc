@@ -124,7 +124,6 @@ void SCFence::analyze(action_list_t *actions) {
 
 	action_list_t *list = generateSC(actions);
 	
-	/*
 	check_rf(list);
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
 		print_list(list);
@@ -133,7 +132,6 @@ void SCFence::analyze(action_list_t *actions) {
 		stats->elapsedtime+=((finish.tv_sec*1000000+finish.tv_usec)-(start.tv_sec*1000000+start.tv_usec));
 	}
 	update_stats();
-	*/
 }
 
 void SCFence::update_stats() {
@@ -158,6 +156,10 @@ void SCFence::check_rf(action_list_t *list) {
 
 void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2) {
 	const_actions_t *actions = graph.getCycleActions(act1, act2);
+	if (actions == NULL) {
+		model_print("Cannot find the cycle of actions!\n");
+		return;
+	}
 	for (const_actions_t::iterator it = actions->begin(); it != actions->end();
 		it++) {
 		const ModelAction *act = *it;
@@ -166,6 +168,7 @@ void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2)
 		}
 		act->print();
 	}
+	delete actions;
 }
 
 bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2) {
