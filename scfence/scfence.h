@@ -150,7 +150,7 @@ class SCFence : public TraceAnalysis {
  private:
 	void update_stats();
 	void print_list(action_list_t *list);
-	int buildVectors(action_list_t *);
+	int buildVectors(SnapVector<action_list_t> *threadlist, action_list_t *);
 	bool updateConstraints(ModelAction *act);
 	void computeCV(action_list_t *);
 	action_list_t * generateSC(action_list_t *);

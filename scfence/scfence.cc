@@ -162,6 +162,12 @@ void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2)
 		model_print("Cannot find the cycle of actions!\n");
 		return;
 	}
+	
+	// Build the vector
+	SnapVector<action_list_t> threadlist;
+	int action_num = buildVectors(&threadlist, actions);
+	model_print("Number of threads: %d\n", threadlist.size());
+
 	for (action_list_t::iterator it = actions->begin(); it != actions->end();
 		it++) {
 		const ModelAction *act = *it;
@@ -179,7 +185,7 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 		return true;
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
-		//printCyclicChain(act2, act);
+		printCyclicChain(act2, act);
 
 
 		//refuse to introduce cycles into clock vectors
@@ -297,7 +303,7 @@ ModelAction * SCFence::pruneArray(ModelAction **array,int count) {
 }
 
 action_list_t * SCFence::generateSC(action_list_t *list) {
- 	int numactions=buildVectors(list);
+ 	int numactions=buildVectors(&threadlists, list);
 	stats->actions+=numactions;
 
 	computeCV(list);
@@ -346,7 +352,7 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 					currchoice=0;
 					lastchoice=-1;
 					reset(list);
-					buildVectors(list);
+					buildVectors(&threadlists, list);
 					computeCV(list);
 					sclist->clear();
 					continue;
@@ -360,7 +366,7 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 	return sclist;
 }
 
-int SCFence::buildVectors(action_list_t *list) {
+int SCFence::buildVectors(SnapVector<action_list_t> *threadlist, action_list_t *list) {
 	maxthreads = 0;
 	int numactions = 0;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
@@ -368,10 +374,10 @@ int SCFence::buildVectors(action_list_t *list) {
 		numactions++;
 		int threadid = id_to_int(act->get_tid());
 		if (threadid > maxthreads) {
-			threadlists.resize(threadid + 1);
+			threadlist->resize(threadid + 1);
 			maxthreads = threadid;
 		}
-		threadlists[threadid].push_back(act);
+		(*threadlist)[threadid].push_back(act);
 	}
 	return numactions;
 }
