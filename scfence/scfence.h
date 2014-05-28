@@ -18,7 +18,7 @@ extern SCFence *wildcard_plugin;
 typedef SnapList<const ModelAction *> const_actions_t;
 
 typedef struct sc_node {
-	const ModelAction *act;
+	ModelAction *act;
 	const_actions_t *edges;
 
 	// For traversal
@@ -97,9 +97,9 @@ typedef struct sc_graph {
 	 * and act2; It traverse the graph from act1 with DFS to find a path to
 	 * act2.
 	 */
-	const_actions_t* getCycleActions(const ModelAction *act1, const ModelAction *act2) {
+	action_list_t* getCycleActions(const ModelAction *act1, const ModelAction *act2) {
 		sc_nodes_t *stack = new sc_nodes_t();
-		const_actions_t *actions = new const_actions_t();
+		action_list_t *actions = new action_list_t();
 		sc_node *n1 = node_map.get(act1),
 			*n2 = node_map.get(act2), *n;
 		stack->push_back(n1);
@@ -118,7 +118,7 @@ typedef struct sc_graph {
 							stack->end(); it++) {
 							actions->push_back((*it)->act);
 						}
-						actions->push_back(act2);
+						actions->push_back(n2->act);
 						return actions;
 					}
 					if (tmp_node->color == 0)

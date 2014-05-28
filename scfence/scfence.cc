@@ -157,12 +157,12 @@ void SCFence::check_rf(action_list_t *list) {
 void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2) {
 	//graph.printGraph();
 	//model_print("From -> to: %d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
-	const_actions_t *actions = graph.getCycleActions(act2, act1);
+	action_list_t *actions = graph.getCycleActions(act2, act1);
 	if (actions == NULL) {
 		model_print("Cannot find the cycle of actions!\n");
 		return;
 	}
-	for (const_actions_t::iterator it = actions->begin(); it != actions->end();
+	for (action_list_t::iterator it = actions->begin(); it != actions->end();
 		it++) {
 		const ModelAction *act = *it;
 		if (is_wildcard(act->get_original_mo())) {
@@ -179,7 +179,9 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 		return true;
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
-		printCyclicChain(act2, act);
+		//printCyclicChain(act2, act);
+
+
 		//refuse to introduce cycles into clock vectors
 		return false;
 	}
