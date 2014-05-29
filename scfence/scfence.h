@@ -150,7 +150,7 @@ class SCFence : public TraceAnalysis {
  private:
 	void update_stats();
 	void print_list(action_list_t *list);
-	int buildVectors(SnapVector<action_list_t> *threadlist, action_list_t *);
+	int buildVectors(SnapVector<action_list_t> *threadlist, int *maxthread, action_list_t *);
 	bool updateConstraints(ModelAction *act);
 	void computeCV(action_list_t *);
 	action_list_t * generateSC(action_list_t *);
@@ -158,6 +158,7 @@ class SCFence : public TraceAnalysis {
 	int getNextActions(ModelAction **array);
 	bool merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2);
 	void printCyclicChain(const ModelAction *act1, const ModelAction *act2);
+	void breakCycle(const ModelAction *act1, const ModelAction *act2);
 	void check_rf(action_list_t *list);
 	void reset(action_list_t *list);
 	ModelAction* pruneArray(ModelAction**, int);
@@ -175,8 +176,6 @@ class SCFence : public TraceAnalysis {
 	bool time;
 	struct sc_statistics *stats;
 	
-	/** Mapping: a wildcard action -> the specifc wildcard */
-	HashTable<ModelAction *, memory_order, uintptr_t, 4> actOrderMap;
 	/** Mapping: a wildcard -> the specifc ordering */
 	HashTable<memory_order, memory_order, memory_order, 4> wildcardMap;
 

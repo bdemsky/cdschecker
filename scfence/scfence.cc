@@ -55,8 +55,11 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		memory_order_seq_cst) {
 		return;
 	} else { // For wildcards
-		//if (wildcard
-		act->set_mo(memory_order_relaxed);
+		if (wildcardMap.get(act->get_mo()) == NULL) {
+			act->set_mo(memory_order_relaxed);
+		} else {
+			act->set_mo(wildcardMap.get(act->get_mo()));
+		}
 	}
 }
 
@@ -154,6 +157,32 @@ void SCFence::check_rf(action_list_t *list) {
 	}
 }
 
+void SCFence::breakCycle(const ModelAction *act1, const ModelAction *act2) {
+	action_list_t *actions = graph.getCycleActions(act2, act1);
+	
+	// Build the vector
+	SnapVector<action_list_t> threadlist;
+	int thread_num = 0;
+	int action_num = buildVectors(&threadlist, &thread_num, actions);
+
+	// Start to strengthen the parameter
+
+	for (int i = 0; i < threadlist.size(); i++) {
+		action_list_t list = threadlist[i];
+		model_print("Thread: %d\n", i);
+		for (action_list_t::iterator it = list.begin(); it != list.end();
+			it++) {
+			const ModelAction *act = *it;
+			if (is_wildcard(act->get_original_mo())) {
+				model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
+			}
+			act->print();
+		}
+	}
+	
+	delete actions;
+}
+
 void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2) {
 	//graph.printGraph();
 	//model_print("From -> to: %d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
@@ -165,8 +194,9 @@ void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2)
 	
 	// Build the vector
 	SnapVector<action_list_t> threadlist;
-	int action_num = buildVectors(&threadlist, actions);
-	model_print("Number of threads: %d\n", threadlist.size());
+	int thread_num = 0;
+	int action_num = buildVectors(&threadlist, &thread_num, actions);
+	model_print("Number of threads: %d\n", thread_num);
 
 	for (action_list_t::iterator it = actions->begin(); it != actions->end();
 		it++) {
@@ -185,8 +215,8 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 		return true;
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
-		printCyclicChain(act2, act);
-
+		//printCyclicChain(act2, act);
+		breakCycle(act2, act);
 
 		//refuse to introduce cycles into clock vectors
 		return false;
@@ -303,7 +333,7 @@ ModelAction * SCFence::pruneArray(ModelAction **array,int count) {
 }
 
 action_list_t * SCFence::generateSC(action_list_t *list) {
- 	int numactions=buildVectors(&threadlists, list);
+ 	int numactions=buildVectors(&threadlists, &maxthreads, list);
 	stats->actions+=numactions;
 
 	computeCV(list);
@@ -352,7 +382,7 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 					currchoice=0;
 					lastchoice=-1;
 					reset(list);
-					buildVectors(&threadlists, list);
+					buildVectors(&threadlists, &maxthreads, list);
 					computeCV(list);
 					sclist->clear();
 					continue;
@@ -366,16 +396,16 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 	return sclist;
 }
 
-int SCFence::buildVectors(SnapVector<action_list_t> *threadlist, action_list_t *list) {
-	maxthreads = 0;
+int SCFence::buildVectors(SnapVector<action_list_t> *threadlist, int *maxthread, action_list_t *list) {
+	*maxthread = 0;
 	int numactions = 0;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 		ModelAction *act = *it;
 		numactions++;
 		int threadid = id_to_int(act->get_tid());
-		if (threadid > maxthreads) {
+		if (threadid > *maxthread) {
 			threadlist->resize(threadid + 1);
-			maxthreads = threadid;
+			*maxthread = threadid;
 		}
 		(*threadlist)[threadid].push_back(act);
 	}
