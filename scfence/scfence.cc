@@ -21,7 +21,10 @@ SCFence::SCFence() :
 	print_nonsc(false),
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
-	graph()
+	graph(),
+	wildcardMap(NULL),
+	wildcardList(NULL),
+	results()
 {
 }
 
@@ -55,7 +58,7 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		memory_order_seq_cst) {
 		return;
 	} else { // For wildcards
-		if (wildcardMap.get(act->get_mo()) == NULL) {
+		if (wildcardMap->get(act->get_mo()) == NULL) {
 			act->set_mo(memory_order_relaxed);
 		} else {
 			act->set_mo(wildcardMap.get(act->get_mo()));

@@ -16,6 +16,7 @@ class SCFence;
 extern SCFence *wildcard_plugin;
 
 typedef SnapList<const ModelAction *> const_actions_t;
+typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_t;
 
 typedef struct sc_node {
 	ModelAction *act;
@@ -176,8 +177,12 @@ class SCFence : public TraceAnalysis {
 	bool time;
 	struct sc_statistics *stats;
 	
+	/** List of wildcards */
+	SnapList<memory_order> *wildcardList;
 	/** Mapping: a wildcard -> the specifc ordering */
-	HashTable<memory_order, memory_order, memory_order, 4> wildcardMap;
+	wildcard_t *wildcardMap;
+	/** A list of possible results */
+	SnapList<wildcard_t *> results;
 
 	/** A map to remember the graph built so far*/
 	sc_graph graph;
