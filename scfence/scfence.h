@@ -184,7 +184,7 @@ class SCFence : public TraceAnalysis {
 	/** A list of possible results */
 	SnapList<wildcard_t *> results;
 
-	/** A map to remember the graph built so far*/
+	/** A map to remember the graph built so far */
 	sc_graph graph;
 
 };

@@ -61,7 +61,7 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		if (wildcardMap->get(act->get_mo()) == NULL) {
 			act->set_mo(memory_order_relaxed);
 		} else {
-			act->set_mo(wildcardMap.get(act->get_mo()));
+			act->set_mo(wildcardMap->get(act->get_mo()));
 		}
 	}
 }
