@@ -1,20 +1,22 @@
 BASE := ..
 
 include $(BASE)/common.mk
-OBJECTS := specanalysis.o spec_lib.o
 
-CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -O3
+OBJECTS := spec_lib.o specanalysis.o
 
 all: $(OBJECTS)
 
-PHONY += all 
+-include $(OBJECTS:%=.%.d)
 
-specanalysis.o: specanalysis.cc specannotation.h
-	$(CXX) -c -fPIC -o $@ $< $(CPPFLAGS)
+CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -O3
+
+
+specanalysis.o: specanalysis.cc
+	$(CXX) -MMD -MF .$@.d -c -fPIC -o $@ $< $(CPPFLAGS)
 
 # Non-model rules
-spec_lib.o: spec_lib.c spec_lib.h specannotation.h
-	$(CC) -c -o $@ $< $(CPPFLAGS) -std=c99
+spec_lib.o: spec_lib.c
+	$(CC) -MMD -MF .$@.d -c -fPIC -o $@ $< $(CPPFLAGS) -std=c99
 
 PHONY += clean
 clean::
