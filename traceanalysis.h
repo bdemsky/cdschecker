@@ -31,10 +31,15 @@ class TraceAnalysis {
 
 	virtual void finish() = 0;
 
-	/** The method used to inspect the normal/abnormal model action. Though it
+	/** The method is used to inspect the normal/abnormal model action. Though it
 	 * is called inspectModelAction, it could change the state of the
 	 * ModelAction */
 	virtual void inspectModelAction(ModelAction *act) {}
+	
+	/** The method will be called by when a plugin is installed by the model
+	 * checker */
+	virtual void actionAtInstallation() {}
+
 
 	SNAPSHOTALLOC
 };

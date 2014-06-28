@@ -34,7 +34,6 @@ SCFence::~SCFence() {
 
 void SCFence::setExecution(ModelExecution * execution) {
 	this->execution=execution;
-	model->set_inspect_plugin(this);
 }
 
 const char * SCFence::name() {
@@ -64,6 +63,12 @@ void SCFence::inspectModelAction(ModelAction *act) {
 			act->set_mo(wildcardMap->get(act->get_mo()));
 		}
 	}
+}
+
+
+void SCFence::actionAtInstallation() {
+	// When this pluggin gets installed, it become the inspect_plugin
+	model->set_inspect_plugin(this);
 }
 
 bool SCFence::option(char * opt) {

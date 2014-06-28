@@ -104,6 +104,7 @@ private:
 	ucontext_t system_context;
 
 	ModelVector<TraceAnalysis *> trace_analyses;
+	/** @bref Currently we allow one plugin for the purpose of inspection */
 	TraceAnalysis *inspect_plugin;
 
 	/** @brief The cumulative execution stats */

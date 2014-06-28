@@ -13,7 +13,7 @@ using std::memory_order;
 /* Forward declaration */
 class SCFence;
 
-extern SCFence *wildcard_plugin;
+extern SCFence *scfence;
 
 typedef SnapList<const ModelAction *> const_actions_t;
 typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_t;
@@ -146,6 +146,7 @@ class SCFence : public TraceAnalysis {
 	virtual void finish();
 
 	virtual void inspectModelAction(ModelAction *ac);
+	virtual void actionAtInstallation();
 
 	SNAPSHOTALLOC
  private:
