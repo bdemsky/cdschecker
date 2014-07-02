@@ -27,7 +27,7 @@ all: $(LIB_SO) tests README.html
 	$(MAKE) -C $(SPEC_DIR)
 	$(MAKE) -C $(SCFENCE_DIR)
 
-debug: CPPFLAGS += -DCONFIG_DEBUG
+debug: CPPFLAGS += -DCONFIG_DEBUG -O0 -g
 debug: all
 
 PHONY += docs

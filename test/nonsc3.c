@@ -12,11 +12,13 @@ atomic_int y;
 static void a(void *obj)
 {
 	atomic_store_explicit(&x, 1, memory_order_wildcard(1));
+	//atomic_store_explicit(&x, 1, memory_order_seq_cst);
 }
 
 static void b(void *obj)
 {
 	atomic_store_explicit(&y, 1, memory_order_wildcard(2));
+	//atomic_store_explicit(&y, 1, memory_order_seq_cst);
 }
 
 static void c(void *obj)
