@@ -437,6 +437,7 @@ void ModelChecker::restart()
 /** @brief Run ModelChecker for the user program */
 void ModelChecker::run()
 {
+	bool has_next;
 	do {
 		thrd_t user_thread;
 		Thread *t = new Thread(execution->get_next_id(), &user_thread, &user_main_wrapper, NULL, NULL);
@@ -484,7 +485,17 @@ void ModelChecker::run()
 			t = execution->take_step(curr);
 		} while (!should_terminate_execution());
 
-	} while (next_execution());
+		has_next = next_execution();
+		if (!has_next) {
+			inspect_plugin->actionAtModelCheckingFinish();
+			// Check if the inpect plugin might have set the restart flag
+			if (restart_flag) {
+				restart_flag = true;
+				has_next = next_execution();
+			}
+		}
+
+	} while (has_next);
 
 	execution->fixup_release_sequences();
 

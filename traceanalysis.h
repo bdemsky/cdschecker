@@ -40,6 +40,11 @@ class TraceAnalysis {
 	 * checker */
 	virtual void actionAtInstallation() {}
 
+	/** The method to be called when the model checker finishes the executions;
+	 * With this method, the model checker can alter the state of the plugin and
+	 * then the plugin can choose whether or not restart the model checker */
+	virtual void actionAtModelCheckingFinish() {}
+
 
 	SNAPSHOTALLOC
 };

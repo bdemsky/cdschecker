@@ -22,7 +22,6 @@ SCFence::SCFence() :
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
 	wildcardMap(NULL),
-	wildcardList(NULL),
 	results()
 {
 }
@@ -68,6 +67,16 @@ void SCFence::inspectModelAction(ModelAction *act) {
 void SCFence::actionAtInstallation() {
 	// When this pluggin gets installed, it become the inspect_plugin
 	model->set_inspect_plugin(this);
+}
+
+void SCFence::actionAtModelCheckingFinish() {
+	// FIXME: Change the states of the plugin, should basically mark that
+	// wildcard inference has only SC behaviors
+
+	// FIXME: Some condition here!! Figure that out
+	if (false) {
+		model->restart();
+	}
 }
 
 bool SCFence::option(char * opt) {
@@ -136,6 +145,8 @@ void SCFence::analyze(action_list_t *actions) {
 		//graph->printGraph();
 		graph->printCyclicChain(cycle_act1, cycle_act2);
 		print_list(actions);
+		breakCycle(cycle_act1, cycle_act2);
+		model->restart();
 	}
 	// Don't forget to clear the graph every time when we are done
 	graph->clear();

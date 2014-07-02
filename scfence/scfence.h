@@ -17,7 +17,8 @@ class SCFence;
 extern SCFence *scfence;
 
 typedef SnapList<const ModelAction *> const_actions_t;
-typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_t;
+typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_table_t;
+typedef SnapList<memory_order> wildcard_list_t;
 
 typedef struct sc_node {
 	const ModelAction *act;
@@ -189,6 +190,7 @@ class SCFence : public TraceAnalysis {
 
 	virtual void inspectModelAction(ModelAction *ac);
 	virtual void actionAtInstallation();
+	virtual void actionAtModelCheckingFinish();
 
 	SNAPSHOTALLOC
  private:
@@ -223,12 +225,10 @@ class SCFence : public TraceAnalysis {
 	
 	/** The two modelAction from which we encounter a cycle */
 	const ModelAction *cycle_act1, *cycle_act2;
-	/** List of wildcards */
-	SnapList<memory_order> *wildcardList;
-	/** Mapping: a wildcard -> the specifc ordering */
-	wildcard_t *wildcardMap;
+	/** Current wildcard mapping: a wildcard -> the specifc ordering */
+	wildcard_table_t *wildcardMap;
 	/** A list of possible results */
-	SnapList<wildcard_t *> results;
+	SnapList<wildcard_table_t *> results;
 
 	/** A map to remember the graph built so far */
 	sc_graph *graph;
