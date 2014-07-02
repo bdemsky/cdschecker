@@ -21,7 +21,6 @@ SCFence::SCFence() :
 	print_nonsc(false),
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
-	graph(),
 	wildcardMap(NULL),
 	wildcardList(NULL),
 	results()
@@ -57,7 +56,7 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		memory_order_seq_cst) {
 		return;
 	} else { // For wildcards
-		if (wildcardMap->get(act->get_mo()) == NULL) {
+		if (wildcardMap == NULL || wildcardMap->get(act->get_mo()) == NULL) {
 			act->set_mo(memory_order_relaxed);
 		} else {
 			act->set_mo(wildcardMap->get(act->get_mo()));
@@ -129,11 +128,18 @@ void SCFence::analyze(action_list_t *actions) {
 	struct timeval finish;
 	if (time)
 		gettimeofday(&start, NULL);
-
-	// Initialize the graph
-	graph.init(actions);
-
+	
+	model_print("Constructing the graph...\n");
+	graph = new sc_graph(actions);
 	action_list_t *list = generateSC(actions);
+	// Now we find a non-SC execution
+	if (cyclic) {
+		graph->printGraph();
+		graph->printCyclicChain(cycle_act1, cycle_act2);
+		print_list(list);
+	}
+	// Don't forget to clear the graph every time when we are done
+	graph->clear();
 	
 	check_rf(list);
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
@@ -165,72 +171,35 @@ void SCFence::check_rf(action_list_t *list) {
 	}
 }
 
+
 void SCFence::breakCycle(const ModelAction *act1, const ModelAction *act2) {
-	action_list_t *actions = graph.getCycleActions(act2, act1);
-	
-	// Build the vector
-	SnapVector<action_list_t> threadlist;
-	int thread_num = 0;
-	int action_num = buildVectors(&threadlist, &thread_num, actions);
 
-	// Start to strengthen the parameter
-
-	for (int i = 0; i < threadlist.size(); i++) {
-		action_list_t list = threadlist[i];
-		model_print("Thread: %d\n", i);
-		for (action_list_t::iterator it = list.begin(); it != list.end();
-			it++) {
-			const ModelAction *act = *it;
-			if (is_wildcard(act->get_original_mo())) {
-				model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
-			}
-			act->print();
-		}
-	}
-	
-	delete actions;
 }
 
-void SCFence::printCyclicChain(const ModelAction *act1, const ModelAction *act2) {
-	//graph.printGraph();
-	//model_print("From -> to: %d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
-	action_list_t *actions = graph.getCycleActions(act2, act1);
-	if (actions == NULL) {
-		model_print("Cannot find the cycle of actions!\n");
-		return;
-	}
-	
-	// Build the vector
-	SnapVector<action_list_t> threadlist;
-	int thread_num = 0;
-	int action_num = buildVectors(&threadlist, &thread_num, actions);
-	model_print("Number of threads: %d\n", thread_num);
-
-	for (action_list_t::iterator it = actions->begin(); it != actions->end();
-		it++) {
-		const ModelAction *act = *it;
-		if (is_wildcard(act->get_original_mo())) {
-			model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
-		}
-		act->print();
-	}
-	delete actions;
-}
 
 bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2) {
 	ClockVector *cv2 = cvmap.get(act2);
 	if (cv2 == NULL)
 		return true;
+	
+	// Add an edge: act2 -> act
+	graph->addEdge(act2, act);
+	//if (act2->get_seq_number() == 3 && act2->get_seq_number() == 10) {
+		model_print("%d ---> %d!\n", act2->get_seq_number(),
+			act->get_seq_number());
+	//}
+
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
-		//printCyclicChain(act2, act);
-		breakCycle(act2, act);
+
+		cycle_act1 = act;
+		cycle_act2 = act2;
+		model_print("Node1: %d\n", cycle_act1->get_seq_number());
+		model_print("Node2: %d\n", cycle_act2->get_seq_number());
 
 		//refuse to introduce cycles into clock vectors
 		return false;
 	}
-	graph.addEdge(act2, act);
-
 	return cv->merge(cv2);
 }
 
@@ -389,6 +358,8 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 					endchoice=lastchoice+1;
 					currchoice=0;
 					lastchoice=-1;
+					// Also need to reset the graph
+					graph->reset(list);
 					reset(list);
 					buildVectors(&threadlists, &maxthreads, list);
 					computeCV(list);

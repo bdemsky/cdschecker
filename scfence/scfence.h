@@ -5,6 +5,7 @@
 #include "hashtable.h"
 #include "memoryorder.h"
 #include "action.h"
+#include "wildcard.h"
 
 #ifdef __cplusplus
 using std::memory_order;
@@ -19,13 +20,13 @@ typedef SnapList<const ModelAction *> const_actions_t;
 typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_t;
 
 typedef struct sc_node {
-	ModelAction *act;
+	const ModelAction *act;
 	const_actions_t *edges;
 
 	// For traversal
 	int color;
 
-	sc_node(ModelAction *act) {
+	sc_node(const ModelAction *act) {
 		this->act = act;
 		edges = new const_actions_t(); 
 	}
@@ -51,24 +52,38 @@ typedef SnapList<sc_node *> sc_nodes_t;
 
 typedef struct sc_graph {
 	HashTable<const ModelAction *, sc_node *, uintptr_t, 4> node_map;
-	action_list_t *actions;
+	const_actions_t actions;
 
-	sc_graph() : node_map() {}
-
-	void init(action_list_t *actions) {
-		this->actions = actions;
+	sc_graph(action_list_t *actions) :
+		node_map(),
+		actions()
+	{
 		for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
-			node_map.put(*it, new sc_node(*it));
+			this->actions.push_back(*it);
+			this->node_map.put(*it, new sc_node(*it));
 		}
 	}
 
 	void clear() {
-		for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
+		// Clear up nodes, actions & the node_map
+		for (const_actions_t::iterator it = this->actions.begin(); it !=
+			this->actions.end(); it++) {
 			const ModelAction *act = *it;
-			sc_node *n = node_map.get(act);
+			sc_node *n = this->node_map.get(act);
 			n->clear();
 		}
-		node_map.reset();
+		this->actions.clear();
+		this->node_map.reset();
+	}
+
+	void reset(action_list_t *actions) {
+		clear();		
+		// And then we build the new graph
+		// We keep a action->node mapping
+		for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
+			this->actions.push_back(*it);
+			this->node_map.put(*it, new sc_node(*it));
+		}
 	}
 
 	void addEdge(const ModelAction *act1, const ModelAction *act2) {
@@ -76,9 +91,10 @@ typedef struct sc_graph {
 		n1->addEdge(act2);
 	}
 
+	/** @Brief Printing out the graph in a plain way */
 	void printGraph() {
-		for (action_list_t::iterator it = actions->begin(); it !=
-			actions->end(); it++) {
+		for (const_actions_t::iterator it = actions.begin(); it !=
+			actions.end(); it++) {
 			sc_node *n = node_map.get(*it);
 			const ModelAction *act = n->act;
 			if (act->get_seq_number() == 0)
@@ -88,19 +104,45 @@ typedef struct sc_graph {
 			for (const_actions_t::iterator edge_it = n->edges->begin(); edge_it
 				!= n->edges->end(); edge_it++) {
 				const ModelAction *next = *edge_it;
-			model_print("%d --> %d\n", n->act->get_seq_number(),
+				model_print("%d --> %d\n", n->act->get_seq_number(),
 					next->get_seq_number());
 			}
 		}
 	}
 
-	/** Only call this function when you are sure there's a cycle involving act1
+	void printCyclicChain(const ModelAction *act1, const ModelAction *act2) {
+		model_print("From -> to: %d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
+		const_actions_t *cyclic_actions = getCycleActions(act2, act1);
+		if (cyclic_actions == NULL) {
+			model_print("Cannot find the cycle of actions!\n");
+			return;
+		}
+		/*
+		// Build the vector
+		SnapVector<action_list_t> threadlist;
+		int thread_num = 0;
+		int action_num = buildVectors(&threadlist, &thread_num, cyclic_actions);
+		model_print("Number of threads: %d\n", thread_num);
+		*/
+		for (const_actions_t::iterator it = cyclic_actions->begin(); it !=
+			cyclic_actions->end();
+			it++) {
+			const ModelAction *act = *it;
+			if (is_wildcard(act->get_original_mo())) {
+				model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
+			}
+			act->print();
+		}
+		delete cyclic_actions;
+	}
+
+	/** @Brief Only call this function when you are sure there's a cycle involving act1
 	 * and act2; It traverse the graph from act1 with DFS to find a path to
 	 * act2.
 	 */
-	action_list_t* getCycleActions(const ModelAction *act1, const ModelAction *act2) {
+	const_actions_t* getCycleActions(const ModelAction *act1, const ModelAction *act2) {
 		sc_nodes_t *stack = new sc_nodes_t();
-		action_list_t *actions = new action_list_t();
+		const_actions_t *actions = new const_actions_t();
 		sc_node *n1 = node_map.get(act1),
 			*n2 = node_map.get(act2), *n;
 		stack->push_back(n1);
@@ -159,11 +201,12 @@ class SCFence : public TraceAnalysis {
 	bool processRead(ModelAction *read, ClockVector *cv);
 	int getNextActions(ModelAction **array);
 	bool merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2);
-	void printCyclicChain(const ModelAction *act1, const ModelAction *act2);
-	void breakCycle(const ModelAction *act1, const ModelAction *act2);
 	void check_rf(action_list_t *list);
 	void reset(action_list_t *list);
 	ModelAction* pruneArray(ModelAction**, int);
+
+	/** Functions that work for infering the parameters */
+	void breakCycle(const ModelAction *act1, const ModelAction *act2);
 
 	int maxthreads;
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
@@ -178,6 +221,8 @@ class SCFence : public TraceAnalysis {
 	bool time;
 	struct sc_statistics *stats;
 	
+	/** The two modelAction from which we encounter a cycle */
+	const ModelAction *cycle_act1, *cycle_act2;
 	/** List of wildcards */
 	SnapList<memory_order> *wildcardList;
 	/** Mapping: a wildcard -> the specifc ordering */
@@ -186,7 +231,7 @@ class SCFence : public TraceAnalysis {
 	SnapList<wildcard_t *> results;
 
 	/** A map to remember the graph built so far */
-	sc_graph graph;
+	sc_graph *graph;
 
 };
 #endif

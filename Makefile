@@ -43,7 +43,6 @@ SPEC_LIB := $(SPEC_DIR)/spec_lib.o
 SCFENCE_PLUGIN :=$(SCFENCE_DIR)/scfence.o
 
 
-
 $(SPEC_PLUGIN):
 	$(MAKE) -C $(SPEC_DIR) # compile the specanalysis first
 $(SPEC_LIB):
