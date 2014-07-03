@@ -486,7 +486,7 @@ void ModelChecker::run()
 		} while (!should_terminate_execution());
 
 		has_next = next_execution();
-		if (!has_next) {
+		if (!has_next && inspect_plugin != NULL) {
 			inspect_plugin->actionAtModelCheckingFinish();
 			// Check if the inpect plugin might have set the restart flag
 			if (restart_flag) {
