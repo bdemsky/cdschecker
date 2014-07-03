@@ -21,8 +21,9 @@ SCFence::SCFence() :
 	print_nonsc(false),
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
-	wildcardMap(NULL),
-	results()
+	curWildcardMap(),
+	curInference(),
+	potentialResults()
 {
 }
 
@@ -55,10 +56,10 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		memory_order_seq_cst) {
 		return;
 	} else { // For wildcards
-		if (wildcardMap == NULL || wildcardMap->get(act->get_mo()) == NULL) {
+		if (curWildcardMap->get(act->get_mo()) == NULL) {
 			act->set_mo(memory_order_relaxed);
 		} else {
-			act->set_mo(wildcardMap->get(act->get_mo()));
+			act->set_mo(curWildcardMap->get(act->get_mo()));
 		}
 	}
 }
@@ -69,14 +70,47 @@ void SCFence::actionAtInstallation() {
 	model->set_inspect_plugin(this);
 }
 
-void SCFence::actionAtModelCheckingFinish() {
-	// FIXME: Change the states of the plugin, should basically mark that
-	// wildcard inference has only SC behaviors
+const char * SCFence::get_mo_str(memory_order order) {
+	switch (order) {
+		case std::memory_order_relaxed: return "relaxed";
+		case std::memory_order_acquire: return "acquire";
+		case std::memory_order_release: return "release";
+		case std::memory_order_acq_rel: return "acq_rel";
+		case std::memory_order_seq_cst: return "seq_cst";
+		default: return "unknown";
+	}
+}
 
-	// FIXME: Some condition here!! Figure that out
-	if (false) {
+void SCFence::printWildcardResult(inference_list_t *result) {
+	for (inference_list_t::iterator it = result->begin(); it
+		!= result->end(); it++) {
+		InferencePair pair = *it;
+		memory_order wildcard = pair.wildcard,
+			order = pair.order;
+		// Print the wildcard inference result
+		model_print("wildcard%d -> memory_order_%s\n",
+			get_wildcard_id(wildcard), get_mo_str(order));
+	}
+}
+
+void SCFence::actionAtModelCheckingFinish() {
+	// Print the wildcard result
+	printWildcardResult(curInference);
+
+	// FIXME: 
+	if (potentialResults.size() != 0) {
+		inference_list_t *result = potentialResults.front();
+		potentialResults.pop_front();
+		for (inference_list_t::iterator it = result->begin(); it
+			!= result->end(); it++) {
+
+		}
+
+
+
 		model->restart();
 	}
+	
 }
 
 bool SCFence::option(char * opt) {

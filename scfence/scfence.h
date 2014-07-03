@@ -16,8 +16,14 @@ class SCFence;
 
 extern SCFence *scfence;
 
+typedef struct {
+	memory_order wildcard;
+	memory_order order;
+} InferencePair;
+
 typedef SnapList<const ModelAction *> const_actions_t;
 typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_table_t;
+typedef SnapList<InferencePair> inference_list_t;
 typedef SnapList<memory_order> wildcard_list_t;
 
 typedef struct sc_node {
@@ -209,6 +215,8 @@ class SCFence : public TraceAnalysis {
 
 	/** Functions that work for infering the parameters */
 	void breakCycle(const ModelAction *act1, const ModelAction *act2);
+	const char* get_mo_str(memory_order order);
+	void printWildcardResult(inference_list_t *result);
 
 	int maxthreads;
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
@@ -223,15 +231,17 @@ class SCFence : public TraceAnalysis {
 	bool time;
 	struct sc_statistics *stats;
 	
+	/** A map to remember the graph built so far */
+	sc_graph *graph;
 	/** The two modelAction from which we encounter a cycle */
 	const ModelAction *cycle_act1, *cycle_act2;
 	/** Current wildcard mapping: a wildcard -> the specifc ordering */
-	wildcard_table_t *wildcardMap;
-	/** A list of possible results */
-	SnapList<wildcard_table_t *> results;
+	wildcard_table_t *curWildcardMap;
+	/** Current wildcards */
+	inference_list_t *curInference;
 
-	/** A map to remember the graph built so far */
-	sc_graph *graph;
+	/** A list of possible results */
+	SnapList<inference_list_t *> potentialResults;
 
 };
 #endif
