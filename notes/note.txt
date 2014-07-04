@@ -1,0 +1,2 @@
+1. In example, lock() should have a pre-declared succ variable, and it would be
+a compiler error otherwise.
