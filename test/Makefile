@@ -7,6 +7,8 @@ include $(BASE)/common.mk
 
 DIR := litmus
 include $(DIR)/Makefile
+NONSC_DIR := nonsc-patterns
+include $(NONSC_DIR)/Makefile
 
 DEPS := $(join $(addsuffix ., $(dir $(OBJECTS))), $(addsuffix .d, $(notdir $(OBJECTS))))
 

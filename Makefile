@@ -24,8 +24,8 @@ TESTS_DIR := test
 MARKDOWN := doc/Markdown/Markdown.pl
 
 all: $(LIB_SO) tests README.html
-	$(MAKE) -C $(SPEC_DIR)
-	$(MAKE) -C $(SCFENCE_DIR)
+	#$(MAKE) -C $(SPEC_DIR)
+	#$(MAKE) -C $(SCFENCE_DIR)
 
 debug: CPPFLAGS += -DCONFIG_DEBUG -O0 -g
 debug: all
@@ -42,14 +42,19 @@ SPEC_PLUGIN := $(SPEC_DIR)/specanalysis.o
 SPEC_LIB := $(SPEC_DIR)/spec_lib.o
 SCFENCE_PLUGIN :=$(SCFENCE_DIR)/scfence.o
 
+include $(SCFENCE_DIR)/Makefile
+include $(SPEC_DIR)/Makefile
 
-$(SPEC_PLUGIN):
-	$(MAKE) -C $(SPEC_DIR) # compile the specanalysis first
-$(SPEC_LIB):
-	$(MAKE) -C $(SPEC_DIR)
+-include $(wildcard $(SPEC_DIR)/.*.d)
+-include $(wildcard $(SCFENCE_DIR)/.*.d)
 
-$(SCFENCE_PLUGIN):
-	$(MAKE) -C $(SCFENCE_DIR)
+#$(SPEC_PLUGIN): 
+#	$(MAKE) -C $(SPEC_DIR) # compile the specanalysis first
+#$(SPEC_LIB):
+#	$(MAKE) -C $(SPEC_DIR)
+
+#$(SCFENCE_PLUGIN): FORCE
+#	$(MAKE) -C $(SCFENCE_DIR)
 
 $(LIB_SO): $(OBJECTS) $(SPEC_PLUGIN) $(SPEC_LIB) $(SCFENCE_PLUGIN)
 	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS)

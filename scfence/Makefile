@@ -1,22 +1,22 @@
-BASE := ..
+#BASE := ..
 
-include $(BASE)/common.mk
-OBJECTS := scfence.o
+#include $(BASE)/common.mk
+#OBJECTS := scfence.o
 
-all: $(OBJECTS)
+#all: $(OBJECTS)
 
--include $(OBJECTS:%=.%.d)
+#-include $(OBJECTS:%=.%.d)
 
-CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -g
+#CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -g
 
 
-PHONY += all 
+#PHONY += all 
 
-scfence.o: scfence.cc
-	$(CXX) -MMD -MF .$@.d -c -fPIC -o $@ $< $(CPPFLAGS)
+$(SCFENCE_PLUGIN): $(SCFENCE_DIR)/scfence.cc
+	$(CXX) -MMD -MF $(SCFENCE_DIR)/.$(notdir $@).d -c -fPIC -o $@ $< $(CPPFLAGS)
 
-PHONY += clean
-clean::
+#PHONY += clean
+clean:
 	rm -f *.o .*.d
 
-.PHONY: $(PHONY)
+#.PHONY: $(PHONY)
