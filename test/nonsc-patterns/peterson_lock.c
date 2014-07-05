@@ -9,18 +9,21 @@
 atomic_int x;
 atomic_int y;
 
+/** Peterson Lock
+  * This pattern involves two threads and two locations. The only solution for
+  * this pattern is to make all ordering parameters seq_cst
+  */
+
 static void a(void *obj)
 {
-	atomic_store_explicit(&x, 1, memory_order_wildcard(1));
-	int r1=atomic_load_explicit(&y, memory_order_wildcard(2));
-	printf("r1=%d\n",r1);
+	atomic_store_explicit(&x, 1, memory_order_seq_cst);
+	int r1=atomic_load_explicit(&y, memory_order_seq_cst);
 }
 
 static void b(void *obj)
 {
-	atomic_store_explicit(&y, 1, memory_order_wildcard(3));
-	int r2=atomic_load_explicit(&x, memory_order_wildcard(4));
-	printf("r2=%d\n",r2);
+	atomic_store_explicit(&y, 1, memory_order_seq_cst);
+	int r2=atomic_load_explicit(&x, memory_order_seq_cst);
 }
 
 int user_main(int argc, char **argv)

@@ -9,28 +9,31 @@
 atomic_int x;
 atomic_int y;
 
+/** Independent Reads & Independent Writes
+  * This pattern contains four threads and two different memory locations. The only solution for this pattern is to make all involved memory orders
+  * seq_cst
+  */
+
 static void a(void *obj)
 {
-	atomic_store_explicit(&x, 1, memory_order_wildcard(1));
-	//atomic_store_explicit(&x, 1, memory_order_seq_cst);
+	atomic_store_explicit(&x, 1, memory_order_seq_cst);
 }
 
 static void b(void *obj)
 {
-	atomic_store_explicit(&y, 1, memory_order_wildcard(2));
-	//atomic_store_explicit(&y, 1, memory_order_seq_cst);
+	atomic_store_explicit(&y, 1, memory_order_seq_cst);
 }
 
 static void c(void *obj)
 {
-	int r1=atomic_load_explicit(&x, memory_order_wildcard(3));
-	int r2=atomic_load_explicit(&y, memory_order_wildcard(4));
+	int r1=atomic_load_explicit(&x, memory_order_seq_cst);
+	int r2=atomic_load_explicit(&y, memory_order_seq_cst);
 }
 
 static void d(void *obj)
 {
-	int r3=atomic_load_explicit(&y, memory_order_wildcard(5));
-	int r4=atomic_load_explicit(&x, memory_order_wildcard(6));
+	int r3=atomic_load_explicit(&y, memory_order_seq_cst);
+	int r4=atomic_load_explicit(&x, memory_order_seq_cst);
 }
 
 int user_main(int argc, char **argv)
