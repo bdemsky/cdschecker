@@ -1,3 +1,20 @@
 \section{Technical}\label{sec:technical}
 
 \subsection{Inference Rule}
+
+\begin{figure}[!ht]
+\centering
+\begin{tabular}{c}
+\multicolumn{1}{c}{Synchronization}\\
+\includegraphics[scale=.45]{figures/sync}\\
+\multicolumn{1}{c}{Circular Reads-from}\\
+\includegraphics[scale=.45]{figures/circular_rf}\\
+\multicolumn{1}{c}{Independent Reads \& Independent Writes}\\
+\includegraphics[scale=.45]{figures/iriw}\\
+\multicolumn{1}{c}{Peterson Lock}\\
+\includegraphics[scale=.45]{figures/peterson_lock}\\
+\multicolumn{1}{c}{Release Sequence}\\
+\includegraphics[scale=.45]{figures/release_seq}\\
+\end{tabular}
+\caption{\label{fig:fence_implications}Implications for Strengthening Ordering Parameters}
+\end{figure}

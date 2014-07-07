@@ -1,7 +1,7 @@
 LATEX := pdflatex -halt-on-error
 
 FIGURES =
-FIGURES += figures/rmw_atomicity2.ps
+#FIGURES += figures/rmw_atomicity2.ps
 
 #FIGHEAD = #figures/figHeader.dotpiece
 #FIGFOOT = #figures/figFooter.dotpiece
