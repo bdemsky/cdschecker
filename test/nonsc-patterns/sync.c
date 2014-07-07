@@ -11,11 +11,11 @@ atomic_int x;
 atomic_int y;
 atomic_int z;
 
-int r1, r2, r3, r4;
+int r1, r2, r3;
 
-/** Write-to-Read Causality 
- *  The optimal solution for this type of cycle is to all the cross-thread
- *  reads-from edges in the cycle
+/** Synchronization
+  * The optimal solution for this type of cycle is to synchronize all the
+  * cross-thread reads-from edges in the cycle
  */
 
 
@@ -34,8 +34,7 @@ static void b(void *obj)
 static void c(void *obj)
 {
 	r2=atomic_load_explicit(&y, memory_order_acquire);
-	//r3=atomic_load_explicit(&x, memory_order_relaxed);
-	r4=atomic_load_explicit(&z, memory_order_relaxed);
+	r3=atomic_load_explicit(&z, memory_order_relaxed);
 }
 
 
@@ -46,7 +45,6 @@ int user_main(int argc, char **argv)
 	r1 = 0;
 	r2 = 0;
 	r3 = 0;
-	r4 = 4;
 
 	atomic_init(&x, 0);
 	atomic_init(&y, 0);
@@ -60,7 +58,7 @@ int user_main(int argc, char **argv)
 	thrd_join(t2);
 	thrd_join(t3);
 
-	//MODEL_ASSERT (!(r1 == 1 && r2 == 1 && r4 == 0));
+	//MODEL_ASSERT (!(r1 == 1 && r2 == 1 && r3 == 0));
 
 	return 0;
 }
