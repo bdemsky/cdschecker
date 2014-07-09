@@ -40,13 +40,26 @@ release/acquire pairs to store/load operations involed in the cycle. Instead,
 any possible paths composed with the union of \textit{sb} $\cup$ \textit{rf}
 between the two nodes can be strengthened.
 
-\mypara{\bf Old value read \RNum{1}:} 
+\mypara{\bf Old value read \RNum{1}:} When we sort the trace into an SC-like
+ordering, we may encounter the case where a load reads from some old store
+and those three operations can be connected via at least one path composed on
+the union of \textit{sb} $\cup$ \textit{rf}. A universal fix for this pattern is
+to impose \textit{happens-before} between the two stores and
+\textit{happens-before} between the recent store and the load at the same time.
+
+\mypara{\bf Old value read \RNum{2}:} Similar to the previous pattern, we see a
+load read from an old store. However, the difference is that we do not have a
+union of \textit{sb} $\cup$ \textit{rf} between the two stores and between the
+recent store and the load at the same time. To fix this problem, we need to
+impose the following: 1) the old store \textit{modification-order} before the
+recent store (weaker than \textit{sc} or \textit{hb}); 2) the recent store
+\textit{sc} before the load or the \textit{happens-before} the load.
 
 
-\mypara{\bf Old value read \RNum{2}:}
-
-
-\mypara{\bf Future value read:}
+\mypara{\bf Future value read:} Unlike reading an old value in the trace,
+another possible pattern is reading a future value. To fix this pattern, we can
+do the following: 1) impose \textit{happens-before} from the store to the load;
+2) impose \textit{sc} from the load to the store.
 
 
 Figure~\ref{fig:algorithm} shows the core searching algorithm for all possible
