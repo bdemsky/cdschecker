@@ -26,18 +26,18 @@ Figure~\ref{fig:fence_implications} , we show a number of common patterns that
 can exist in cycles. We explain what the weakest orders we should impose on
 operations to eliminate the corresponding cycle as the following.
 
-\mypara{\bf Synchronization:} This pattern considers 
+%\mypara{\bf Circular \textit{sb} \& \textit{rf}:}
+%\mypara{\bf Circular \textit{sb} \& \textit{rf}:}
 
-\mypara{\bf Circular reads-from:}
+Text \makebox[3\width][r]{running away}
 
-
-\mypara{\bf Peterson lock:}
-
-
-\mypara{\bf Release sequence:}
+\mypara{\bf Old value read \RNum{1}:}
 
 
-\mypara{\bf Independent reads \& independent writes:}
+\mypara{\bf Old value read \RNum{2}:}
+
+
+\mypara{\bf Reading future value:}
 
 
 Figure~\ref{fig:algorithm} shows the core searching algorithm for all possible
@@ -46,16 +46,14 @@ parameters.
 \begin{figure}[!ht]
 \centering
 \begin{tabular}{c}
-\multicolumn{1}{c}{Synchronization}\\
-\includegraphics[scale=.4]{figures/sync}\\
-\multicolumn{1}{c}{Circular Reads-from}\\
-\includegraphics[scale=.4]{figures/circular_rf}\\
-\multicolumn{1}{c}{Peterson Lock}\\
-\includegraphics[scale=.4]{figures/peterson_lock}\\
-\multicolumn{1}{c}{Release Sequence}\\
-\includegraphics[scale=.4]{figures/release_seq}\\
-\multicolumn{1}{c}{Independent Reads \& Independent Writes}\\
-\includegraphics[scale=.4]{figures/iriw}\\
+\multicolumn{1}{c}{Circular \textit{sb} \& \textit{rf}}\\
+\includegraphics[scale=.45]{figures/circular_sb_rf}\\
+\multicolumn{1}{c}{Old Value Read \RNum{1}}\\
+\includegraphics[scale=.45]{figures/old_val_sync}\\
+\multicolumn{1}{c}{Old Value Read \RNum{2}}\\
+\includegraphics[scale=.45]{figures/old_val_isc}\\
+\multicolumn{1}{c}{Future Value Read}\\
+\includegraphics[scale=.45]{figures/future_val_isc}\\
 \end{tabular}
 \caption{\label{fig:fence_implications}Cycle Patterns for Non-SC Behaviors}
 \end{figure}
