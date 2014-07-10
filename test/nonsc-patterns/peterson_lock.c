@@ -16,14 +16,14 @@ atomic_int y;
 
 static void a(void *obj)
 {
-	atomic_store_explicit(&x, 1, memory_order_seq_cst);
-	int r1=atomic_load_explicit(&y, memory_order_seq_cst);
+	atomic_store_explicit(&x, 1, memory_order_relaxed);
+	int r1=atomic_load_explicit(&y, memory_order_relaxed);
 }
 
 static void b(void *obj)
 {
-	atomic_store_explicit(&y, 1, memory_order_seq_cst);
-	int r2=atomic_load_explicit(&x, memory_order_seq_cst);
+	atomic_store_explicit(&y, 1, memory_order_relaxed);
+	int r2=atomic_load_explicit(&x, memory_order_relaxed);
 }
 
 int user_main(int argc, char **argv)

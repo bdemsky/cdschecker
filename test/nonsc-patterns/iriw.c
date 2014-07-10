@@ -10,8 +10,9 @@ atomic_int x;
 atomic_int y;
 
 /** Independent Reads & Independent Writes
-  * This pattern contains four threads and two different memory locations. The only solution for this pattern is to make all involved memory orders
-  * seq_cst
+  * This pattern contains four threads and two different memory locations. The
+  * only solution for this pattern is to make read1 and read3 acquire and all
+  * other operations seq_cst
   */
 
 static void a(void *obj)
@@ -26,13 +27,13 @@ static void b(void *obj)
 
 static void c(void *obj)
 {
-	int r1=atomic_load_explicit(&x, memory_order_seq_cst);
+	int r1=atomic_load_explicit(&x, memory_order_acquire);
 	int r2=atomic_load_explicit(&y, memory_order_seq_cst);
 }
 
 static void d(void *obj)
 {
-	int r3=atomic_load_explicit(&y, memory_order_seq_cst);
+	int r3=atomic_load_explicit(&y, memory_order_acquire);
 	int r4=atomic_load_explicit(&x, memory_order_seq_cst);
 }
 

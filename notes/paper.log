@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-1.40.10 (TeX Live 2009/Debian) (format=pdflatex 2012.8.28)  8 JUL 2014 18:10
+This is pdfTeX, Version 3.1415926-1.40.10 (TeX Live 2009/Debian) (format=pdflatex 2012.8.28)  9 JUL 2014 18:25
 entering extended mode
  %&-line parsing enabled.
 **paper.tex
@@ -417,7 +417,11 @@ File: lstlang1.sty 2004/09/05 1.3 listings language file
 )
 (/usr/share/texmf-texlive/tex/latex/listings/lstmisc.sty
 File: lstmisc.sty 2007/02/22 1.4 (Carsten Heinz)
-) (./paper.aux)
+) (./paper.aux
+
+LaTeX Warning: Label `fig:fence_implications' multiply defined.
+
+)
 \openout1 = `paper.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 110.
@@ -437,8 +441,7 @@ LaTeX Font Info:    ... okay on input line 110.
 LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 110.
 LaTeX Font Info:    Try loading font information for TS1+cmr on input line 110.
 
-
-(/usr/share/texmf-texlive/tex/latex/base/ts1cmr.fd
+ (/usr/share/texmf-texlive/tex/latex/base/ts1cmr.fd
 File: ts1cmr.fd 1999/05/25 v2.5h Standard LaTeX font definitions
 )
 LaTeX Font Info:    ... okay on input line 110.
@@ -498,82 +501,91 @@ LaTeX Font Info:    Font shape `OT1/ptm/bx/n' in size <12> not available
 LaTeX Font Info:    Font shape `OT1/ptm/bx/n' in size <10> not available
 (Font)              Font shape `OT1/ptm/b/n' tried instead on input line 3.
 
-Underfull \hbox (badness 1057) in paragraph at lines 10--19
+Underfull \hbox (badness 1057) in paragraph at lines 12--21
 \OT1/ptm/m/n/10 a-tions, mem-ory or-der pa-ram-e-ters for atomic op-er-a-tions
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 10--19
+Underfull \hbox (badness 10000) in paragraph at lines 12--21
 \OT1/ptm/m/it/10 mem-ory[]order[]release\OT1/ptm/m/n/10 , \OT1/ptm/m/it/10 mem-
 ory[]order[]acquire\OT1/ptm/m/n/10 , \OT1/ptm/m/it/10 mem-
  []
 
 
-Underfull \hbox (badness 1616) in paragraph at lines 10--19
+Underfull \hbox (badness 1616) in paragraph at lines 12--21
 \OT1/ptm/m/n/10 this naive ap-proach ob-vi-ously leads to an ex-po-nen-tial
  []
 
-LaTeX Font Info:    Try loading font information for U+msa on input line 48.
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+LaTeX Font Info:    Try loading font information for U+msa on input line 67.
+
 (/usr/share/texmf-texlive/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2009/06/22 v3.00 AMS symbols A
 )
-LaTeX Font Info:    Try loading font information for U+msb on input line 48.
+LaTeX Font Info:    Try loading font information for U+msb on input line 67.
 
 (/usr/share/texmf-texlive/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2009/06/22 v3.00 AMS symbols B
 )
-<figures/circular_sb_rf.pdf, id=33, 266.9975pt x 180.675pt>
-File: figures/circular_sb_rf.pdf Graphic file (type pdf)
-
-<use figures/circular_sb_rf.pdf>
-<figures/old_val_sync.pdf, id=35, 216.81pt x 202.7575pt>
-File: figures/old_val_sync.pdf Graphic file (type pdf)
-
-<use figures/old_val_sync.pdf>
-<figures/old_val_isc.pdf, id=37, 216.81pt x 202.7575pt>
+<figures/old_val_isc.pdf, id=35, 230.8625pt x 202.7575pt>
 File: figures/old_val_isc.pdf Graphic file (type pdf)
 
 <use figures/old_val_isc.pdf>
-<figures/future_val_isc.pdf, id=39, 216.81pt x 202.7575pt>
+<figures/future_val_isc.pdf, id=37, 216.81pt x 202.7575pt>
 File: figures/future_val_isc.pdf Graphic file (type pdf)
 
 <use figures/future_val_isc.pdf>
-LaTeX Font Info:    Try loading font information for OMS+ptm on input line 65.
+<figures/examples/circular_rf.pdf, id=39, 397.485pt x 187.70125pt>
+File: figures/examples/circular_rf.pdf Graphic file (type pdf)
+
+<use figures/examples/circular_rf.pdf>
+<figures/examples/iriw.pdf, id=41, 491.8375pt x 289.08pt>
+File: figures/examples/iriw.pdf Graphic file (type pdf)
+
+<use figures/examples/iriw.pdf>
+<figures/examples/peterson_lock.pdf, id=43, 252.945pt x 209.78375pt>
+File: figures/examples/peterson_lock.pdf Graphic file (type pdf)
+
+<use figures/examples/peterson_lock.pdf>
+<figures/examples/release_seq.pdf, id=45, 462.72874pt x 230.8625pt>
+File: figures/examples/release_seq.pdf Graphic file (type pdf)
+
+<use figures/examples/release_seq.pdf>
+LaTeX Font Info:    Try loading font information for OMS+ptm on input line 94.
 
 (/usr/share/texmf-texlive/tex/latex/psnfss/omsptm.fd
 File: omsptm.fd 
 )
 LaTeX Font Info:    Font shape `OMS/ptm/m/n' in size <10> not available
-(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 65.
-
-Underfull \hbox (badness 10000) in paragraph at lines 81--82
-[]\OT1/ptm/b/n/10 pro-ce-dure \OT1/ptm/m/sc/10 Strength-en-Param\OT1/ptm/m/n/10
- (cycle, can-di-date,
- []
-
-) (./evaluation.tex) (./related.tex) (./conclusion.tex
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
-)
-(./paper.bbl [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 94.
+) (./evaluation.tex)
+(./related.tex) (./conclusion.tex) (./paper.bbl) [1{/var/lib/texmf/fonts/map/pd
+ftex/updmap/pdftex.map}
 
 
- <./figures/circular_sb_rf.pdf> <./figures/old_val_sync.pdf> <./figures/old_val
-_isc.pdf> <./figures/future_val_isc.pdf>]) [2
+] [2 <./figures/old_val_isc.pdf> <./figures/future_val_isc.pdf> <./figures/exam
+ples/circular_rf.pdf> <./figures/examples/iriw.pdf> <./figures/examples/peterso
+n_lock.pdf> <./figures/examples/release_seq.pdf>]
+[3
 
 ] (./paper.aux)
 
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
+
+LaTeX Warning: There were multiply-defined labels.
+
  ) 
 Here is how much of TeX's memory you used:
- 8058 strings out of 493848
- 113798 string characters out of 1152823
- 221581 words of memory out of 3000000
- 11145 multiletter control sequences out of 15000+50000
+ 8066 strings out of 493848
+ 114109 string characters out of 1152823
+ 224581 words of memory out of 3000000
+ 11148 multiletter control sequences out of 15000+50000
  26925 words of font info for 50 fonts, out of 3000000 for 9000
  714 hyphenation exceptions out of 8191
- 38i,13n,58p,305b,426s stack positions out of 5000i,500n,10000p,200000b,50000s
+ 38i,13n,58p,305b,301s stack positions out of 5000i,500n,10000p,200000b,50000s
 {/usr/share/texmf-texlive/fonts/enc/dvips/base/8r.enc}</usr/share/texmf-texli
 ve/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texmf-texlive/fonts/ty
 pe1/public/amsfonts/cm/cmr10.pfb></usr/share/texmf-texlive/fonts/type1/public/a
@@ -581,9 +593,9 @@ msfonts/cm/cmss10.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfonts/cm/
 cmsy10.pfb></usr/share/texmf-texlive/fonts/type1/urw/times/utmb8a.pfb></usr/sha
 re/texmf-texlive/fonts/type1/urw/times/utmr8a.pfb></usr/share/texmf-texlive/fon
 ts/type1/urw/times/utmri8a.pfb>
-Output written on paper.pdf (2 pages, 146580 bytes).
+Output written on paper.pdf (3 pages, 177199 bytes).
 PDF statistics:
- 146 PDF objects out of 1000 (max. 8388607)
- 15 named destinations out of 1000 (max. 500000)
- 77 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 169 PDF objects out of 1000 (max. 8388607)
+ 17 named destinations out of 1000 (max. 500000)
+ 87 words of extra memory for PDF output out of 10000 (max. 10000000)
 

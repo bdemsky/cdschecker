@@ -27,39 +27,36 @@ infer some stronger memory orders to eliminate the cycle. What causes the cycle
 to happen leads to the non-SC trace. We propose a search-based approach combined
 with cycle patterns and their fixes to reduce searching space.
 
-In Figure~\ref{fig:fence_implications} , we show a number of universal patterns
-that can exist in cycles. We explain how we should fix those cycle patterns
+Among those non-SC executions, previous work will reorder the original trace to
+yield an SC-like trace which indicates where a bad read-from edge happens.  In
+Figure~\ref{fig:fence_implications} , we show the two universal patterns
+that can exist in cycles. We explain how we should fix the cycle patterns
 respectivelys the following.
 
-\mypara{\bf Circular \textit{sb} $\cup$ \textit{rf}:} If a cycle is composed of
-edges which are the union of \textit{sb} \& \textit{rf}, a universal fix is to
-make all but one of the atomic operation \textit{happen-before} the next atomic
-operation in that cycle. It is worth noting that imposing
-\textit{happens-before} to ajacent nodes is not limited to imposing
-release/acquire pairs to store/load operations involed in the cycle. Instead,
-any possible paths composed with the union of \textit{sb} $\cup$ \textit{rf}
-between the two nodes can be strengthened.
 
-\mypara{\bf Old value read \RNum{1}:} When we sort the trace into an SC-like
-ordering, we may encounter the case where a load reads from some old store
-and those three operations can be connected via at least one path composed on
-the union of \textit{sb} $\cup$ \textit{rf}. A universal fix for this pattern is
-to impose \textit{happens-before} between the two stores and
-\textit{happens-before} between the recent store and the load at the same time.
-
-\mypara{\bf Old value read \RNum{2}:} Similar to the previous pattern, we see a
-load read from an old store. However, the difference is that we do not have a
-union of \textit{sb} $\cup$ \textit{rf} between the two stores and between the
-recent store and the load at the same time. To fix this problem, we need to
-impose the following: 1) the old store \textit{modification-order} before the
-recent store (weaker than \textit{sc} or \textit{hb}); 2) the recent store
-\textit{sc} before the load or the \textit{happens-before} the load.
+\mypara{\bf Old value read:} \textit{Patter a} in
+Figure~\ref{fig:fence_implications} shows the case where a load reads
+its value from an old store rather than the recent store. \textit{isc} is
+the union of \textit{sc}, \textit{hb}, \textit{rf} and the implied edges. If any one of
+the two \textit{isc} edge is not \textit{hb}, we will impose either \textit{hb} or
+\textit{sc} to it. If an \textit{isc} edge is the union of \textit{rf},
+\textit{hb}, we can use release/acquire pair to establish synchronization;
+otherwise, we will make both operation sequentially consistent. For the latter
+case, it can be insufficient to get rid of the execution. However, by
+proritizing the \textit{sc} edges in building the graph, a different problematic
+spot will be found, and we can fix the cycles iteratively. Also, when both
+\textit{isc} edges are implied edges, we need to explore the cases where there
+exist other loads that are \textit{isc-ordered} after the old store and before
+the read.
 
 
-\mypara{\bf Future value read:} Unlike reading an old value in the trace,
-another possible pattern is reading a future value. To fix this pattern, we can
-do the following: 1) impose \textit{happens-before} from the store to the load;
-2) impose \textit{sc} from the load to the store.
+\mypara{\bf Future value read:} \textit{Pattern b} in
+Figure~\ref{fig:fence_implications} shows a load that is \textit{isc-ordered}
+before a store reads its value from that store (or reading the future value).
+The two possbile fixes is: 1) impose \textit{hb} between the store and the load,
+which can be easily done by using release/acquire; 2)impose \textit{hb} or
+\textit{sc} between the load and the store, which is similar to what we
+discussed in \textit{pattern a}.
 
 
 Figure~\ref{fig:algorithm} shows the core searching algorithm for all possible
@@ -68,18 +65,28 @@ parameters.
 \begin{figure}[!ht]
 \centering
 \begin{tabular}{c}
-\multicolumn{1}{c}{Circular \textit{sb} \& \textit{rf}}\\
-\includegraphics[scale=.45]{figures/circular_sb_rf}\\
-\multicolumn{1}{c}{Old Value Read \RNum{1}}\\
-\includegraphics[scale=.45]{figures/old_val_sync}\\
-\multicolumn{1}{c}{Old Value Read \RNum{2}}\\
+\multicolumn{1}{c}{Old Value Read \textit{(pattern a)}}\\
 \includegraphics[scale=.45]{figures/old_val_isc}\\
-\multicolumn{1}{c}{Future Value Read}\\
+\multicolumn{1}{c}{Future Value Read \textit{(pattern b)}}\\
 \includegraphics[scale=.45]{figures/future_val_isc}\\
 \end{tabular}
 \caption{\label{fig:fence_implications}Cycle Patterns for Non-SC Behaviors}
 \end{figure}
 
+\begin{figure}[!ht]
+\centering
+\begin{tabular}{c}
+\multicolumn{1}{c}{Circular Reads-from}\\
+\includegraphics[scale=.45]{figures/examples/circular_rf}\\
+\multicolumn{1}{c}{Independent Reads \& Independent Writes}\\
+\includegraphics[scale=.45]{figures/examples/iriw}\\
+\multicolumn{1}{c}{Peterson Lock}\\
+\includegraphics[scale=.45]{figures/examples/peterson_lock}\\
+\multicolumn{1}{c}{Release Sequence}\\
+\includegraphics[scale=.45]{figures/examples/release_seq}\\
+\end{tabular}
+\caption{\label{fig:fence_implications}Non-SC Examples}
+\end{figure}
 
 \begin{figure}[!htbp]
 \begin{algorithmic}[1]
