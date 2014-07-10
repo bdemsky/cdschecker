@@ -58,34 +58,37 @@ which can be easily done by using release/acquire; 2)impose \textit{hb} or
 \textit{sc} between the load and the store, which is similar to what we
 discussed in \textit{pattern a}.
 
-
 Figure~\ref{fig:algorithm} shows the core searching algorithm for all possible
 parameters.
 
 \begin{figure}[!ht]
 \centering
-\begin{tabular}{c}
-\multicolumn{1}{c}{Old Value Read \textit{(pattern a)}}\\
-\includegraphics[scale=.45]{figures/old_val_isc}\\
-\multicolumn{1}{c}{Future Value Read \textit{(pattern b)}}\\
+\begin{tabular}{cc}
+\includegraphics[scale=.45]{figures/old_val_isc}&
 \includegraphics[scale=.45]{figures/future_val_isc}\\
+Old Value Read&Future Value Read\\
+\textit{(pattern a)}&\textit{(pattern b)}
 \end{tabular}
 \caption{\label{fig:fence_implications}Cycle Patterns for Non-SC Behaviors}
 \end{figure}
 
+
 \begin{figure}[!ht]
 \centering
 \begin{tabular}{c}
-\multicolumn{1}{c}{Circular Reads-from}\\
 \includegraphics[scale=.45]{figures/examples/circular_rf}\\
-\multicolumn{1}{c}{Independent Reads \& Independent Writes}\\
+Circular Reads-from\\
+\hline\\
 \includegraphics[scale=.45]{figures/examples/iriw}\\
-\multicolumn{1}{c}{Peterson Lock}\\
+Independent Reads \& Independent Writes\\
+\hline\\
 \includegraphics[scale=.45]{figures/examples/peterson_lock}\\
-\multicolumn{1}{c}{Release Sequence}\\
+Peterson Lock\\
+\hline\\
 \includegraphics[scale=.45]{figures/examples/release_seq}\\
+Release Sequence\\
 \end{tabular}
-\caption{\label{fig:fence_implications}Non-SC Examples}
+\caption{\label{fig:nonsc_example}Non-SC Examples}
 \end{figure}
 
 \begin{figure}[!htbp]
