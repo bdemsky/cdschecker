@@ -699,8 +699,8 @@ void SCFence::computeCV(action_list_t *list) {
 	bool firsttime = true;
 	ModelAction **last_act = (ModelAction **)model_calloc(1, (maxthreads + 1) * sizeof(ModelAction *));
 
-	/* We should honor the SC in order to propogate the fixes to other
-	 * problematic spots by adding the SC edges before the implied SC edges
+	/* We should honor the SC & HB in order to propogate the fixes to other
+	 * problematic spots by adding the sc&hb edges before the implied SC edges
 	 */
 	for (action_list_t::iterator it1 = list->begin(); it1 != list->end(); it1++) {
 		ModelAction *act1 = *it1, *act2;
@@ -710,6 +710,14 @@ void SCFence::computeCV(action_list_t *list) {
 		it2++;
 		for (; it2 != list->end(); it2++) {
 			act2 = *it2;
+			if (act1->happens_before(act2)) {
+				ClockVector *cv = cvmap.get(act2);
+				if (cv == NULL) {
+					cv = new ClockVector(NULL, act2);
+					cvmap.put(act2, cv);
+				}
+				continue;
+			}
 			if (!act2->is_seqcst())
 				continue;
 			// This is an SC edge
