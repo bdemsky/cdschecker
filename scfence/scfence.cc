@@ -255,6 +255,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		path = stack->back();
 		stack->pop_back();
 		ModelAction *read = path->front();
+		model_print("Temporary path size: %d\n", path->size());
 		const ModelAction *write = read->get_reads_from();
 		/** In case of cyclic sbUrf & for the purpose of redundant path, make
 		 * sure the write appears in a new thread
@@ -274,12 +275,18 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		if (!atNewThrd) {
 			continue;
 		}
+
+		model_print("Temporary read & write:\n");
+		read->print();
+		write->print();
 		
 		int write_seqnum = write->get_seq_number();
 		if (id_to_int(write->get_tid()) == idx1) {
 			if (write_seqnum >= act1->get_seq_number()) { // Find a path
+				model_print("Find a path.\n");
 				paths->push_back(path);
 			} else { // Not a rfUsb path
+				model_print("Not a path.\n");
 				path->clear();
 				continue;
 			}
@@ -345,11 +352,13 @@ void SCFence::printPatternFixes(action_list_t *list) {
 				} else { // Pattern (b) read future value
 					model_print("Running through pattern (b)!\n");
 					paths = get_rf_sb_paths(act, write);
+					model_print("Paths size: %d\n", paths->size());
 					model_print("Starting from:\n");
 					act->print();
 					for (sync_paths_t::iterator i_path = paths->begin(); i_path
 						!= paths->end(); i_path++) {
 						action_list_t *path = *i_path;
+						model_print("Path size: %d\n", path->size());
 						print_rf_sb_path(path);
 					}
 					model_print("Ending with:\n");
