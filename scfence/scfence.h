@@ -235,6 +235,7 @@ class SCFence : public TraceAnalysis {
 	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > badrfset;
 	HashTable<void *, const ModelAction *, uintptr_t, 4 > lastwrmap;
 	SnapVector<action_list_t> threadlists;
+	SnapVector<action_list_t> dupthreadlists;
 	ModelExecution *execution;
 	bool print_always;
 	bool print_buggy;

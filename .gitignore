@@ -6,6 +6,8 @@
 *~
 *.dot
 .*.d
+*.aux
+*.log
 
 
 # files in this directory

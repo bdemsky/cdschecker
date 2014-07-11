@@ -15,6 +15,7 @@ SCFence::SCFence() :
 	badrfset(),
 	lastwrmap(),
 	threadlists(1),
+	dup_threadlists(1),
 	execution(NULL),
 	print_always(false),
 	print_buggy(true),
@@ -174,6 +175,9 @@ void SCFence::analyze(action_list_t *actions) {
 		gettimeofday(&start, NULL);
 	
 	//graph = new sc_graph(actions);
+	/* Build up the thread lists for general purpose */
+	int thrdNum;
+	buildVectors(&dup_threadlists, &thrdNum, actions);
 	action_list_t *list = generateSC(actions);
 	// Now we find a non-SC execution
 	if (cyclic) {
@@ -222,13 +226,9 @@ void SCFence::check_rf(action_list_t *list) {
 sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2) {
 	int idx1 = id_to_int(act1->get_tid()),
 		idx2 = id_to_int(act2->get_tid());
-	action_list_t list1 = threadlists[idx1],
-		list2 = threadlists[idx2];
-		model_print("thread1 id: %d\n", idx1);
-		model_print("list1 size: %d\n", list1.size());
-		model_print("thread2 id: %d\n", idx2);
-		model_print("list2 size: %d\n", list2.size());
-	action_list_t::iterator it1 = list1.begin();
+	action_list_t *list1 = &dup_threadlists[idx1],
+		*list2 = &dup_threadlists[idx2];
+	action_list_t::iterator it1 = list1->begin();
 	// First action of the thread where act1 belongs
 	ModelAction *start = *it1;
 	int start_seqnum = start->get_seq_number();
@@ -239,14 +239,14 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 	sync_paths_t *stack = new sync_paths_t();
 	action_list_t *path;
 	// Initial stack with loads sb-ordered before act2
-	for (action_list_t::iterator it2 = list2.begin(); it2 != list2.end(); it2++) {
+	for (action_list_t::iterator it2 = list2->begin(); it2 != list2->end(); it2++) {
 		ModelAction *act = *it2;
-		model_print("init read:\n");
-		act->print();
 		if (act->get_seq_number() > act2->get_seq_number())
 			continue;
 		if (!act->is_read())
 			continue;
+		model_print("init read:\n");
+		act->print();
 		path = new action_list_t();
 		path->push_front(act);
 		stack->push_back(path);
@@ -256,24 +256,37 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		stack->pop_back();
 		ModelAction *read = path->front();
 		const ModelAction *write = read->get_reads_from();
-		if (id_to_int(write->get_tid()) == id_to_int(read->get_tid())) {
-			// A fast track, no need to do anything if it's reading from the
-			// same thread
-			delete path;
+		/** In case of cyclic sbUrf & for the purpose of redundant path, make
+		 * sure the write appears in a new thread
+		 */
+		bool atNewThrd = true;
+		for (action_list_t::iterator p_it = path->begin(); p_it != path->end();
+			p_it++) {
+			ModelAction *prev_read = *p_it;
+			if (id_to_int(write->get_tid()) == id_to_int(prev_read->get_tid())) {
+				//model_print("Reaching previous read thread, bail!\n");
+				path->clear();
+				//delete path;
+				atNewThrd = false;
+				break;
+			}
+		}
+		if (!atNewThrd) {
 			continue;
 		}
+		
 		int write_seqnum = write->get_seq_number();
 		if (id_to_int(write->get_tid()) == idx1) {
 			if (write_seqnum >= act1->get_seq_number()) { // Find a path
 				paths->push_back(path);
 			} else { // Not a rfUsb path
-				delete path;
+				path->clear();
 				continue;
 			}
 		}
 		int idx = id_to_int(write->get_tid());
-		action_list_t list = threadlists[idx];
-		for (action_list_t::iterator it = list.begin(); it != list.end(); it++) {
+		action_list_t *list = &dup_threadlists[idx];
+		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 			ModelAction *act = *it;
 			if (act->get_seq_number() > write_seqnum)
 				continue;
@@ -283,7 +296,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 			new_path->push_front(act);
 			stack->push_back(new_path);
 		}
-		delete path;
+		path->clear();
 	}
 
 	return paths;
@@ -326,9 +339,11 @@ void SCFence::printPatternFixes(action_list_t *list) {
 				}
 				sync_paths_t *paths;
 				if (readOldVal) { // Pattern (a) read old value
+					model_print("Running through pattern (a)!\n");
+					
 					
 				} else { // Pattern (b) read future value
-					model_print("Running through here!\n");
+					model_print("Running through pattern (b)!\n");
 					paths = get_rf_sb_paths(act, write);
 					model_print("Starting from:\n");
 					act->print();
