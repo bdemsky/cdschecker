@@ -224,17 +224,25 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		idx2 = id_to_int(act2->get_tid());
 	action_list_t list1 = threadlists[idx1],
 		list2 = threadlists[idx2];
+		model_print("thread1 id: %d\n", idx1);
+		model_print("list1 size: %d\n", list1.size());
+		model_print("thread2 id: %d\n", idx2);
+		model_print("list2 size: %d\n", list2.size());
 	action_list_t::iterator it1 = list1.begin();
 	// First action of the thread where act1 belongs
 	ModelAction *start = *it1;
 	int start_seqnum = start->get_seq_number();
-
+	
+	// The container for all possible results
 	sync_paths_t *paths = new sync_paths_t();
 	// A stack that records all current possible paths
 	sync_paths_t *stack = new sync_paths_t();
 	action_list_t *path;
+	// Initial stack with loads sb-ordered before act2
 	for (action_list_t::iterator it2 = list2.begin(); it2 != list2.end(); it2++) {
 		ModelAction *act = *it2;
+		model_print("init read:\n");
+		act->print();
 		if (act->get_seq_number() > act2->get_seq_number())
 			continue;
 		if (!act->is_read())
@@ -248,6 +256,12 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		stack->pop_back();
 		ModelAction *read = path->front();
 		const ModelAction *write = read->get_reads_from();
+		if (id_to_int(write->get_tid()) == id_to_int(read->get_tid())) {
+			// A fast track, no need to do anything if it's reading from the
+			// same thread
+			delete path;
+			continue;
+		}
 		int write_seqnum = write->get_seq_number();
 		if (id_to_int(write->get_tid()) == idx1) {
 			if (write_seqnum >= act1->get_seq_number()) { // Find a path
