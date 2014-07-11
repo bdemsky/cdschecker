@@ -94,6 +94,7 @@ void SCFence::printWildcardResult(inference_list_t *result) {
 }
 
 void SCFence::actionAtModelCheckingFinish() {
+	/*
 	// Print the wildcard result
 	printWildcardResult(curInference);
 
@@ -110,7 +111,7 @@ void SCFence::actionAtModelCheckingFinish() {
 
 		model->restart();
 	}
-	
+	*/
 }
 
 bool SCFence::option(char * opt) {
@@ -172,20 +173,23 @@ void SCFence::analyze(action_list_t *actions) {
 	if (time)
 		gettimeofday(&start, NULL);
 	
-	graph = new sc_graph(actions);
+	//graph = new sc_graph(actions);
 	action_list_t *list = generateSC(actions);
 	// Now we find a non-SC execution
 	if (cyclic) {
 		//graph->printGraph();
-		graph->printCyclicChain(cycle_act1, cycle_act2);
-		print_list(actions);
-		breakCycle(cycle_act1, cycle_act2);
-		model->restart();
+		//graph->printCyclicChain(cycle_act1, cycle_act2);
+		//print_list(actions);
+		//breakCycle(cycle_act1, cycle_act2);
+		//model->restart();
 	}
 	// Don't forget to clear the graph every time when we are done
-	graph->clear();
+	//graph->clear();
 	
 	check_rf(list);
+
+	printPatternFixes(list);
+	
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
 		print_list(list);
 	if (time) {
@@ -215,6 +219,117 @@ void SCFence::check_rf(action_list_t *list) {
 	}
 }
 
+sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2) {
+	int idx1 = id_to_int(act1->get_tid()),
+		idx2 = id_to_int(act2->get_tid());
+	action_list_t list1 = threadlists[idx1],
+		list2 = threadlists[idx2];
+	action_list_t::iterator it1 = list1.begin();
+	// First action of the thread where act1 belongs
+	ModelAction *start = *it1;
+	int start_seqnum = start->get_seq_number();
+
+	sync_paths_t *paths = new sync_paths_t();
+	// A stack that records all current possible paths
+	sync_paths_t *stack = new sync_paths_t();
+	action_list_t *path;
+	for (action_list_t::iterator it2 = list2.begin(); it2 != list2.end(); it2++) {
+		ModelAction *act = *it2;
+		if (act->get_seq_number() > act2->get_seq_number())
+			continue;
+		if (!act->is_read())
+			continue;
+		path = new action_list_t();
+		path->push_front(act);
+		stack->push_back(path);
+	}
+	while (stack->size() > 0) {
+		path = stack->back();
+		stack->pop_back();
+		ModelAction *read = path->front();
+		const ModelAction *write = read->get_reads_from();
+		int write_seqnum = write->get_seq_number();
+		if (id_to_int(write->get_tid()) == idx1) {
+			if (write_seqnum >= act1->get_seq_number()) { // Find a path
+				paths->push_back(path);
+			} else { // Not a rfUsb path
+				delete path;
+				continue;
+			}
+		}
+		int idx = id_to_int(write->get_tid());
+		action_list_t list = threadlists[idx];
+		for (action_list_t::iterator it = list.begin(); it != list.end(); it++) {
+			ModelAction *act = *it;
+			if (act->get_seq_number() > write_seqnum)
+				continue;
+			if (!act->is_read())
+				continue;
+			action_list_t *new_path = new action_list_t(*path);
+			new_path->push_front(act);
+			stack->push_back(new_path);
+		}
+		delete path;
+	}
+
+	return paths;
+}
+
+void SCFence::print_rf_sb_path(action_list_t *path) {
+	action_list_t::iterator it = path->begin(), i_next;
+	for (; it != path->end(); it++) {
+		i_next = it;
+		i_next++;
+		const ModelAction *read = *it,
+			*write = read->get_reads_from(),
+			*next_read = (i_next != path->end()) ? *i_next : NULL;
+		write->print();
+		if (next_read == NULL || next_read->get_reads_from() != read) {
+			// Not the same RMW, also print the read operation
+			read->print();
+		}
+	}
+}
+
+void SCFence::printPatternFixes(action_list_t *list) {
+	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
+		const ModelAction *act = *it;
+		if (act->get_seq_number() > 0) {
+			if (badrfset.contains(act)) {
+				const ModelAction *write = act->get_reads_from(),
+					*desired = badrfset.get(act);
+				// Check reading old or future value
+				bool readOldVal = false;
+				for (action_list_t::iterator it1 = list->begin(); it1 !=
+					list->end(); it1++) {
+					ModelAction *act1 = *it1;
+					if (act1 == act)
+						break;
+					if (act1 == write) {
+						readOldVal = true;
+						break;
+					}
+				}
+				sync_paths_t *paths;
+				if (readOldVal) { // Pattern (a) read old value
+					
+				} else { // Pattern (b) read future value
+					model_print("Running through here!\n");
+					paths = get_rf_sb_paths(act, write);
+					model_print("Starting from:\n");
+					act->print();
+					for (sync_paths_t::iterator i_path = paths->begin(); i_path
+						!= paths->end(); i_path++) {
+						action_list_t *path = *i_path;
+						print_rf_sb_path(path);
+					}
+					model_print("Ending with:\n");
+					write->print();
+				}
+			}
+		}
+	}
+}
 
 void SCFence::breakCycle(const ModelAction *act1, const ModelAction *act2) {
 
@@ -229,7 +344,7 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 	// Add an edge: act2 -> act
 	if (act2->get_seq_number() != 0 && act->get_seq_number() != 0) {
 		if (!cyclic) { // Only add an edge when there's no cycle
-			graph->addEdge(act2, act);
+			//graph->addEdge(act2, act);
 		}
 		/*
 		if (act2->get_seq_number() == 10 && act->get_seq_number() == 3) {
@@ -554,6 +669,32 @@ void SCFence::computeCV(action_list_t *list) {
 	bool changed = true;
 	bool firsttime = true;
 	ModelAction **last_act = (ModelAction **)model_calloc(1, (maxthreads + 1) * sizeof(ModelAction *));
+
+	/* We should honor the SC in order to propogate the fixes to other
+	 * problematic spots by adding the SC edges before the implied SC edges
+	 */
+	for (action_list_t::iterator it1 = list->begin(); it1 != list->end(); it1++) {
+		ModelAction *act1 = *it1, *act2;
+		if (!act1->is_seqcst())
+			continue;
+		action_list_t::iterator it2 = it1;
+		it2++;
+		for (; it2 != list->end(); it2++) {
+			act2 = *it2;
+			if (!act2->is_seqcst())
+				continue;
+			// This is an SC edge
+			ClockVector *cv = cvmap.get(act2);
+			if (cv == NULL) {
+				cv = new ClockVector(NULL, act2);
+				cvmap.put(act2, cv);
+			}
+			// Add the SC edge to the clock vector
+			merge(cv, act2, act1);
+		}
+
+	}
+
 	while (changed) {
 		changed = changed&firsttime;
 		firsttime = false;

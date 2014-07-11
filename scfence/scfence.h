@@ -21,6 +21,13 @@ typedef struct {
 	memory_order order;
 } InferencePair;
 
+/** A list of load operations can represent the union of reads-from &
+ * sequence-before edges; And we have a list of lists of load operations to
+ * represent all the possible rfUsb paths between two nodes, defined as
+ * syns_paths_t here
+ */
+typedef SnapList<action_list_t *> sync_paths_t;
+
 typedef SnapList<const ModelAction *> const_actions_t;
 typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_table_t;
 typedef SnapList<InferencePair> inference_list_t;
@@ -214,6 +221,10 @@ class SCFence : public TraceAnalysis {
 	ModelAction* pruneArray(ModelAction**, int);
 
 	/** Functions that work for infering the parameters */
+	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
+	void printPatternFixes(action_list_t *list);
+	void print_rf_sb_path(action_list_t *path);
+
 	void breakCycle(const ModelAction *act1, const ModelAction *act2);
 	const char* get_mo_str(memory_order order);
 	void printWildcardResult(inference_list_t *result);

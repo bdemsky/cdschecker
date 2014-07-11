@@ -19,7 +19,7 @@ atomic_int z;
 static void a(void *obj)
 {
 	int r1=atomic_load_explicit(&x, memory_order_relaxed);
-	atomic_store_explicit(&y, 1, memory_order_release);
+	atomic_store_explicit(&y, 1, memory_order_relaxed);
 }
 
 static void b(void *obj)
