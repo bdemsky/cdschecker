@@ -80,9 +80,12 @@ private:
 	/** Flag indicating whether to restart model checker */
 	bool restart_flag;
 
+	/** Real actions to reset the model checker */
+	void reset_model_checker();
+
 	/** The scheduler to use: tracks the running/ready Threads */
-	Scheduler * const scheduler;
-	NodeStack * const node_stack;
+	Scheduler * scheduler;
+	NodeStack * node_stack;
 	ModelExecution *execution;
 
 	int execution_number;

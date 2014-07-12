@@ -315,12 +315,14 @@ bool ModelChecker::next_execution()
 	if (complete)
 		earliest_diverge = NULL;
 
-	if (restart_flag) {
+	if (restart_flag) {/*
+		model_print("MC restart!\n");
 		restart_flag = false;
 		diverge = NULL;
 		reset_to_initial_state();
 		node_stack->full_reset();
 		return true;
+		*/
 	}
 
 	if ((diverge = execution->get_next_backtrack()) == NULL)
@@ -434,6 +436,21 @@ void ModelChecker::restart()
 	restart_flag = true;
 }
 
+
+/** @brief Restart ModelChecker upon returning to the run loop of the model checker. */
+void ModelChecker::reset_model_checker()
+{
+	delete node_stack;
+	delete scheduler;
+	scheduler = new Scheduler();
+	node_stack = new NodeStack();
+	execution = new ModelExecution(this, &this->params, scheduler, node_stack);
+	execution_number = 1;
+	diverge = NULL;
+	earliest_diverge = NULL;
+
+}
+
 /** @brief Run ModelChecker for the user program */
 void ModelChecker::run()
 {
@@ -487,11 +504,14 @@ void ModelChecker::run()
 
 		has_next = next_execution();
 		if (!has_next && inspect_plugin != NULL) {
+			model_print("******* Model-checking complete & restart : *******\n");
+			print_stats();
 			inspect_plugin->actionAtModelCheckingFinish();
 			// Check if the inpect plugin might have set the restart flag
 			if (restart_flag) {
-				restart_flag = true;
-				has_next = next_execution();
+				restart_flag = false;
+				has_next = true;
+				reset_model_checker();
 			}
 		}
 

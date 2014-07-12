@@ -282,8 +282,9 @@ thread_id_t Node::get_next_backtrack()
 
 void Node::clear_backtracking()
 {
-	for (unsigned int i = 0; i < backtrack.size(); i++)
+	for (unsigned int i = 0; i < backtrack.size(); i++) {
 		backtrack[i] = false;
+	}
 	for (unsigned int i = 0; i < explored_children.size(); i++)
 		explored_children[i] = false;
 	numBacktracks = 0;
@@ -843,8 +844,12 @@ void NodeStack::full_reset()
 {
 	for (unsigned int i = 0; i < node_list.size(); i++)
 		delete node_list[i];
-	node_list.resize(0);
-	node_list.back()->clear_backtracking();
+	// FIXME: Should I switch the next two statements?
+	//node_list.back()->clear_backtracking();
+	//node_list.resize(0);
+	node_list.clear();
+	total_nodes = 0;
+
 	head_idx = -1;
 }
 
