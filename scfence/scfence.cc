@@ -101,12 +101,11 @@ void SCFence::printWildcardResult(inference_list_t *result) {
 }
 
 void SCFence::actionAtModelCheckingFinish() {
-
-	model_print("restart: %d\n", restartCnt);
-	if (restartCnt == 1) {
+	model_print("In SCFENCE finish action.\n");
+	if (restartCnt < 2) {
 		model_print("SCFence restart: %d times\n", restartCnt);
 		model->restart();
-		restartCnt = 0;
+		restartCnt = restartCnt + 1;
 	}
 	/*
 	// Print the wildcard result

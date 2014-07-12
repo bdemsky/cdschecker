@@ -844,8 +844,9 @@ void NodeStack::full_reset()
 	for (unsigned int i = 0; i < node_list.size(); i++)
 		delete node_list[i];
 	node_list.resize(0);
-	node_list.back()->clear_backtracking();
+	//node_list.back()->clear_backtracking();
 	head_idx = -1;
+	total_nodes = 1;
 }
 
 Node * NodeStack::get_head() const

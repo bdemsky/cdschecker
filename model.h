@@ -104,6 +104,9 @@ private:
 	ucontext_t system_context;
 
 	ModelVector<TraceAnalysis *> trace_analyses;
+	
+	/** Actual actions to restart the model checker */
+	void restart_actions();
 	/** @bref Currently we allow one plugin for the purpose of inspection */
 	TraceAnalysis *inspect_plugin;
 

@@ -302,6 +302,7 @@ bool ModelChecker::next_execution()
 
 		checkDataRaces();
 		run_trace_analyses();
+		model_print("run traces!\n");
 	}
 
 	record_stats();
@@ -316,10 +317,7 @@ bool ModelChecker::next_execution()
 		earliest_diverge = NULL;
 
 	if (restart_flag) {
-		restart_flag = false;
-		diverge = NULL;
-		reset_to_initial_state();
-		node_stack->full_reset();
+		restart_actions();
 		return true;
 	}
 
@@ -434,6 +432,17 @@ void ModelChecker::restart()
 	restart_flag = true;
 }
 
+void ModelChecker::restart_actions()
+{
+	restart_flag = false;
+	diverge = NULL;
+	earliest_diverge = NULL;
+	reset_to_initial_state();
+	node_stack->full_reset();
+	memset(&stats,0,sizeof(struct execution_stats));
+	execution_number = 1;
+}
+
 /** @brief Run ModelChecker for the user program */
 void ModelChecker::run()
 {
@@ -486,12 +495,18 @@ void ModelChecker::run()
 		} while (!should_terminate_execution());
 
 		has_next = next_execution();
+		if (!has_next) {
+			model_print("******* Model-checking Finished: *******\n");
+		}
 		if (!has_next && inspect_plugin != NULL) {
 			inspect_plugin->actionAtModelCheckingFinish();
 			// Check if the inpect plugin might have set the restart flag
-			if (restart_flag) {
-				restart_flag = true;
-				has_next = next_execution();
+			if (restart_flag) 
+				model_print("******* Model-checking RESTART: *******\n");
+				print_stats();
+
+				has_next = true;
+				restart_actions();
 			}
 		}
 
