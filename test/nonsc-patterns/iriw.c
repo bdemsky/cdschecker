@@ -27,7 +27,7 @@ static void b(void *obj)
 
 static void c(void *obj)
 {
-	int r1=atomic_load_explicit(&x, memory_order_acquire);
+	int r1=atomic_load_explicit(&x, memory_order_relaxed);
 	int r2=atomic_load_explicit(&y, memory_order_seq_cst);
 }
 
