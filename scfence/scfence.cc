@@ -9,6 +9,10 @@
 #include "wildcard.h"
 
 
+void print_nothing(const char *str, ...) {
+
+}
+
 SCFence::SCFence() :
 	cvmap(),
 	cyclic(false),
@@ -24,8 +28,10 @@ SCFence::SCFence() :
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
 	curWildcardMap(),
 	curInference(),
-	potentialResults()
+	potentialResults(),
+	restartCnt(1)
 {
+	model_print("init SCFence!\n");
 }
 
 SCFence::~SCFence() {
@@ -89,12 +95,19 @@ void SCFence::printWildcardResult(inference_list_t *result) {
 		memory_order wildcard = pair.wildcard,
 			order = pair.order;
 		// Print the wildcard inference result
-		model_print("wildcard%d -> memory_order_%s\n",
+		FENCE_PRINT("wildcard%d -> memory_order_%s\n",
 			get_wildcard_id(wildcard), get_mo_str(order));
 	}
 }
 
 void SCFence::actionAtModelCheckingFinish() {
+
+	model_print("restart: %d\n", restartCnt);
+	if (restartCnt == 1) {
+		model_print("SCFence restart: %d times\n", restartCnt);
+		model->restart();
+		restartCnt = 0;
+	}
 	/*
 	// Print the wildcard result
 	printWildcardResult(curInference);
@@ -245,8 +258,9 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 			continue;
 		if (!act->is_read())
 			continue;
-		model_print("init read:\n");
-		act->print();
+		//FENCE_PRINT("init read:\n");
+		//ACT_PRINT(act);
+
 		path = new action_list_t();
 		path->push_front(act);
 		stack->push_back(path);
@@ -255,7 +269,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		path = stack->back();
 		stack->pop_back();
 		ModelAction *read = path->front();
-		model_print("Temporary path size: %d\n", path->size());
+		//FENCE_PRINT("Temporary path size: %d\n", path->size());
 		const ModelAction *write = read->get_reads_from();
 		/** In case of cyclic sbUrf & for the purpose of redundant path, make
 		 * sure the write appears in a new thread
@@ -265,7 +279,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 			p_it++) {
 			ModelAction *prev_read = *p_it;
 			if (id_to_int(write->get_tid()) == id_to_int(prev_read->get_tid())) {
-				//model_print("Reaching previous read thread, bail!\n");
+				FENCE_PRINT("Reaching previous read thread, bail!\n");
 				path->clear();
 				//delete path;
 				atNewThrd = false;
@@ -276,17 +290,18 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 			continue;
 		}
 
-		model_print("Temporary read & write:\n");
-		read->print();
-		write->print();
+		//FENCE_PRINT("Temporary read & write:\n");
+		//ACT_PRINT(read);
+		//ACT_PRINT(write);
 		
 		int write_seqnum = write->get_seq_number();
 		if (id_to_int(write->get_tid()) == idx1) {
 			if (write_seqnum >= act1->get_seq_number()) { // Find a path
-				model_print("Find a path.\n");
+				FENCE_PRINT("Find a path.\n");
 				paths->push_back(path);
+				continue;
 			} else { // Not a rfUsb path
-				model_print("Not a path.\n");
+				FENCE_PRINT("Not a path.\n");
 				path->clear();
 				continue;
 			}
@@ -309,20 +324,30 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 	return paths;
 }
 
-void SCFence::print_rf_sb_path(action_list_t *path) {
-	action_list_t::iterator it = path->begin(), i_next;
-	for (; it != path->end(); it++) {
-		i_next = it;
-		i_next++;
-		const ModelAction *read = *it,
-			*write = read->get_reads_from(),
-			*next_read = (i_next != path->end()) ? *i_next : NULL;
-		write->print();
-		if (next_read == NULL || next_read->get_reads_from() != read) {
-			// Not the same RMW, also print the read operation
-			read->print();
+void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end) {
+	FENCE_PRINT("Starting from:\n");
+	ACT_PRINT(start);
+	for (sync_paths_t::iterator paths_i = paths->begin(); paths_i !=
+		paths->end(); paths_i++) {
+		FENCE_PRINT("Path %d:\n", distance(paths->begin(), paths_i));
+		action_list_t *path = *paths_i;
+		action_list_t::iterator it = path->begin(), i_next;
+		for (; it != path->end(); it++) {
+			i_next = it;
+			i_next++;
+			const ModelAction *read = *it,
+				*write = read->get_reads_from(),
+				*next_read = (i_next != path->end()) ? *i_next : NULL;
+			ACT_PRINT(write);
+			if (next_read == NULL || next_read->get_reads_from() != read) {
+				// Not the same RMW, also print the read operation
+				ACT_PRINT(read);
+			}
 		}
 	}
+
+	FENCE_PRINT("Ending with:\n");
+	ACT_PRINT(end);
 }
 
 void SCFence::printPatternFixes(action_list_t *list) {
@@ -344,25 +369,52 @@ void SCFence::printPatternFixes(action_list_t *list) {
 						break;
 					}
 				}
-				sync_paths_t *paths;
+
+				sync_paths_t *paths1 = NULL, *paths2 = NULL;
 				if (readOldVal) { // Pattern (a) read old value
-					model_print("Running through pattern (a)!\n");
-					
-					
-				} else { // Pattern (b) read future value
-					model_print("Running through pattern (b)!\n");
-					paths = get_rf_sb_paths(act, write);
-					model_print("Paths size: %d\n", paths->size());
-					model_print("Starting from:\n");
-					act->print();
-					for (sync_paths_t::iterator i_path = paths->begin(); i_path
-						!= paths->end(); i_path++) {
-						action_list_t *path = *i_path;
-						model_print("Path size: %d\n", path->size());
-						print_rf_sb_path(path);
+					FENCE_PRINT("Running through pattern (a)!\n");
+					// act->read, write->write1 & desired->write2
+					if (!isSCEdge(write, desired) &&
+						!write->happens_before(desired)) {
+						paths1 = get_rf_sb_paths(write, desired);
+						if (paths1->size() > 0) {
+							FENCE_PRINT("From write1 to write2: \n");
+							print_rf_sb_paths(paths1, write, desired);
+						} else {
+							FENCE_PRINT("Have to impose sc on write1 & write2: \n");
+							ACT_PRINT(write);
+							ACT_PRINT(desired);
+						}
+					} else {
+						FENCE_PRINT("write1 mo before write2. \n");
 					}
-					model_print("Ending with:\n");
-					write->print();
+
+					if (!isSCEdge(desired, act) &&
+						!desired->happens_before(act)) {
+						paths2 = get_rf_sb_paths(desired, act);
+						if (paths2->size() > 0) {
+							FENCE_PRINT("From write2 to read: \n");
+							print_rf_sb_paths(paths2, desired, act);
+						} else {
+							FENCE_PRINT("Have to impose sc on write2 & read: \n");
+							ACT_PRINT(desired);
+							ACT_PRINT(act);
+						}
+					} else {
+						FENCE_PRINT("write2 hb/sc before read. \n");
+					}
+				} else { // Pattern (b) read future value
+					// act->read, write->futureWrite
+					FENCE_PRINT("Running through pattern (b)!\n");
+					paths1 = get_rf_sb_paths(act, write);
+					if (paths1->size() > 0) {
+						FENCE_PRINT("From read to future write: \n");
+						print_rf_sb_paths(paths1, act, write);
+					} else {
+						FENCE_PRINT("Have to impose sc on read and future write: \n");
+						ACT_PRINT(act);
+						ACT_PRINT(write);
+					}
 				}
 			}
 		}
@@ -378,7 +430,7 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 	ClockVector *cv2 = cvmap.get(act2);
 	if (cv2 == NULL)
 		return true;
-	
+
 	// Add an edge: act2 -> act
 	if (act2->get_seq_number() != 0 && act->get_seq_number() != 0) {
 		if (!cyclic) { // Only add an edge when there's no cycle
@@ -398,9 +450,9 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		if (!cyclic) {
+			/*
 			cycle_act1 = act2;
 			cycle_act2 = act;
-			/*
 			model_print("Node1: %d\n", cycle_act1->get_seq_number());
 			model_print("Node2: %d\n", cycle_act2->get_seq_number());
 			*/
@@ -570,13 +622,14 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 					currchoice=0;
 					lastchoice=-1;
 					// Also need to reset the graph
-					graph->reset(list);
+					//graph->reset(list);
 
 					reset(list);
 					buildVectors(&threadlists, &maxthreads, list);
 					computeCV(list);
 					sclist->clear();
 					continue;
+
 				}
 			}
 		}
@@ -703,6 +756,7 @@ bool SCFence::processRead(ModelAction *read, ClockVector *cv) {
 	return changed;
 }
 
+
 void SCFence::computeCV(action_list_t *list) {
 	bool changed = true;
 	bool firsttime = true;
@@ -713,8 +767,6 @@ void SCFence::computeCV(action_list_t *list) {
 	 */
 	for (action_list_t::iterator it1 = list->begin(); it1 != list->end(); it1++) {
 		ModelAction *act1 = *it1, *act2;
-		if (!act1->is_seqcst())
-			continue;
 		action_list_t::iterator it2 = it1;
 		it2++;
 		for (; it2 != list->end(); it2++) {
@@ -725,9 +777,13 @@ void SCFence::computeCV(action_list_t *list) {
 					cv = new ClockVector(NULL, act2);
 					cvmap.put(act2, cv);
 				}
+				// Add the hb edge to the clock vector
+				merge(cv, act2, act1);
 				continue;
 			}
-			if (!act2->is_seqcst())
+			// FIXME: how to get the SC edges, only adding edges for those
+			// non-conflicting operations
+			if (!isSCEdge(act1, act2) || !isConflicting(act1, act2))
 				continue;
 			// This is an SC edge
 			ClockVector *cv = cvmap.get(act2);

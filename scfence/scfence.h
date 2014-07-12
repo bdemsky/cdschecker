@@ -11,10 +11,24 @@
 using std::memory_order;
 #endif
 
+//#define FENCE_OUTPUT
+
+#ifdef FENCE_OUTPUT
+#define FENCE_PRINT model_print
+#define ACT_PRINT(x) (x)->print()
+#define CV_PRINT(x) (x)->print()
+#else
+#define FENCE_PRINT print_nothing
+#define ACT_PRINT(x) (x)
+#define CV_PRINT(x) (x)
+#endif
+
 /* Forward declaration */
 class SCFence;
 
 extern SCFence *scfence;
+
+void print_nothing(const char *str, ...);
 
 typedef struct {
 	memory_order wildcard;
@@ -113,22 +127,22 @@ typedef struct sc_graph {
 			const ModelAction *act = n->act;
 			if (act->get_seq_number() == 0)
 				continue;
-			model_print("Node: %d:\n", act->get_seq_number());
+			FENCE_PRINT("Node: %d:\n", act->get_seq_number());
 
 			for (const_actions_t::iterator edge_it = n->edges->begin(); edge_it
 				!= n->edges->end(); edge_it++) {
 				const ModelAction *next = *edge_it;
-				model_print("%d --> %d\n", n->act->get_seq_number(),
+				FENCE_PRINT("%d --> %d\n", n->act->get_seq_number(),
 					next->get_seq_number());
 			}
 		}
 	}
 
 	void printCyclicChain(const ModelAction *act1, const ModelAction *act2) {
-		model_print("From -> to: %d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
+		FENCE_PRINT("From -> to: %d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
 		const_actions_t *cyclic_actions = getCycleActions(act2, act1);
 		if (cyclic_actions == NULL) {
-			model_print("Cannot find the cycle of actions!\n");
+			FENCE_PRINT("Cannot find the cycle of actions!\n");
 			return;
 		}
 		/*
@@ -143,7 +157,7 @@ typedef struct sc_graph {
 			it++) {
 			const ModelAction *act = *it;
 			if (is_wildcard(act->get_original_mo())) {
-				model_print("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
+				FENCE_PRINT("wildcard: %d\n", get_wildcard_id(act->get_original_mo()));
 			}
 			act->print();
 		}
@@ -223,7 +237,16 @@ class SCFence : public TraceAnalysis {
 	/** Functions that work for infering the parameters */
 	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
 	void printPatternFixes(action_list_t *list);
-	void print_rf_sb_path(action_list_t *path);
+	void print_rf_sb_paths(sync_paths_t *path, const ModelAction *start, const ModelAction *end);
+	bool isSCEdge(const ModelAction *from, const ModelAction *to) {
+		return from->is_seqcst() && to->is_seqcst();
+	}
+
+	bool isConflicting(const ModelAction *act1, const ModelAction *act2) {
+		return act1->get_location() == act2->get_location() ? (act1->is_write()
+			|| act2->is_write()) : false;
+	}
+
 
 	void breakCycle(const ModelAction *act1, const ModelAction *act2);
 	const char* get_mo_str(memory_order order);
@@ -243,6 +266,7 @@ class SCFence : public TraceAnalysis {
 	bool time;
 	struct sc_statistics *stats;
 	
+	int restartCnt;
 	/** A map to remember the graph built so far */
 	sc_graph *graph;
 	/** The two modelAction from which we encounter a cycle */
