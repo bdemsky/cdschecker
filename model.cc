@@ -302,7 +302,6 @@ bool ModelChecker::next_execution()
 
 		checkDataRaces();
 		run_trace_analyses();
-		model_print("run traces!\n");
 	}
 
 	record_stats();
@@ -501,9 +500,11 @@ void ModelChecker::run()
 		if (!has_next && inspect_plugin != NULL) {
 			inspect_plugin->actionAtModelCheckingFinish();
 			// Check if the inpect plugin might have set the restart flag
-			if (restart_flag) 
-				model_print("******* Model-checking RESTART: *******\n");
+			if (restart_flag) {
+				model_print("******* Model-checking RESTART (beginning): *******\n");
 				print_stats();
+				model_print("******* Model-checking RESTART (end): *******\n");
+
 
 				has_next = true;
 				restart_actions();

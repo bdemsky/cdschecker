@@ -13,6 +13,8 @@ void print_nothing(const char *str, ...) {
 
 }
 
+int SCFence::restartCnt;
+
 SCFence::SCFence() :
 	cvmap(),
 	cyclic(false),
@@ -28,9 +30,10 @@ SCFence::SCFence() :
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
 	curWildcardMap(),
 	curInference(),
-	potentialResults(),
-	restartCnt(1)
+	potentialResults()
+	//restartCnt(1)
 {
+	restartCnt = 1;
 	model_print("init SCFence!\n");
 }
 
@@ -102,7 +105,7 @@ void SCFence::printWildcardResult(inference_list_t *result) {
 
 void SCFence::actionAtModelCheckingFinish() {
 	model_print("In SCFENCE finish action.\n");
-	if (restartCnt < 2) {
+	if (restartCnt < 4) {
 		model_print("SCFence restart: %d times\n", restartCnt);
 		model->restart();
 		restartCnt = restartCnt + 1;
@@ -186,21 +189,14 @@ void SCFence::analyze(action_list_t *actions) {
 	if (time)
 		gettimeofday(&start, NULL);
 	
-	//graph = new sc_graph(actions);
 	/* Build up the thread lists for general purpose */
 	int thrdNum;
 	buildVectors(&dup_threadlists, &thrdNum, actions);
 	action_list_t *list = generateSC(actions);
 	// Now we find a non-SC execution
 	if (cyclic) {
-		//graph->printGraph();
-		//graph->printCyclicChain(cycle_act1, cycle_act2);
 		//print_list(actions);
-		//breakCycle(cycle_act1, cycle_act2);
-		//model->restart();
 	}
-	// Don't forget to clear the graph every time when we are done
-	//graph->clear();
 	
 	check_rf(list);
 
@@ -430,32 +426,7 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 	if (cv2 == NULL)
 		return true;
 
-	// Add an edge: act2 -> act
-	if (act2->get_seq_number() != 0 && act->get_seq_number() != 0) {
-		if (!cyclic) { // Only add an edge when there's no cycle
-			//graph->addEdge(act2, act);
-		}
-		/*
-		if (act2->get_seq_number() == 10 && act->get_seq_number() == 3) {
-			model_print("%d ---> %d!\n", act2->get_seq_number(),
-				act->get_seq_number());
-		} else {
-			model_print("%d -> %d\n", act2->get_seq_number(),
-				act->get_seq_number());
-		}
-		*/
-	}
-
-
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
-		if (!cyclic) {
-			/*
-			cycle_act1 = act2;
-			cycle_act2 = act;
-			model_print("Node1: %d\n", cycle_act1->get_seq_number());
-			model_print("Node2: %d\n", cycle_act2->get_seq_number());
-			*/
-		}
 		cyclic = true;
 
 		//refuse to introduce cycles into clock vectors
@@ -620,8 +591,6 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 					endchoice=lastchoice+1;
 					currchoice=0;
 					lastchoice=-1;
-					// Also need to reset the graph
-					//graph->reset(list);
 
 					reset(list);
 					buildVectors(&threadlists, &maxthreads, list);
@@ -738,15 +707,6 @@ bool SCFence::processRead(ModelAction *read, ClockVector *cv) {
 				 write -rf-> R =>
 				 write2 -sc-> write */
 			if (cv->synchronized_since(write2)) {
-				/*
-				if (write2->get_seq_number() != 0) {
-					model_print("write2: %d\n", write2->get_seq_number());
-					write2->get_cv()->print();
-					model_print("write: %d\n", write->get_seq_number());
-					model_print("read: %d\n", read->get_seq_number());
-					cv->print();	
-				}
-				*/
 				changed |= writecv == NULL || merge(writecv, write, write2);
 				break;
 			}
