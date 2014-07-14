@@ -845,9 +845,6 @@ void NodeStack::full_reset()
 	for (unsigned int i = 0; i < node_list.size(); i++)
 		delete node_list[i];
 	node_list.clear();
-	total_nodes = 0;
-
->>>>>>> bd86ce27473b7d00966512ca136956c66dc55400
 	head_idx = -1;
 	total_nodes = 1;
 }

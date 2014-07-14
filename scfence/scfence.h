@@ -64,8 +64,8 @@ class SCFence : public TraceAnalysis {
 	virtual void actionAtModelCheckingFinish();
 
 	/* Should NOT use SNAPSHOTALLOC here */
-	//SNAPSHOTALLOC
-	MEMALLOC
+	SNAPSHOTALLOC
+	//MEMALLOC
 
  private:
 	void update_stats();
