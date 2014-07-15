@@ -278,9 +278,9 @@ ModelList<memory_order *>* SCFence::imposeSync(ModelList<memory_order *> *partia
 					model_print("path size:%d\n", path->size());
 					write->print();
 					read->print();
-					updateInference(infer, write->get_original_mo(),
+					updateSucc = updateInference(infer, write->get_original_mo(),
 						memory_order_release);
-					updateInference(infer, read->get_original_mo(),
+					updateSucc = updateInference(infer, read->get_original_mo(),
 						memory_order_acquire);
 				}	
 			}
@@ -453,6 +453,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						FENCE_PRINT("From read to future write: \n");
 						print_rf_sb_paths(paths1, act, write);
 						candidates = imposeSync(NULL, paths1);
+						model_print("candidates size 1: %d.\n", candidates->size());
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
 						ACT_PRINT(act);
