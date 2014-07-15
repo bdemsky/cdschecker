@@ -16,8 +16,6 @@ void print_nothing(const char *str, ...) {
 int SCFence::restartCnt;
 memory_order *SCFence::curWildcardMap;
 int SCFence::wildcardNum = 0;
-memory_order *SCFence::curInference;
-ModelList<memory_order *> *SCFence::potentialResults;
 ModelList<memory_order *> *SCFence::results;
 
 SCFence::SCFence() :
@@ -86,7 +84,6 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		if (curWildcardMap[wildcardID] == WILDCARD_NONEXIST) {
 			curWildcardMap[wildcardID] = memory_order_relaxed;
 			act->set_mo(memory_order_relaxed);
-			model_print("times: %d\n", restartCnt++);
 		} else {
 			act->set_mo(curWildcardMap[wildcardID]);
 		}
@@ -110,8 +107,8 @@ const char * SCFence::get_mo_str(memory_order order) {
 	}
 }
 
-void SCFence::printWildcardResult(memory_order *result) {
-	for (int i = 0; i <= wildcardNum; i++) {
+void SCFence::printWildcardResult(memory_order *result, int num) {
+	for (int i = 0; i <= num; i++) {
 		memory_order order = result[i];
 		if (order != WILDCARD_NONEXIST) {
 			// Print the wildcard inference result
@@ -123,12 +120,21 @@ void SCFence::printWildcardResult(memory_order *result) {
 
 void SCFence::actionAtModelCheckingFinish() {
 	// First add the current inference to the result list
-	results->push_back(curInference);
+	results->push_back(curWildcardMap);
 
 	if (potentialResults->size() > 0) { // Still have candidates to explore
 		curWildcardMap = potentialResults->front();
 		potentialResults->pop_front();
 		model->restart();
+	} else {
+		int resultCnt = 1;
+		model_print("Result!\n");
+		for (ModelList<memory_order *>::iterator it = results->begin(); it !=
+			results->end(); it++) {
+			model_print("Result %d:\n", resultCnt++);
+			memory_order *result = *it;
+			printWildcardResult(result, wildcardNum);
+		}
 	}
 }
 
@@ -310,7 +316,6 @@ ModelList<memory_order *>* SCFence::imposeSync(ModelList<memory_order *> *partia
 				}
 			}
 		}
-		
 	}
 
 	return partialCandidates;
@@ -374,6 +379,8 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 								candidates = imposeSync(candidates, paths2);
 							}
 							// Add candidates to potentialResults list
+							//ModelList<memory_order *>::iterator it1 = candidates->begin();
+							//printWildcardResult(*it1, wildcardNum);
 							potentialResults->insert(potentialResults->end(),
 								candidates->begin(), candidates->end());
 						} else {
@@ -427,6 +434,7 @@ void SCFence::analyze(action_list_t *actions) {
 	if (cyclic) {
 		addPotentialFixes(list);
 		memory_order *candidate = potentialResults->front();
+		//printWildcardResult(candidate, wildcardNum);
 		potentialResults->pop_front();
 		// Clear the current inference before over-writing
 		model_free(curWildcardMap);

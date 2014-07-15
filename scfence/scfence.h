@@ -95,7 +95,7 @@ class SCFence : public TraceAnalysis {
 	ModelList<memory_order *>* imposeSC(ModelList<memory_order *> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
 
 	const char* get_mo_str(memory_order order);
-	void printWildcardResult(memory_order *result);
+	void printWildcardResult(memory_order *result, int num);
 
 	int maxthreads;
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
@@ -116,8 +116,6 @@ class SCFence : public TraceAnalysis {
 	/** Current wildcard mapping: a wildcard -> the specifc ordering */
 	static memory_order *curWildcardMap;
 	static int wildcardNum;
-	/** Current wildcards */
-	static memory_order *curInference;
 	/** A list of possible results */
 	static ModelList<memory_order *> *potentialResults;
 
