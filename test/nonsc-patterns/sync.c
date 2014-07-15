@@ -21,20 +21,20 @@ int r1, r2, r3;
 
 static void a(void *obj)
 {
-	atomic_store_explicit(&z, 1, memory_order_relaxed);
-	atomic_store_explicit(&x, 1, memory_order_release);
+	atomic_store_explicit(&z, 1, memory_order_wildcard(1));
+	atomic_store_explicit(&x, 1, memory_order_wildcard(2));
 }
 
 static void b(void *obj)
 {
-	r1=atomic_load_explicit(&x, memory_order_acquire);
-	atomic_store_explicit(&y, 1, memory_order_release);
+	r1=atomic_load_explicit(&x, memory_order_wildcard(3));
+	atomic_store_explicit(&y, 1, memory_order_wildcard(4));
 }
 
 static void c(void *obj)
 {
-	r2=atomic_load_explicit(&y, memory_order_acquire);
-	r3=atomic_load_explicit(&z, memory_order_relaxed);
+	r2=atomic_load_explicit(&y, memory_order_wildcard(5));
+	r3=atomic_load_explicit(&z, memory_order_wildcard(6));
 }
 
 

@@ -17,21 +17,21 @@ atomic_int v;
 
 static void a(void *obj)
 {
-	atomic_store_explicit(&x, 1, memory_order_relaxed);
-	atomic_fetch_add_explicit(&v, 1, memory_order_release);
+	atomic_store_explicit(&x, 1, memory_order_wildcard(1));
+	atomic_fetch_add_explicit(&v, 1, memory_order_wildcard(2));
 }
 
 static void b(void *obj)
 {
-	atomic_store_explicit(&x, 1, memory_order_relaxed);
-	atomic_fetch_add_explicit(&v, 1, memory_order_release);
+	atomic_store_explicit(&x, 1, memory_order_wildcard(3));
+	atomic_fetch_add_explicit(&v, 1, memory_order_wildcard(4));
 }
 
 static void c(void *obj)
 {
-	int r1=atomic_load_explicit(&v, memory_order_acquire);
-	int r2=atomic_load_explicit(&x, memory_order_relaxed);
-	int r3=atomic_load_explicit(&y, memory_order_relaxed);
+	int r1=atomic_load_explicit(&v, memory_order_wildcard(5));
+	int r2=atomic_load_explicit(&x, memory_order_wildcard(6));
+	int r3=atomic_load_explicit(&y, memory_order_wildcard(7));
 }
 
 

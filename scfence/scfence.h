@@ -11,7 +11,7 @@
 using std::memory_order;
 #endif
 
-//#define FENCE_OUTPUT
+#define FENCE_OUTPUT
 
 #ifdef FENCE_OUTPUT
 #define FENCE_PRINT model_print
@@ -30,12 +30,23 @@ extern SCFence *scfence;
 
 void print_nothing(const char *str, ...);
 
-typedef struct {
+typedef struct InferencePair {
 	memory_order wildcard;
 	memory_order order;
+	
+	InferencePair(InferencePair &p) :
+		wildcard(p.wildcard),
+		order(p.order)
+	{}
+
+	InferencePair(memory_order a, memory_order b) :
+		wildcard(a),
+		order(b)
+	{}
 
 	MEMALLOC
 } InferencePair;
+
 
 /** A list of load operations can represent the union of reads-from &
  * sequence-before edges; And we have a list of lists of load operations to
@@ -44,10 +55,8 @@ typedef struct {
  */
 typedef SnapList<action_list_t *> sync_paths_t;
 
-typedef SnapList<const ModelAction *> const_actions_t;
-typedef HashTable<memory_order, memory_order, memory_order, 4> wildcard_table_t;
-typedef SnapList<InferencePair> inference_list_t;
-typedef SnapList<memory_order> wildcard_list_t;
+typedef HashTable<memory_order, memory_order, memory_order, 4, model_malloc, model_calloc> wildcard_table_t;
+typedef ModelList<InferencePair*> inference_list_t;
 
 class SCFence : public TraceAnalysis {
  public:
@@ -63,9 +72,7 @@ class SCFence : public TraceAnalysis {
 	virtual void actionAtInstallation();
 	virtual void actionAtModelCheckingFinish();
 
-	/* Should NOT use SNAPSHOTALLOC here */
 	SNAPSHOTALLOC
-	//MEMALLOC
 
  private:
 	void update_stats();
@@ -84,7 +91,7 @@ class SCFence : public TraceAnalysis {
 	/** Functions that work for infering the parameters */
 	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
 	void printPatternFixes(action_list_t *list);
-	void print_rf_sb_paths(sync_paths_t *path, const ModelAction *start, const ModelAction *end);
+	void print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end);
 	bool isSCEdge(const ModelAction *from, const ModelAction *to) {
 		return from->is_seqcst() && to->is_seqcst();
 	}
@@ -93,9 +100,20 @@ class SCFence : public TraceAnalysis {
 		return act1->get_location() == act2->get_location() ? (act1->is_write()
 			|| act2->is_write()) : false;
 	}
+	
+	/** When getting a non-SC execution, find potential fixes and add it to the
+	 * potentialResults list
+	 */
+	void addPotentialFixes(action_list_t *list);
+	inference_list_t* updateInference(inference_list_t *inference, memory_order wildcard, memory_order order);
+	ModelList<inference_list_t *>* imposeSync(ModelList<inference_list_t *> *partialCandidates, sync_paths_t *paths);
+	ModelList<inference_list_t *>* imposeSC(ModelList<inference_list_t *> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
 
+	/** Prepare for the next wildcard inferece by initializing necessary fields
+	 */
+	void prepareNextInference(inference_list_t *candidate);
+	void clearCurInference();
 
-	void breakCycle(const ModelAction *act1, const ModelAction *act2);
 	const char* get_mo_str(memory_order order);
 	void printWildcardResult(inference_list_t *result);
 
@@ -116,12 +134,14 @@ class SCFence : public TraceAnalysis {
 	static int restartCnt;
 
 	/** Current wildcard mapping: a wildcard -> the specifc ordering */
-	wildcard_table_t *curWildcardMap;
+	static wildcard_table_t *curWildcardMap;
 	/** Current wildcards */
-	inference_list_t *curInference;
-
+	static inference_list_t *curInference;
 	/** A list of possible results */
-	SnapList<inference_list_t *> potentialResults;
+	static ModelList<inference_list_t *> *potentialResults;
+
+	/** A list of correct inference results */
+	static ModelList<inference_list_t *> *results;
 
 };
 #endif
