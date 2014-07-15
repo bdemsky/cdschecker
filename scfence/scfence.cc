@@ -14,10 +14,11 @@ void print_nothing(const char *str, ...) {
 }
 
 int SCFence::restartCnt;
-wildcard_table_t *SCFence::curWildcardMap;
-inference_list_t *SCFence::curInference;
-ModelList<inference_list_t *> *SCFence::potentialResults;
-ModelList<inference_list_t *> *SCFence::results;
+memory_order *SCFence::curWildcardMap;
+int SCFence::wildcardNum = 0;
+memory_order *SCFence::curInference;
+ModelList<memory_order *> *SCFence::potentialResults;
+ModelList<memory_order *> *SCFence::results;
 
 SCFence::SCFence() :
 	cvmap(),
@@ -33,11 +34,10 @@ SCFence::SCFence() :
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
 {
-	restartCnt = 1;
-	curWildcardMap = new wildcard_table_t();
-	curInference = new inference_list_t();
-	potentialResults = new ModelList<inference_list_t *>();
-	results = new ModelList<inference_list_t *>();
+	restartCnt = 0;
+	curWildcardMap = (memory_order*) model_malloc(sizeof(memory_order) * 1);
+	potentialResults = new ModelList<memory_order *>();
+	results = new ModelList<memory_order *>();
 }
 
 SCFence::~SCFence() {
@@ -69,13 +69,26 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		memory_order_seq_cst) {
 		return;
 	} else { // For wildcards
-		if (curWildcardMap->get(act->get_mo()) == NULL) {
-			curWildcardMap->put(act->get_mo(), memory_order_relaxed);
-			InferencePair *p = new InferencePair(act->get_mo(), memory_order_relaxed);
-			curInference->push_back(p);
+		int wildcardID = get_wildcard_id(act->get_mo());
+		if (wildcardID > wildcardNum) {
+			memory_order *newMap = (memory_order*) model_malloc(sizeof(memory_order) * (wildcardID + 1));
+			for (int i = 0; i <= wildcardID; i++)
+				newMap[i] = WILDCARD_NONEXIST;
+			for (int i = 0; i <= wildcardNum; i++) {
+				if (curWildcardMap[i] != WILDCARD_NONEXIST)
+					newMap[i] = curWildcardMap[i];
+			}
+			model_free(curWildcardMap);
+			wildcardNum = wildcardID;
+			curWildcardMap = newMap;
+		}
+
+		if (curWildcardMap[wildcardID] == WILDCARD_NONEXIST) {
+			curWildcardMap[wildcardID] = memory_order_relaxed;
 			act->set_mo(memory_order_relaxed);
+			model_print("times: %d\n", restartCnt++);
 		} else {
-			act->set_mo(curWildcardMap->get(act->get_mo()));
+			act->set_mo(curWildcardMap[wildcardID]);
 		}
 	}
 }
@@ -97,15 +110,14 @@ const char * SCFence::get_mo_str(memory_order order) {
 	}
 }
 
-void SCFence::printWildcardResult(inference_list_t *result) {
-	for (inference_list_t::iterator it = result->begin(); it
-		!= result->end(); it++) {
-		InferencePair *pair = *it;
-		memory_order wildcard = pair->wildcard,
-			order = pair->order;
-		// Print the wildcard inference result
-		FENCE_PRINT("wildcard%d -> memory_order_%s\n",
-			get_wildcard_id(wildcard), get_mo_str(order));
+void SCFence::printWildcardResult(memory_order *result) {
+	for (int i = 0; i <= wildcardNum; i++) {
+		memory_order order = result[i];
+		if (order != WILDCARD_NONEXIST) {
+			// Print the wildcard inference result
+			FENCE_PRINT("wildcard%d -> memory_order_%s\n",
+				i, get_mo_str(order));
+		}
 	}
 }
 
@@ -114,9 +126,8 @@ void SCFence::actionAtModelCheckingFinish() {
 	results->push_back(curInference);
 
 	if (potentialResults->size() > 0) { // Still have candidates to explore
-		inference_list_t *candidate = potentialResults->front();
+		curWildcardMap = potentialResults->front();
 		potentialResults->pop_front();
-		prepareNextInference(candidate);
 		model->restart();
 	}
 }
@@ -173,60 +184,54 @@ void SCFence::print_list(action_list_t *list) {
 	model_print("---------------------------------------------------------------------\n");
 }
 
-inference_list_t* SCFence::updateInference(inference_list_t *inference, memory_order wildcard, memory_order order) {
-	if (inference == NULL) {
-		inference = new inference_list_t();
-		for (inference_list_t::iterator it = curInference->begin(); it !=
-			curInference->end(); it++) {
-			InferencePair *p = *it;
-			inference->push_back(new InferencePair(*p));
-		}
-		return inference;
+bool SCFence::updateInference(memory_order *inference, memory_order wildcard, memory_order order) {
+	if (!is_wildcard(wildcard)) {
+		model_print("We cannot make this update!\n");
+		return false;
 	}
-	
-	bool change = false;
-	for (inference_list_t::iterator it = inference->begin(); it != inference->end(); it++) {
-		InferencePair *p = *it;
-		if (p->wildcard == wildcard) {
-			switch (p->order) {
-				case memory_order_seq_cst:
-					break;
-				case memory_order_relaxed:
-					p->order = order;
-					break;
-				case memory_order_acquire:
-					if (order == memory_order_release)
-						p->order = memory_order_acq_rel;
-					else if (order >= memory_order_acq_rel)
-						p->order = order;
-					break;
-				case memory_order_release:
-					if (order == memory_order_acquire)
-						p->order = memory_order_acq_rel;
-					else if (order >= memory_order_acq_rel)
-						p->order = order;
-					break;
-				case memory_order_acq_rel:
-					if (order == memory_order_seq_cst)
-						p->order = order;
-					break;
-				default:
-					break;
-			}
-			change = true;
+	int wildcardID = get_wildcard_id(wildcard);
+	ASSERT (order >= memory_order_relaxed && order <= memory_order_seq_cst);
+	switch (inference[wildcardID]) {
+		case memory_order_seq_cst:
 			break;
-		}
+		case memory_order_relaxed:
+			inference[wildcardID] = order;
+			break;
+		case memory_order_acquire:
+			if (order == memory_order_release)
+				inference[wildcardID] = memory_order_acq_rel;
+			else if (order >= memory_order_acq_rel)
+				inference[wildcardID] = order;
+			break;
+		case memory_order_release:
+			if (order == memory_order_acquire)
+				inference[wildcardID] = memory_order_acq_rel;
+			else if (order >= memory_order_acq_rel)
+				inference[wildcardID] = order;
+				break;
+		case memory_order_acq_rel:
+			if (order == memory_order_seq_cst)
+				inference[wildcardID] = order;
+			break;
+		default:
+			break;
 	}
-	if (!change) {
-		inference->push_back(new InferencePair(wildcard, order));
-	}
-	return inference;
+	return true;
 }
 
-ModelList<inference_list_t *>* SCFence::imposeSync(ModelList<inference_list_t *> *partialCandidates, sync_paths_t *paths) {
+memory_order* SCFence::copyInference(memory_order *infer, int num) {
+	memory_order *result = (memory_order*) model_malloc(sizeof(memory_order) * (num + 1));
+	for (int i = 0; i <= num; i++) {
+		result[i] = infer[i];
+	}
+	return result;
+}
+
+
+ModelList<memory_order *>* SCFence::imposeSync(ModelList<memory_order *> *partialCandidates, sync_paths_t *paths) {
 	bool wasNullList = false;
 	if (partialCandidates == NULL) {
-		partialCandidates = new ModelList<inference_list_t *>();
+		partialCandidates = new ModelList<memory_order *>();
 		wasNullList = true;
 	}
 
@@ -248,17 +253,18 @@ ModelList<inference_list_t *>* SCFence::imposeSync(ModelList<inference_list_t *>
 			}
 		}
 		// Already know whether this can be fixed by release sequence
+		bool updateSucc = true;
 		if (wasNullList) {
-			inference_list_t *infer = updateInference(NULL, (memory_order) -1, (memory_order) -1);
+			memory_order *infer = copyInference(curWildcardMap, wildcardNum);
 			if (release_seq) {
 				const ModelAction *relHead = path->front()->get_reads_from(),
 					*lastRead = path->back();
-				updateInference(infer, relHead->get_original_mo(),
+				updateSucc = updateInference(infer, relHead->get_original_mo(),
 					memory_order_release);
-				updateInference(infer, lastRead->get_original_mo(),
+				updateSucc = updateInference(infer, lastRead->get_original_mo(),
 					memory_order_acquire);
 			} else {
-				for (action_list_t::iterator it = path->begin(); it != path->end(); it = it_next) {
+				for (action_list_t::iterator it = path->begin(); it != path->end(); it++) {
 					const ModelAction *read = *it,
 						*write = read->get_reads_from();
 					updateInference(infer, write->get_original_mo(),
@@ -267,28 +273,40 @@ ModelList<inference_list_t *>* SCFence::imposeSync(ModelList<inference_list_t *>
 						memory_order_acquire);
 				}	
 			}
-			partialCandidates->push_back(infer);
+			if (updateSucc) {
+				partialCandidates->push_back(infer);
+			} else {
+				// This inference won't work
+				model_free(infer);
+			}
 		} else { // We have a partial list of candidates
-			for (ModelList<inference_list_t *>::iterator i_cand =
+			for (ModelList<memory_order *>::iterator i_cand =
 				partialCandidates->begin(); i_cand != partialCandidates->end();
 				i_cand++) {
-				inference_list_t *infer = *i_cand;
+				updateSucc = true;
+				memory_order *infer = *i_cand;
 				if (release_seq) {
 					const ModelAction *relHead = path->front()->get_reads_from(),
 						*lastRead = path->back();
-					updateInference(infer, relHead->get_original_mo(),
+					updateSucc = updateInference(infer, relHead->get_original_mo(),
 						memory_order_release);
-					updateInference(infer, lastRead->get_original_mo(),
+					updateSucc = updateInference(infer, lastRead->get_original_mo(),
 						memory_order_acquire);
 				} else {
 					for (action_list_t::iterator it = path->begin(); it != path->end(); it = it_next) {
 						const ModelAction *read = *it,
 							*write = read->get_reads_from();
-						updateInference(infer, write->get_original_mo(),
+						updateSucc = updateInference(infer, write->get_original_mo(),
 							memory_order_release);
-						updateInference(infer, read->get_original_mo(),
+						updateSucc = updateInference(infer, read->get_original_mo(),
 							memory_order_acquire);
 					}	
+				}
+				if (!updateSucc) {
+					// This inference won't work
+					partialCandidates->erase(i_cand);
+					i_cand--;
+					model_free(infer);
 				}
 			}
 		}
@@ -298,7 +316,7 @@ ModelList<inference_list_t *>* SCFence::imposeSync(ModelList<inference_list_t *>
 	return partialCandidates;
 }
 
-ModelList<inference_list_t *>* SCFence::imposeSC(ModelList<inference_list_t *> *partialCandidates, const ModelAction *act1, const ModelAction *act2) {
+ModelList<memory_order *>* SCFence::imposeSC(ModelList<memory_order *> *partialCandidates, const ModelAction *act1, const ModelAction *act2) {
 
 }
 
@@ -324,7 +342,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 				}
 
 				sync_paths_t *paths1 = NULL, *paths2 = NULL;
-				ModelList<inference_list_t *>* candidates = NULL;
+				ModelList<memory_order *>* candidates = NULL;
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
 					// act->read, write->write1 & desired->write2
@@ -350,7 +368,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						if (paths2->size() > 0) {
 							FENCE_PRINT("From write2 to read: \n");
 							print_rf_sb_paths(paths2, desired, act);
-							model_print("here, candidates size: %d.", 0);
 							if (candidates == NULL) {
 								candidates = imposeSync(NULL, paths2);
 							} else {
@@ -385,28 +402,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 	}
 }
 
-void SCFence::clearCurInference() {
-	for (inference_list_t::iterator it = curInference->begin(); it !=
-		curInference->end(); it++) {
-		InferencePair *pair = *it;
-		delete pair;
-	}
-	curInference->clear();
-	delete curInference;
-}
-
-void SCFence::prepareNextInference(inference_list_t *candidate) {
-	curInference = candidate;
-	curWildcardMap->reset();
-	for (inference_list_t::iterator it = candidate->begin(); it !=
-		candidate->end(); it++) {
-		InferencePair *pair = *it;
-		memory_order wildcard = pair->wildcard,
-			order = pair->order;
-		curWildcardMap->put(wildcard, order);
-	}
-}
-
 void SCFence::analyze(action_list_t *actions) {
 
 	struct timeval start;
@@ -431,12 +426,11 @@ void SCFence::analyze(action_list_t *actions) {
 	// Now we find a non-SC execution
 	if (cyclic) {
 		addPotentialFixes(list);
-		inference_list_t *candidate = potentialResults->front();
+		memory_order *candidate = potentialResults->front();
 		potentialResults->pop_front();
 		// Clear the current inference before over-writing
-		clearCurInference();
-		prepareNextInference(candidate);
-
+		model_free(curWildcardMap);
+		curWildcardMap = candidate;
 		model->restart();
 	}
 }

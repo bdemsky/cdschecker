@@ -11,6 +11,9 @@
 using std::memory_order;
 #endif
 
+#define INIT_WILDCARD_NUM 20
+#define WILDCARD_NONEXIST (memory_order) -1
+
 #define FENCE_OUTPUT
 
 #ifdef FENCE_OUTPUT
@@ -30,24 +33,6 @@ extern SCFence *scfence;
 
 void print_nothing(const char *str, ...);
 
-typedef struct InferencePair {
-	memory_order wildcard;
-	memory_order order;
-	
-	InferencePair(InferencePair &p) :
-		wildcard(p.wildcard),
-		order(p.order)
-	{}
-
-	InferencePair(memory_order a, memory_order b) :
-		wildcard(a),
-		order(b)
-	{}
-
-	MEMALLOC
-} InferencePair;
-
-
 /** A list of load operations can represent the union of reads-from &
  * sequence-before edges; And we have a list of lists of load operations to
  * represent all the possible rfUsb paths between two nodes, defined as
@@ -56,7 +41,6 @@ typedef struct InferencePair {
 typedef SnapList<action_list_t *> sync_paths_t;
 
 typedef HashTable<memory_order, memory_order, memory_order, 4, model_malloc, model_calloc> wildcard_table_t;
-typedef ModelList<InferencePair*> inference_list_t;
 
 class SCFence : public TraceAnalysis {
  public:
@@ -105,17 +89,13 @@ class SCFence : public TraceAnalysis {
 	 * potentialResults list
 	 */
 	void addPotentialFixes(action_list_t *list);
-	inference_list_t* updateInference(inference_list_t *inference, memory_order wildcard, memory_order order);
-	ModelList<inference_list_t *>* imposeSync(ModelList<inference_list_t *> *partialCandidates, sync_paths_t *paths);
-	ModelList<inference_list_t *>* imposeSC(ModelList<inference_list_t *> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
-
-	/** Prepare for the next wildcard inferece by initializing necessary fields
-	 */
-	void prepareNextInference(inference_list_t *candidate);
-	void clearCurInference();
+	bool updateInference(memory_order *infer, memory_order wildcard, memory_order order);
+	memory_order* copyInference(memory_order *infer, int num);
+	ModelList<memory_order *>* imposeSync(ModelList<memory_order *> *partialCandidates, sync_paths_t *paths);
+	ModelList<memory_order *>* imposeSC(ModelList<memory_order *> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
 
 	const char* get_mo_str(memory_order order);
-	void printWildcardResult(inference_list_t *result);
+	void printWildcardResult(memory_order *result);
 
 	int maxthreads;
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
@@ -134,14 +114,15 @@ class SCFence : public TraceAnalysis {
 	static int restartCnt;
 
 	/** Current wildcard mapping: a wildcard -> the specifc ordering */
-	static wildcard_table_t *curWildcardMap;
+	static memory_order *curWildcardMap;
+	static int wildcardNum;
 	/** Current wildcards */
-	static inference_list_t *curInference;
+	static memory_order *curInference;
 	/** A list of possible results */
-	static ModelList<inference_list_t *> *potentialResults;
+	static ModelList<memory_order *> *potentialResults;
 
 	/** A list of correct inference results */
-	static ModelList<inference_list_t *> *results;
+	static ModelList<memory_order *> *results;
 
 };
 #endif

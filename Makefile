@@ -57,7 +57,7 @@ include $(SPEC_DIR)/Makefile
 #	$(MAKE) -C $(SCFENCE_DIR)
 
 $(LIB_SO): $(OBJECTS) $(SPEC_PLUGIN) $(SPEC_LIB) $(SCFENCE_PLUGIN)
-	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS)
+	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS) -O0 -g
 
 malloc.o: malloc.c
 	$(CC) -fPIC -c malloc.c -DMSPACES -DONLY_MSPACES -DHAVE_MMAP=0 $(CPPFLAGS) -Wno-unused-variable

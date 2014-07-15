@@ -12,7 +12,7 @@ include $(NONSC_DIR)/Makefile
 
 DEPS := $(join $(addsuffix ., $(dir $(OBJECTS))), $(addsuffix .d, $(notdir $(OBJECTS))))
 
-CPPFLAGS += -I$(BASE) -I$(BASE)/include -I$(BASE)/scfence
+CPPFLAGS += -I$(BASE) -I$(BASE)/include -I$(BASE)/scfence -O0 -g
 
 all: $(OBJECTS)
 
