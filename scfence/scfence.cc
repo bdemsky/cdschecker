@@ -17,6 +17,7 @@ int SCFence::restartCnt;
 memory_order *SCFence::curWildcardMap;
 int SCFence::wildcardNum = 0;
 ModelList<memory_order *> *SCFence::results;
+ModelList<memory_order *> *SCFence::potentialResults;
 
 SCFence::SCFence() :
 	cvmap(),
@@ -247,11 +248,12 @@ ModelList<memory_order *>* SCFence::imposeSync(ModelList<memory_order *> *partia
 		action_list_t::iterator it = path->begin(),
 			it_next;
 		for (; it != path->end(); it = it_next) {
+			const ModelAction *read = *it,
+				*write = read->get_reads_from(),
+				*next_read;
 			it_next = it++;
 			if (it_next != path->end()) {
-				const ModelAction *read = *it,
-					*write = read->get_reads_from(),
-					*next_read = *it_next;
+				next_read = *it_next;
 				if (write != next_read) {
 					release_seq = false;
 					break;
@@ -273,6 +275,9 @@ ModelList<memory_order *>* SCFence::imposeSync(ModelList<memory_order *> *partia
 				for (action_list_t::iterator it = path->begin(); it != path->end(); it++) {
 					const ModelAction *read = *it,
 						*write = read->get_reads_from();
+					model_print("path size:%d\n", path->size());
+					write->print();
+					read->print();
 					updateInference(infer, write->get_original_mo(),
 						memory_order_release);
 					updateInference(infer, read->get_original_mo(),
