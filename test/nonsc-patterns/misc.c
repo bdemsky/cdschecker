@@ -17,23 +17,23 @@ static void a(void *obj)
 
 static void b(void *obj)
 {
-	atomic_store_explicit(&x, 1, memory_order_relaxed);
-	atomic_store_explicit(&y, 1, memory_order_relaxed);
-	int r1=atomic_load_explicit(&z, memory_order_relaxed);
+	atomic_store_explicit(&x, 1, memory_order_wildcard(1));
+	atomic_store_explicit(&y, 1, memory_order_wildcard(2));
+	int r1=atomic_load_explicit(&z, memory_order_wildcard(3));
 }
 
 static void c(void *obj)
 {
-	atomic_store_explicit(&z, 1, memory_order_relaxed);
-	atomic_store_explicit(&x, 1000, memory_order_relaxed);
-	int r2=atomic_load_explicit(&y, memory_order_relaxed);
+	atomic_store_explicit(&z, 1, memory_order_wildcard(4));
+	atomic_store_explicit(&x, 1000, memory_order_wildcard(5));
+	int r2=atomic_load_explicit(&y, memory_order_wildcard(6));
 }
 
 static void d(void *obj)
 {
-	atomic_store_explicit(&z, 2, memory_order_relaxed);
-	atomic_store_explicit(&y, 1000, memory_order_relaxed);
-	int r3=atomic_load_explicit(&x, memory_order_relaxed);
+	atomic_store_explicit(&z, 2, memory_order_wildcard(7));
+	atomic_store_explicit(&y, 1000, memory_order_wildcard(8));
+	int r3=atomic_load_explicit(&x, memory_order_wildcard(9));
 }
 
 int user_main(int argc, char **argv)

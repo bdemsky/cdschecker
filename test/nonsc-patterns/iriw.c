@@ -17,24 +17,24 @@ atomic_int y;
 
 static void a(void *obj)
 {
-	atomic_store_explicit(&x, 1, memory_order_seq_cst);
+	atomic_store_explicit(&x, 1, memory_order_wildcard(1));
 }
 
 static void b(void *obj)
 {
-	atomic_store_explicit(&y, 1, memory_order_seq_cst);
+	atomic_store_explicit(&y, 1, memory_order_wildcard(2));
 }
 
 static void c(void *obj)
 {
-	int r1=atomic_load_explicit(&x, memory_order_relaxed);
-	int r2=atomic_load_explicit(&y, memory_order_seq_cst);
+	int r1=atomic_load_explicit(&x, memory_order_wildcard(3));
+	int r2=atomic_load_explicit(&y, memory_order_wildcard(4));
 }
 
 static void d(void *obj)
 {
-	int r3=atomic_load_explicit(&y, memory_order_acquire);
-	int r4=atomic_load_explicit(&x, memory_order_seq_cst);
+	int r3=atomic_load_explicit(&y, memory_order_wildcard(5));
+	int r4=atomic_load_explicit(&x, memory_order_wildcard(6));
 }
 
 int user_main(int argc, char **argv)

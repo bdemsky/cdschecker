@@ -327,7 +327,47 @@ ModelList<memory_order *>* SCFence::imposeSync(ModelList<memory_order *> *partia
 }
 
 ModelList<memory_order *>* SCFence::imposeSC(ModelList<memory_order *> *partialCandidates, const ModelAction *act1, const ModelAction *act2) {
+	bool wasNullList = false;
+	if (partialCandidates == NULL) {
+		partialCandidates = new ModelList<memory_order *>();
+		wasNullList = true;
+	}
 
+	bool updateSucc = true;
+	if (wasNullList) {
+		memory_order *infer = copyInference(curWildcardMap, wildcardNum);
+		updateSucc = updateInference(infer, act1->get_original_mo(),
+			memory_order_seq_cst);
+		updateSucc = updateInference(infer, act2->get_original_mo(),
+			memory_order_seq_cst);
+
+		if (updateSucc) {
+			partialCandidates->push_back(infer);
+		} else {
+			// This inference won't work
+			model_free(infer);
+		}
+
+	} else { // We have a partial list of candidates
+		for (ModelList<memory_order *>::iterator i_cand =
+			partialCandidates->begin(); i_cand != partialCandidates->end();
+			i_cand++) {
+			updateSucc = true;
+			memory_order *infer = *i_cand;
+			updateSucc = updateInference(infer, act1->get_original_mo(),
+				memory_order_seq_cst);
+			updateSucc = updateInference(infer, act2->get_original_mo(),
+				memory_order_seq_cst);
+
+			if (!updateSucc) {
+				// This inference won't work
+				partialCandidates->erase(i_cand);
+				i_cand--;
+				model_free(infer);
+			}
+		}
+	}
+	return partialCandidates;
 }
 
 
@@ -367,6 +407,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("Have to impose sc on write1 & write2: \n");
 							ACT_PRINT(write);
 							ACT_PRINT(desired);
+							candidates = imposeSC(NULL, write, desired);
 						}
 					} else {
 						FENCE_PRINT("write1 mo before write2. \n");
@@ -392,6 +433,13 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("Have to impose sc on write2 & read: \n");
 							ACT_PRINT(desired);
 							ACT_PRINT(act);
+							if (candidates == NULL) {
+								candidates = imposeSC(NULL, desired, act);
+							} else {
+								candidates = imposeSC(candidates, desired, act);
+							}
+							potentialResults->insert(potentialResults->end(),
+								candidates->begin(), candidates->end());
 						}
 					} else {
 						FENCE_PRINT("write2 hb/sc before read. \n");
@@ -399,15 +447,36 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 				} else { // Pattern (b) read future value
 					// act->read, write->futureWrite
 					FENCE_PRINT("Running through pattern (b)!\n");
+					// Fixing one direction (read -> futureWrite)
 					paths1 = get_rf_sb_paths(act, write);
 					if (paths1->size() > 0) {
 						FENCE_PRINT("From read to future write: \n");
 						print_rf_sb_paths(paths1, act, write);
+						candidates = imposeSync(NULL, paths1);
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
 						ACT_PRINT(act);
 						ACT_PRINT(write);
+						candidates = imposeSC(NULL, act, write);
 					}
+
+					// Fixing the other direction (futureWrite -> read)
+					memory_order *anotherInfer = copyInference(curWildcardMap,
+						wildcardNum);
+					bool updateSucc = true;
+					updateSucc = updateInference(anotherInfer,
+						write->get_original_mo(), memory_order_release);
+					updateSucc = updateInference(anotherInfer,
+						act->get_original_mo(), memory_order_acquire);
+					if (!updateSucc) {
+						model_free(anotherInfer);
+					} else {
+						candidates->push_back(anotherInfer);
+					}
+					model_print("candidates size: %d.\n", candidates->size());
+					potentialResults->insert(potentialResults->end(),
+						candidates->begin(), candidates->end());
+
 				}
 			}
 		}
@@ -439,6 +508,11 @@ void SCFence::analyze(action_list_t *actions) {
 	if (cyclic) {
 		addPotentialFixes(list);
 		memory_order *candidate = potentialResults->front();
+		if (candidate == NULL) {
+			// We are unable to find any inferences
+			model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+			return;
+		}
 		//printWildcardResult(candidate, wildcardNum);
 		potentialResults->pop_front();
 		// Clear the current inference before over-writing
@@ -639,6 +713,8 @@ void SCFence::printPatternFixes(action_list_t *list) {
 					// act->read, write->futureWrite
 					FENCE_PRINT("Running through pattern (b)!\n");
 					paths1 = get_rf_sb_paths(act, write);
+
+					// Fixing one direction (read -> futureWrite)
 					if (paths1->size() > 0) {
 						FENCE_PRINT("From read to future write: \n");
 						print_rf_sb_paths(paths1, act, write);
@@ -647,6 +723,7 @@ void SCFence::printPatternFixes(action_list_t *list) {
 						ACT_PRINT(act);
 						ACT_PRINT(write);
 					}
+
 				}
 			}
 		}
