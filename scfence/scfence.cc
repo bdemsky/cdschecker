@@ -351,7 +351,11 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						if (paths2->size() > 0) {
 							FENCE_PRINT("From write2 to read: \n");
 							print_rf_sb_paths(paths2, desired, act);
-							candidates = imposeSync(candidates, paths2);
+							if (candidates = NULL) {
+								candidates = imposeSync(NULL, paths2);
+							} else {
+								candidates = imposeSync(candidates, paths2);
+							}
 							// Add candidates to potentialResults list
 							potentialResults->insert(potentialResults->end(),
 								candidates->begin(), candidates->end());
