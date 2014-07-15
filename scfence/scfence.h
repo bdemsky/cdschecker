@@ -13,6 +13,7 @@ using std::memory_order;
 
 #define INIT_WILDCARD_NUM 20
 #define WILDCARD_NONEXIST (memory_order) -1
+#define INFERENCE_INCOMPARABLE(x) (-1 <= (x) <= 1)
 
 #define FENCE_OUTPUT
 
@@ -90,12 +91,16 @@ class SCFence : public TraceAnalysis {
 	 */
 	void addPotentialFixes(action_list_t *list);
 	bool updateInference(memory_order *infer, memory_order wildcard, memory_order order);
+	/** @Return: 1 -> 'infere1 > infere2', -1 -> 'infer1 < infer2' & 0 ->
+	 * 'infer1 == infer2' & INFERENCE_INCOMPARABLE(x)->true means incomparable
+	 */
+	int compareInference(memory_order *infer1, memory_order *infer2);
 	memory_order* copyInference(memory_order *infer, int num);
 	ModelList<memory_order *>* imposeSync(ModelList<memory_order *> *partialCandidates, sync_paths_t *paths);
 	ModelList<memory_order *>* imposeSC(ModelList<memory_order *> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
-
 	const char* get_mo_str(memory_order order);
 	void printWildcardResult(memory_order *result, int num);
+	void pruneResults();
 
 	int maxthreads;
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;

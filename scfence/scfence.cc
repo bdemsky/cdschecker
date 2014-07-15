@@ -119,9 +119,58 @@ void SCFence::printWildcardResult(memory_order *result, int num) {
 	}
 }
 
+
+int SCFence::compareInference(memory_order *infer1, memory_order *infer2) {
+	int result = 0;
+	for (int i = 0; i <= wildcardNum; i++) {
+		int mo1 = infer1[i],
+			mo2 = infer2[i];
+		if ((mo1 == memory_order_acquire && mo2 == memory_order_release) ||
+			(mo1 == memory_order_release && mo2 == memory_order_acquire)) {
+			// Incomparable
+			return -2;
+		} else {
+			int subResult = mo1 > mo2 ? 1 : (mo1 == mo2) ? 0 : -1;
+			if ((subResult > 0 && result < 0) || (subResult < 0 && result > 0))
+				return -2;
+			if (subResult != 0)
+				result = subResult;
+		}
+	}
+	return result;
+}
+
+void SCFence::pruneResults() {
+	/*
+	ModelList<memory_order *> newResults = new ModelList<memory_order *>();
+	memory_order *subOpt, *infer1, *infer2;
+	ModelList<memory_order *>::iteratro itSubOpt,
+		it1 = results->begin(), it2;
+	for (; it1 != results->end(); it1++) {
+		itSubOpt = it1;
+		subOpt = *it1;
+		infer1 = *it1;
+		it2 = it1++;
+		it1--;
+		for (; it2 != results->end(); it2++) {
+			infer2 = *it2;
+			int res = compareInference(infer1, infer2);
+			if (INFERENCE_INCOMPARABLE(res)) {
+				continue;
+			} else {
+
+			}
+		}
+	}
+	*/
+}
+
 void SCFence::actionAtModelCheckingFinish() {
 	// First add the current inference to the result list
 	results->push_back(curWildcardMap);
+	model_print("***************** Result *********************\n");
+	printWildcardResult(curWildcardMap, wildcardNum);
+
 
 	if (potentialResults->size() > 0) { // Still have candidates to explore
 		curWildcardMap = potentialResults->front();
@@ -130,6 +179,7 @@ void SCFence::actionAtModelCheckingFinish() {
 	} else {
 		int resultCnt = 1;
 		model_print("Result!\n");
+		pruneResults();
 		for (ModelList<memory_order *>::iterator it = results->begin(); it !=
 			results->end(); it++) {
 			model_print("Result %d:\n", resultCnt++);
@@ -304,7 +354,8 @@ ModelList<memory_order *>* SCFence::imposeSync(ModelList<memory_order *> *partia
 					updateSucc = updateInference(infer, lastRead->get_original_mo(),
 						memory_order_acquire);
 				} else {
-					for (action_list_t::iterator it = path->begin(); it != path->end(); it = it_next) {
+					for (action_list_t::iterator it = path->begin(); it !=
+						path->end(); it++) {
 						const ModelAction *read = *it,
 							*write = read->get_reads_from();
 						updateSucc = updateInference(infer, write->get_original_mo(),
@@ -419,10 +470,12 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						if (paths2->size() > 0) {
 							FENCE_PRINT("From write2 to read: \n");
 							print_rf_sb_paths(paths2, desired, act);
+							FENCE_PRINT("paths2 size: %d\n", paths2->size());
 							if (candidates == NULL) {
 								candidates = imposeSync(NULL, paths2);
 							} else {
 								candidates = imposeSync(candidates, paths2);
+								FENCE_PRINT("Stuck here?\n");
 							}
 							// Add candidates to potentialResults list
 							//ModelList<memory_order *>::iterator it1 = candidates->begin();
@@ -474,11 +527,15 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 					} else {
 						candidates->push_back(anotherInfer);
 					}
-					model_print("candidates size: %d.\n", candidates->size());
 					potentialResults->insert(potentialResults->end(),
 						candidates->begin(), candidates->end());
 
 				}
+				model_print("candidates size: %d.\n", candidates->size());
+				model_print("potential results size: %d.\n", potentialResults->size());
+				
+				// Just eliminate the first cycle we see in the execution
+				break;
 			}
 		}
 	}
