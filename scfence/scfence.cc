@@ -176,15 +176,14 @@ void SCFence::print_list(action_list_t *list) {
 inference_list_t* SCFence::updateInference(inference_list_t *inference, memory_order wildcard, memory_order order) {
 	if (inference == NULL) {
 		inference = new inference_list_t();
+		for (inference_list_t::iterator it = curInference->begin(); it !=
+			curInference->end(); it++) {
+			InferencePair *p = *it;
+			inference->push_back(new InferencePair(*p));
+		}
 		return inference;
 	}
 	
-	for (inference_list_t::iterator it = curInference->begin(); it !=
-		curInference->end(); it++) {
-		InferencePair *p = *it;
-		inference->push_back(new InferencePair(*p));
-	}
-
 	bool change = false;
 	for (inference_list_t::iterator it = inference->begin(); it != inference->end(); it++) {
 		InferencePair *p = *it;
@@ -269,7 +268,7 @@ ModelList<inference_list_t *>* SCFence::imposeSync(ModelList<inference_list_t *>
 				}	
 			}
 			partialCandidates->push_back(infer);
-		} else {
+		} else { // We have a partial list of candidates
 			for (ModelList<inference_list_t *>::iterator i_cand =
 				partialCandidates->begin(); i_cand != partialCandidates->end();
 				i_cand++) {
@@ -351,7 +350,8 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						if (paths2->size() > 0) {
 							FENCE_PRINT("From write2 to read: \n");
 							print_rf_sb_paths(paths2, desired, act);
-							if (candidates = NULL) {
+							model_print("here, candidates size: %d.", 0);
+							if (candidates == NULL) {
 								candidates = imposeSync(NULL, paths2);
 							} else {
 								candidates = imposeSync(candidates, paths2);
