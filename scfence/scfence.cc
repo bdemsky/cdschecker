@@ -64,6 +64,8 @@ void SCFence::finish() {
 
 
 void SCFence::inspectModelAction(ModelAction *act) {
+	if (act == NULL) // Get pass cases like data race detector
+		return;
 	if (act->get_mo() >= memory_order_relaxed && act->get_mo() <=
 		memory_order_seq_cst) {
 		return;
@@ -475,7 +477,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 								candidates = imposeSync(NULL, paths2);
 							} else {
 								candidates = imposeSync(candidates, paths2);
-								FENCE_PRINT("Stuck here?\n");
 							}
 							// Add candidates to potentialResults list
 							//ModelList<memory_order *>::iterator it1 = candidates->begin();
@@ -706,9 +707,6 @@ void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, c
 			if (next_read == NULL || next_read->get_reads_from() != read) {
 				// Not the same RMW, also print the read operation
 				ACT_PRINT(read);
-				model_print("Right here!\n");
-				model_print("wildcard: %d\n",
-					get_wildcard_id(read->get_original_mo()));
 			}
 		}
 	}
