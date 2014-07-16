@@ -86,6 +86,9 @@ class SCFence : public TraceAnalysis {
 			|| act2->is_write()) : false;
 	}
 	
+	/** Initialize the search with a file with a list of potential candidates */
+	void initializeByFile();
+
 	/** When getting a non-SC execution, find potential fixes and add it to the
 	 * potentialResults list
 	 */
@@ -123,9 +126,9 @@ class SCFence : public TraceAnalysis {
 	static int wildcardNum;
 	/** A list of possible results */
 	static ModelList<memory_order *> *potentialResults;
-
 	/** A list of correct inference results */
 	static ModelList<memory_order *> *results;
-
+	/** The file which provides a list of candidate wilcard inferences */
+	static char *candidateFile;
 };
 #endif

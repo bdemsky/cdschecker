@@ -13,5 +13,7 @@
 #define relaxed memory_order_relaxed
 #define release memory_order_release
 #define acquire memory_order_acquire
+#define seqcst memory_order_seq_cst
+#define acqrel memory_order_acq_rel
 
 #endif

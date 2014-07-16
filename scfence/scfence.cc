@@ -7,6 +7,7 @@
 
 #include "model.h"
 #include "wildcard.h"
+#include <stdio.h>
 
 
 void print_nothing(const char *str, ...) {
@@ -15,6 +16,7 @@ void print_nothing(const char *str, ...) {
 
 int SCFence::restartCnt;
 memory_order *SCFence::curWildcardMap;
+char *SCFence::candidateFile;
 int SCFence::wildcardNum = 0;
 ModelList<memory_order *> *SCFence::results;
 ModelList<memory_order *> *SCFence::potentialResults;
@@ -37,6 +39,7 @@ SCFence::SCFence() :
 	curWildcardMap = (memory_order*) model_malloc(sizeof(memory_order) * 1);
 	potentialResults = new ModelList<memory_order *>();
 	results = new ModelList<memory_order *>();
+	candidateFile = NULL;
 }
 
 SCFence::~SCFence() {
@@ -115,7 +118,7 @@ void SCFence::printWildcardResult(memory_order *result, int num) {
 		memory_order order = result[i];
 		if (order != WILDCARD_NONEXIST) {
 			// Print the wildcard inference result
-			FENCE_PRINT("wildcard%d -> memory_order_%s\n",
+			FENCE_PRINT("wildcard %d -> memory_order_%s\n",
 				i, get_mo_str(order));
 		}
 	}
@@ -191,6 +194,75 @@ void SCFence::actionAtModelCheckingFinish() {
 	}
 }
 
+void SCFence::initializeByFile() {
+	FILE *fp = fopen(candidateFile, "r");
+	if (fp == NULL) {
+		fprintf(stderr, "Cannot open the file!\n");
+		return;
+	}
+	memory_order *infer = NULL;
+	int size = 0,
+		curNum = 0;
+	memory_order mo;
+	char *str;
+	bool isProcessing = false;
+	while (!feof(fp)) {
+		// Result #:
+		if (!isProcessing)
+			fscanf(fp, "%s", str);
+		if (strcmp(str, "Result") == 0 || isProcessing) { // In an inference
+			fscanf(fp, "%s", str);
+			infer = (memory_order *) model_malloc((wildcardNum + 1) * sizeof(memory_order*));
+			for (int i = 0; i <= wildcardNum; i++) {
+				infer[i] = WILDCARD_NONEXIST;
+			}
+			isProcessing = false;
+			while (!feof(fp)) { // Processing a specific inference
+				// wildcard # -> memory_order
+				fscanf(fp, "%s", str); // wildcard
+				if (strcmp(str, "Result") == 0) {
+					//FENCE_PRINT("break: %s\n", str);
+					isProcessing = true;
+					break;
+				}
+				//FENCE_PRINT("%s ", str);
+				fscanf(fp, "%d", &curNum); // #
+				//FENCE_PRINT("%d -> ", curNum);
+				if (curNum > wildcardNum) {
+					memory_order *newInfer = (memory_order *) model_malloc((curNum + 1) * sizeof(memory_order*));
+					for (int i = 0; i < curNum; i++) {
+						if (i <= wildcardNum)
+							newInfer[i] = infer[i];
+						else
+							newInfer[i] = WILDCARD_NONEXIST;
+					}
+					wildcardNum = curNum;
+					model_free(infer);
+					infer = newInfer;
+				}
+				fscanf(fp, "%s", str); // ->
+				fscanf(fp, "%s", str);
+				//FENCE_PRINT("%s\n", str);
+				if (strcmp(str, "memory_order_relaxed") == 0)
+					mo = memory_order_relaxed;
+				else if (strcmp(str, "memory_order_acquire") == 0)
+					mo = memory_order_acquire;
+				else if (strcmp(str, "memory_order_release") == 0)
+					mo = memory_order_release;
+				else if (strcmp(str, "memory_order_acq_rel") == 0)
+					mo = memory_order_acq_rel;
+				else if (strcmp(str, "memory_order_seq_cst") == 0)
+					mo = memory_order_seq_cst;
+				infer[curNum] = mo;
+			}
+			potentialResults->push_back(infer);
+		}
+	}
+	curWildcardMap =  potentialResults->front();
+	potentialResults->pop_front();
+	fclose(fp);
+}
+
 bool SCFence::option(char * opt) {
 	if (strcmp(opt, "verbose")==0) {
 		print_always=true;
@@ -207,18 +279,20 @@ bool SCFence::option(char * opt) {
 		time=true;
 		return false;
 	} else if (strcmp(opt, "help") != 0) {
-		model_print("Unrecognized option: %s\n", opt);
+		candidateFile = opt;
+		initializeByFile();
+		return false;
+	} else {
+		model_print("SC Analysis options\n");
+		model_print("verbose -- print all feasible executions\n");
+		model_print("buggy -- print only buggy executions (default)\n");
+		model_print("nonsc -- print non-sc execution\n");
+		model_print("quiet -- print nothing\n");
+		model_print("time -- time execution of scanalysis\n");
+		model_print("\n");
+		return true;
 	}
-
-	model_print("SC Analysis options\n");
-	model_print("verbose -- print all feasible executions\n");
-	model_print("buggy -- print only buggy executions (default)\n");
-	model_print("nonsc -- print non-sc execution\n");
-	model_print("quiet -- print nothing\n");
-	model_print("time -- time execution of scanalysis\n");
-	model_print("\n");
 	
-	return true;
 }
 
 void SCFence::print_list(action_list_t *list) {
@@ -707,6 +781,10 @@ void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, c
 			if (next_read == NULL || next_read->get_reads_from() != read) {
 				// Not the same RMW, also print the read operation
 				ACT_PRINT(read);
+				model_print("Right here!\n");
+				model_print("wildcard: %d\n",
+					get_wildcard_id(read->get_original_mo()));
+
 			}
 		}
 	}
