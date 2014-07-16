@@ -168,8 +168,8 @@ void SCFence::pruneResults() {
 void SCFence::actionAtModelCheckingFinish() {
 	// First add the current inference to the result list
 	results->push_back(curWildcardMap);
-	model_print("***************** Result *********************\n");
-	printWildcardResult(curWildcardMap, wildcardNum);
+	//model_print("***************** Result *********************\n");
+	//printWildcardResult(curWildcardMap, wildcardNum);
 
 
 	if (potentialResults->size() > 0) { // Still have candidates to explore

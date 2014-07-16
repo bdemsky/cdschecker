@@ -10,4 +10,8 @@
 
 #define get_wildcard_id(x) ((int) (x-0x1000))
 
+#define relaxed memory_order_relaxed
+#define release memory_order_release
+#define acquire memory_order_acquire
+
 #endif
