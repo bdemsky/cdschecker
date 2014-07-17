@@ -133,6 +133,7 @@ int SCFence::compareInference(memory_order *infer1, memory_order *infer2) {
 		if ((mo1 == memory_order_acquire && mo2 == memory_order_release) ||
 			(mo1 == memory_order_release && mo2 == memory_order_acquire)) {
 			// Incomparable
+			FENCE_PRINT("!=\n");
 			return -2;
 		} else {
 			int subResult = mo1 > mo2 ? 1 : (mo1 == mo2) ? 0 : -1;
@@ -140,34 +141,52 @@ int SCFence::compareInference(memory_order *infer1, memory_order *infer2) {
 				return -2;
 			if (subResult != 0)
 				result = subResult;
+			if (subResult == 1) {
+				FENCE_PRINT(">\n");
+			} else if (subResult == 0) {
+				FENCE_PRINT("=\n");
+			} else if (subResult == -1) {
+				FENCE_PRINT("<\n");
+			}
 		}
 	}
 	return result;
 }
 
 void SCFence::pruneResults() {
-	/*
-	ModelList<memory_order *> newResults = new ModelList<memory_order *>();
-	memory_order *subOpt, *infer1, *infer2;
-	ModelList<memory_order *>::iteratro itSubOpt,
-		it1 = results->begin(), it2;
-	for (; it1 != results->end(); it1++) {
-		itSubOpt = it1;
-		subOpt = *it1;
-		infer1 = *it1;
-		it2 = it1++;
-		it1--;
-		for (; it2 != results->end(); it2++) {
-			infer2 = *it2;
-			int res = compareInference(infer1, infer2);
+	ModelList<memory_order *> *newResults = new ModelList<memory_order *>();
+	memory_order *subOpt, *infer;
+	while (results->size() > 0) {
+		ModelList<memory_order *>::iterator it = results->begin();
+		subOpt = *it;
+		it = results->erase(it);
+		for (; it != results->end();) {
+			infer = *it;
+			int res = compareInference(infer, subOpt);
+			model_print("sub opt:\n");
+			printWildcardResult(subOpt, wildcardNum);
+			model_print("infer:\n");
+			printWildcardResult(infer, wildcardNum);
+			FENCE_PRINT("compare res: %d\n", res);
 			if (INFERENCE_INCOMPARABLE(res)) {
+				it++;
+				FENCE_PRINT("Incomparable\n");
 				continue;
-			} else {
-
+			} else if (res >= 0) {
+				model_free(infer);
+				it = results->erase(it);
+				FENCE_PRINT("found a worse one\n");
+			} else if (res == -1) {
+				model_free(subOpt);
+				subOpt = infer;
+				it = results->erase(it);
+				FENCE_PRINT("found a better one\n");
 			}
 		}
+		newResults->push_back(subOpt);
 	}
-	*/
+	model_free(results);
+	results = newResults;
 }
 
 void SCFence::actionAtModelCheckingFinish() {
@@ -255,7 +274,20 @@ void SCFence::initializeByFile() {
 					mo = memory_order_seq_cst;
 				infer[curNum] = mo;
 			}
-			potentialResults->push_back(infer);
+			bool shouldAddInfer = true;
+			for (ModelList<memory_order *>::iterator psIt =
+				potentialResults->begin(); psIt != potentialResults->end();
+				psIt++) {
+				memory_order *exist = *psIt;
+				int res = compareInference(exist, infer);
+				if (res == 0 && res == -1) {
+					FENCE_PRINT("exist == ?? <: %d\n", res);
+					shouldAddInfer = false;
+					break;
+				}
+			}
+			if (shouldAddInfer)
+				potentialResults->push_back(infer);
 		}
 	}
 	curWildcardMap =  potentialResults->front();

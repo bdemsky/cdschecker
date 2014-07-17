@@ -13,7 +13,7 @@ using std::memory_order;
 
 #define INIT_WILDCARD_NUM 20
 #define WILDCARD_NONEXIST (memory_order) -1
-#define INFERENCE_INCOMPARABLE(x) (-1 <= (x) <= 1)
+#define INFERENCE_INCOMPARABLE(x) (!(-1 <= (x) <= 1))
 
 #define FENCE_OUTPUT
 
