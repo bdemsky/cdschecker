@@ -93,6 +93,8 @@ class SCFence : public TraceAnalysis {
 	 * potentialResults list
 	 */
 	void addPotentialFixes(action_list_t *list);
+	bool addMoreCandidates(ModelList<memory_order *> *existCandidates, ModelList<memory_order *> *newCandidates);
+	bool addMoreCandidate(ModelList<memory_order *> *existCandidates, memory_order *newCandidate);
 	bool updateInference(memory_order *infer, memory_order wildcard, memory_order order);
 	/** @Return: 1 -> 'infere1 > infere2', -1 -> 'infer1 < infer2' & 0 ->
 	 * 'infer1 == infer2' & INFERENCE_INCOMPARABLE(x)->true means incomparable

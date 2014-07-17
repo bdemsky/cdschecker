@@ -133,14 +133,20 @@ int SCFence::compareInference(memory_order *infer1, memory_order *infer2) {
 		if ((mo1 == memory_order_acquire && mo2 == memory_order_release) ||
 			(mo1 == memory_order_release && mo2 == memory_order_acquire)) {
 			// Incomparable
-			FENCE_PRINT("!=\n");
+			//FENCE_PRINT("!=\n");
 			return -2;
 		} else {
 			int subResult = mo1 > mo2 ? 1 : (mo1 == mo2) ? 0 : -1;
-			if ((subResult > 0 && result < 0) || (subResult < 0 && result > 0))
+			//FENCE_PRINT("subResult: %d\n", subResult);
+			if ((subResult > 0 && result < 0) || (subResult < 0 && result > 0)) {
+				//FENCE_PRINT("!=\n");
+				//FENCE_PRINT("in result: %d\n", result);
+				//FENCE_PRINT("in result: mo1 & mo2 %d & %d\n", mo1, mo2);
 				return -2;
+			}
 			if (subResult != 0)
 				result = subResult;
+		/*
 			if (subResult == 1) {
 				FENCE_PRINT(">\n");
 			} else if (subResult == 0) {
@@ -148,45 +154,52 @@ int SCFence::compareInference(memory_order *infer1, memory_order *infer2) {
 			} else if (subResult == -1) {
 				FENCE_PRINT("<\n");
 			}
+		*/
 		}
 	}
+	//FENCE_PRINT("result: %d\n", result);
 	return result;
 }
 
 void SCFence::pruneResults() {
 	ModelList<memory_order *> *newResults = new ModelList<memory_order *>();
-	memory_order *subOpt, *infer;
-	while (results->size() > 0) {
-		ModelList<memory_order *>::iterator it = results->begin();
-		subOpt = *it;
-		it = results->erase(it);
-		for (; it != results->end();) {
-			infer = *it;
-			int res = compareInference(infer, subOpt);
-			model_print("sub opt:\n");
-			printWildcardResult(subOpt, wildcardNum);
-			model_print("infer:\n");
-			printWildcardResult(infer, wildcardNum);
-			FENCE_PRINT("compare res: %d\n", res);
-			if (INFERENCE_INCOMPARABLE(res)) {
-				it++;
-				FENCE_PRINT("Incomparable\n");
-				continue;
-			} else if (res >= 0) {
+	ModelList<memory_order *>::iterator it, itNew;
+
+/*
+	bool shouldAddInfer = true;
+	for (it = results->begin(); it != results->end(); it++) {
+		memory_order *infer = *it;
+		for (itNew = newResults->begin(); itNew != newResults->end(); itNew++) {
+			shouldAddInfer = true;
+			memory_order *exist = *itNew;
+			int res = compareInference(exist, infer);
+			if (res == 0 && res == -1) {
+				FENCE_PRINT("exist == ?? <: %d\n", res);
+				shouldAddInfer = false;
 				model_free(infer);
-				it = results->erase(it);
-				FENCE_PRINT("found a worse one\n");
-			} else if (res == -1) {
-				model_free(subOpt);
-				subOpt = infer;
-				it = results->erase(it);
-				FENCE_PRINT("found a better one\n");
+				break;
+			} else if (res == 1) {
+				FENCE_PRINT("exist > : %d\n", res);
+				// Should free the 'exist' array
+				model_free(exist);
+				itNew = potentialResults->erase(itNew);
+				itNew--;
+				continue;
+			} else {
+				FENCE_PRINT("exist != : %d\n", res);
 			}
 		}
-		newResults->push_back(subOpt);
+		if (shouldAddInfer) {
+			newResults->push_back(infer);
+		}
 	}
+
+*/
+	addMoreCandidates(newResults, results);
+	results->clear();
 	model_free(results);
 	results = newResults;
+	return;
 }
 
 void SCFence::actionAtModelCheckingFinish() {
@@ -203,7 +216,9 @@ void SCFence::actionAtModelCheckingFinish() {
 	} else {
 		int resultCnt = 1;
 		model_print("Result!\n");
+		model_print("Original size: %d!\n", results->size());
 		pruneResults();
+		model_print("Pruned size: %d!\n", results->size());
 		for (ModelList<memory_order *>::iterator it = results->begin(); it !=
 			results->end(); it++) {
 			model_print("Result %d:\n", resultCnt++);
@@ -223,12 +238,14 @@ void SCFence::initializeByFile() {
 	int size = 0,
 		curNum = 0;
 	memory_order mo;
-	char *str;
+	char *str = (char *) malloc(sizeof(char) * (30 + 1));
 	bool isProcessing = false;
 	while (!feof(fp)) {
 		// Result #:
-		if (!isProcessing)
+		if (!isProcessing) {
 			fscanf(fp, "%s", str);
+
+		}
 		if (strcmp(str, "Result") == 0 || isProcessing) { // In an inference
 			fscanf(fp, "%s", str);
 			infer = (memory_order *) model_malloc((wildcardNum + 1) * sizeof(memory_order*));
@@ -274,22 +291,11 @@ void SCFence::initializeByFile() {
 					mo = memory_order_seq_cst;
 				infer[curNum] = mo;
 			}
-			bool shouldAddInfer = true;
-			for (ModelList<memory_order *>::iterator psIt =
-				potentialResults->begin(); psIt != potentialResults->end();
-				psIt++) {
-				memory_order *exist = *psIt;
-				int res = compareInference(exist, infer);
-				if (res == 0 && res == -1) {
-					FENCE_PRINT("exist == ?? <: %d\n", res);
-					shouldAddInfer = false;
-					break;
-				}
-			}
-			if (shouldAddInfer)
-				potentialResults->push_back(infer);
+			if (!addMoreCandidate(potentialResults, infer))
+				model_free(infer);
 		}
 	}
+	FENCE_PRINT("candidate size from file: %d\n", potentialResults->size());
 	curWildcardMap =  potentialResults->front();
 	potentialResults->pop_front();
 	fclose(fp);
@@ -529,6 +535,63 @@ ModelList<memory_order *>* SCFence::imposeSC(ModelList<memory_order *> *partialC
 	return partialCandidates;
 }
 
+bool SCFence::addMoreCandidate(ModelList<memory_order *> *existCandidates, memory_order *newCandidate) {
+	ModelList<memory_order *>::iterator it;
+	int res;
+	bool isWeaker = false;
+	for (it = existCandidates->begin(); it != existCandidates->end(); it++) {
+		memory_order *exist = *it;
+		res = compareInference(exist, newCandidate);
+		if (res == 0 || res == -1) { // Got an equal or stronger candidate
+			//FENCE_PRINT("Got an equal or stronger candidate, NOT adding!\n");
+			return false;
+		} else if (res == 1) {
+			isWeaker = true;
+			// But should remove the stronger existing candidate before adding
+			model_free(exist);
+			it = existCandidates->erase(it);
+			it--;
+		} else {/*
+			FENCE_PRINT("res: %d\n", res);
+			FENCE_PRINT("exist\n");
+			printWildcardResult(exist, wildcardNum);
+			FENCE_PRINT("newCandidate\n");
+			printWildcardResult(newCandidate, wildcardNum);
+			FENCE_PRINT(" ***** ------------------- *****\n");
+			*/
+		}
+	}
+	if (isWeaker) {
+		//FENCE_PRINT("Got a weaker candidate, MUST add!\n");
+		/*
+		FENCE_PRINT("newCandidate\n");
+		printWildcardResult(newCandidate, wildcardNum);
+		FENCE_PRINT(" -----*****--------*****------ \n");
+		*/
+	} else {
+		//FENCE_PRINT("Got an uncomparable candidate, MUST add!\n");
+	}
+	existCandidates->push_back(newCandidate);
+	return true;
+}
+
+bool SCFence::addMoreCandidates(ModelList<memory_order *> *existCandidates, ModelList<memory_order *> *newCandidates) {
+	bool added = false;
+	ModelList<memory_order *>::iterator it;
+	for (it = newCandidates->begin(); it != newCandidates->end(); it++) {
+		memory_order *newCandidate = *it;
+		added = addMoreCandidate(existCandidates, newCandidate);
+		if (added) {
+			added = true;
+		} else {
+			model_free(newCandidate);
+			it = newCandidates->erase(it);
+			it--;
+		}
+	}
+	return added;
+}
+
 
 void SCFence::addPotentialFixes(action_list_t *list) {
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
@@ -587,8 +650,10 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							// Add candidates to potentialResults list
 							//ModelList<memory_order *>::iterator it1 = candidates->begin();
 							//printWildcardResult(*it1, wildcardNum);
-							potentialResults->insert(potentialResults->end(),
-								candidates->begin(), candidates->end());
+							//potentialResults->insert(potentialResults->end(),
+							//	candidates->begin(), candidates->end());
+							//model_free(candidates);
+							addMoreCandidates(potentialResults, candidates);
 						} else {
 							FENCE_PRINT("Have to impose sc on write2 & read: \n");
 							ACT_PRINT(desired);
@@ -600,6 +665,8 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							}
 							potentialResults->insert(potentialResults->end(),
 								candidates->begin(), candidates->end());
+							//model_free(candidates);
+							//addMoreCandidates(potentialResults, candidates);
 						}
 					} else {
 						FENCE_PRINT("write2 hb/sc before read. \n");
@@ -636,6 +703,8 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 					}
 					potentialResults->insert(potentialResults->end(),
 						candidates->begin(), candidates->end());
+					//model_free(candidates);
+					//addMoreCandidates(potentialResults, candidates);
 
 				}
 				model_print("candidates size: %d.\n", candidates->size());
