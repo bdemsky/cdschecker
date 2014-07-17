@@ -56,13 +56,7 @@ const char * SCFence::name() {
 }
 
 void SCFence::finish() {
-	if (time)
-		model_print("Elapsed time in usec %llu\n", stats->elapsedtime);
-	model_print("SC count: %u\n", stats->sccount);
-	model_print("Non-SC count: %u\n", stats->nonsccount);
-	model_print("Total actions: %llu\n", stats->actions);
-	unsigned long long actionperexec=(stats->actions)/(stats->sccount+stats->nonsccount);
-	model_print("Actions per execution: %llu\n", actionperexec);
+	model_print("SCFence finishes!\n");
 }
 
 
@@ -208,7 +202,14 @@ void SCFence::actionAtModelCheckingFinish() {
 	//model_print("***************** Result *********************\n");
 	//printWildcardResult(curWildcardMap, wildcardNum);
 
+	if (time)
+		model_print("Elapsed time in usec %llu\n", stats->elapsedtime);
+	model_print("SC count: %u\n", stats->sccount);
+	model_print("Non-SC count: %u\n", stats->nonsccount);
+	model_print("Total actions: %llu\n", stats->actions);
+	unsigned long long actionperexec=(stats->actions)/(stats->sccount+stats->nonsccount);
 
+	
 	if (potentialResults->size() > 0) { // Still have candidates to explore
 		curWildcardMap = potentialResults->front();
 		potentialResults->pop_front();
@@ -594,12 +595,48 @@ bool SCFence::addMoreCandidates(ModelList<memory_order *> *existCandidates, Mode
 
 
 void SCFence::addPotentialFixes(action_list_t *list) {
+	sync_paths_t *paths1 = NULL, *paths2 = NULL;
+	ModelList<memory_order *> *candidates = NULL;
+	const ModelAction *unInitRead = NULL;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 		const ModelAction *act = *it;
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from(),
 					*desired = badrfset.get(act);
+				if (write->get_seq_number() == 0) { // Uninitialzed read
+					unInitRead = act;
+					action_list_t::iterator itWrite = it;
+					itWrite++;
+					bool solveUninit = false;
+					for (; itWrite != list->end(); itWrite++) {
+						const ModelAction *theWrite = *itWrite;
+						if (theWrite->get_location() !=
+							unInitRead->get_location()) 
+							continue;
+						FENCE_PRINT("Running through pattern (b') (unint read)!\n");
+
+						// Try to find path from theWrite to the act 
+						paths1 = get_rf_sb_paths(theWrite, act);
+						if (paths1->size() > 0) {
+							FENCE_PRINT("From some write to uninit read: \n");
+							print_rf_sb_paths(paths1, theWrite, act);
+							candidates = imposeSync(NULL, paths1);
+							model_print("candidates size 1: %d.\n", candidates->size());
+							//potentialResults->insert(potentialResults->end(),
+							//	candidates->begin(), candidates->end());
+							addMoreCandidates(potentialResults, candidates);
+							solveUninit = true;
+						} else {
+							FENCE_PRINT("Might not be able to impose sync to solve the uninit \n");
+							//ACT_PRINT(act);
+							//ACT_PRINT(write);
+						}
+					}
+					if (solveUninit)
+						break;
+				}
+
 				// Check reading old or future value
 				bool readOldVal = false;
 				for (action_list_t::iterator it1 = list->begin(); it1 !=
@@ -613,8 +650,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 					}
 				}
 
-				sync_paths_t *paths1 = NULL, *paths2 = NULL;
-				ModelList<memory_order *> *candidates = NULL;
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
 					// act->read, write->write1 & desired->write2
@@ -816,7 +851,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 			p_it++) {
 			ModelAction *prev_read = *p_it;
 			if (id_to_int(write->get_tid()) == id_to_int(prev_read->get_tid())) {
-				FENCE_PRINT("Reaching previous read thread, bail!\n");
+				//FENCE_PRINT("Reaching previous read thread, bail!\n");
 				path->clear();
 				//delete path;
 				atNewThrd = false;

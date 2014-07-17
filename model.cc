@@ -499,13 +499,13 @@ void ModelChecker::run()
 		}
 		if (!has_next && inspect_plugin != NULL) {
 			model_print("******* Model-checking complete & restart : *******\n");
-			print_stats();
+			//print_stats();
 			inspect_plugin->actionAtModelCheckingFinish();
 			// Check if the inpect plugin might have set the restart flag
 			if (restart_flag) {
-				model_print("******* Model-checking RESTART (beginning): *******\n");
-				print_stats();
-				model_print("******* Model-checking RESTART (end): *******\n");
+				//model_print("******* Model-checking RESTART (beginning): *******\n");
+				//print_stats();
+				//model_print("******* Model-checking RESTART (end): *******\n");
 
 				has_next = true;
 				restart_actions();
