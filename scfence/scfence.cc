@@ -614,7 +614,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 				}
 
 				sync_paths_t *paths1 = NULL, *paths2 = NULL;
-				ModelList<memory_order *>* candidates = NULL;
+				ModelList<memory_order *> *candidates = NULL;
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
 					// act->read, write->write1 & desired->write2
@@ -652,7 +652,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							//printWildcardResult(*it1, wildcardNum);
 							//potentialResults->insert(potentialResults->end(),
 							//	candidates->begin(), candidates->end());
-							//model_free(candidates);
 							addMoreCandidates(potentialResults, candidates);
 						} else {
 							FENCE_PRINT("Have to impose sc on write2 & read: \n");
@@ -663,10 +662,9 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							} else {
 								candidates = imposeSC(candidates, desired, act);
 							}
-							potentialResults->insert(potentialResults->end(),
-								candidates->begin(), candidates->end());
-							//model_free(candidates);
-							//addMoreCandidates(potentialResults, candidates);
+							//potentialResults->insert(potentialResults->end(),
+							//	candidates->begin(), candidates->end());
+							addMoreCandidates(potentialResults, candidates);
 						}
 					} else {
 						FENCE_PRINT("write2 hb/sc before read. \n");
@@ -701,14 +699,14 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 					} else {
 						candidates->push_back(anotherInfer);
 					}
-					potentialResults->insert(potentialResults->end(),
-						candidates->begin(), candidates->end());
-					//model_free(candidates);
-					//addMoreCandidates(potentialResults, candidates);
+					//potentialResults->insert(potentialResults->end(),
+					//	candidates->begin(), candidates->end());
+					addMoreCandidates(potentialResults, candidates);
 
 				}
 				model_print("candidates size: %d.\n", candidates->size());
 				model_print("potential results size: %d.\n", potentialResults->size());
+				delete candidates;
 				
 				// Just eliminate the first cycle we see in the execution
 				break;
@@ -718,7 +716,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 }
 
 void SCFence::analyze(action_list_t *actions) {
-
 	struct timeval start;
 	struct timeval finish;
 	if (time)
