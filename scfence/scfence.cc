@@ -108,7 +108,7 @@ const char * SCFence::get_mo_str(memory_order order) {
 }
 
 void SCFence::printWildcardResult(memory_order *result, int num) {
-	for (int i = 0; i <= num; i++) {
+	for (int i = 1; i <= num; i++) {
 		memory_order order = result[i];
 		if (order != WILDCARD_NONEXIST) {
 			// Print the wildcard inference result
@@ -361,6 +361,7 @@ bool SCFence::updateInference(memory_order *inference, memory_order wildcard, me
 		model_print("We cannot make this update!\n");
 		return false;
 	}
+	//ASSERT (!(get_wildcard_id(wildcard) == 6 && order == memory_order_release));
 	int wildcardID = get_wildcard_id(wildcard);
 	ASSERT (order >= memory_order_relaxed && order <= memory_order_seq_cst);
 	switch (inference[wildcardID]) {
@@ -604,6 +605,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from(),
 					*desired = badrfset.get(act);
+					
 				if (write->get_seq_number() == 0) { // Uninitialzed read
 					unInitRead = act;
 					action_list_t::iterator itWrite = it;
@@ -718,6 +720,14 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
 						ACT_PRINT(act);
 						ACT_PRINT(write);
+						/*
+						FENCE_PRINT("write wildcard: %d\n",
+							get_wildcard_id(write->get_original_mo()));
+						FENCE_PRINT("read wildcard: %d\n",
+							get_wildcard_id(act->get_original_mo()));
+
+						*/
+
 						candidates = imposeSC(NULL, act, write);
 					}
 
@@ -913,10 +923,10 @@ void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, c
 			ACT_PRINT(write);
 			if (next_read == NULL || next_read->get_reads_from() != read) {
 				// Not the same RMW, also print the read operation
-				ACT_PRINT(read);
+				ACT_PRINT(read);/*
 				model_print("Right here!\n");
 				model_print("wildcard: %d\n",
-					get_wildcard_id(read->get_original_mo()));
+					get_wildcard_id(read->get_original_mo()));*/
 
 			}
 		}
