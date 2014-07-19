@@ -55,6 +55,8 @@ typedef struct Inference {
 		ASSERT (infer->size > 0);
 		orders = (memory_order *) model_malloc((infer->size + 1) * sizeof(memory_order*));
 		this->size = infer->size;
+		for (int i = 0; i <= size; i++)
+			orders[i] = infer->orders[i];
 	}
 
 	void resize(int newsize) {
@@ -74,6 +76,7 @@ typedef struct Inference {
 			return orders[idx];
 		else {
 			resize(idx);
+			orders[idx] = WILDCARD_NONEXIST;
 			return orders[idx];
 		}
 	}
@@ -87,6 +90,7 @@ typedef struct Inference {
 		if (wildcardID > size)
 			resize(wildcardID);
 		ASSERT (is_normal_mo(mo));
+		//model_print("wildcardID -> order: %d -> %d\n", wildcardID, orders[wildcardID]);
 		ASSERT (is_normal_mo_infer(orders[wildcardID]));
 		switch (orders[wildcardID]) {
 			case memory_order_seq_cst:
@@ -220,7 +224,6 @@ class SCFence : public TraceAnalysis {
 
 	/** Functions that work for infering the parameters */
 	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
-	void printPatternFixes(action_list_t *list);
 	void print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end);
 	bool isSCEdge(const ModelAction *from, const ModelAction *to) {
 		return from->is_seqcst() && to->is_seqcst();
@@ -244,7 +247,7 @@ class SCFence : public TraceAnalysis {
 	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths);
 	ModelList<Inference*>* imposeSC(ModelList<Inference*> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
 	const char* get_mo_str(memory_order order);
-	void printWildcardResult(Inference *result);
+	void printWildcardResults(ModelList<Inference*> *results);
 	void pruneResults();
 
 	int maxthreads;
