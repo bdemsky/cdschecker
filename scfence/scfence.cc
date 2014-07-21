@@ -8,6 +8,7 @@
 #include "model.h"
 #include "wildcard.h"
 #include <stdio.h>
+#include <algorithm>
 
 
 void print_nothing(const char *str, ...) {
@@ -275,7 +276,6 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 		bool updateSucc = true;
 		if (wasNullList) {
 			Inference *infer = new Inference(curInference);
-			infer->print();
 			if (release_seq) {
 				const ModelAction *relHead = path->front()->get_reads_from(),
 					*lastRead = path->back();
@@ -287,7 +287,7 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 				for (action_list_t::iterator it = path->begin(); it != path->end(); it++) {
 					const ModelAction *read = *it,
 						*write = read->get_reads_from();
-					model_print("path size:%d\n", path->size());
+					//FENCE_PRINT("path size:%d\n", path->size());
 					//write->print();
 					//read->print();
 					updateSucc = infer->strengthen(write->get_original_mo(),
@@ -450,8 +450,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 		const ModelAction *act = *it;
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act)) {
-				const ModelAction *write = act->get_reads_from(),
-					*desired = badrfset.get(act);
+				const ModelAction *write = act->get_reads_from();
 					
 				if (write->get_seq_number() == 0) { // Uninitialzed read
 					unInitRead = act;
@@ -501,58 +500,77 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
-					// act->read, write->write1 & desired->write2
-					if (!isSCEdge(write, desired) &&
-						!write->happens_before(desired)) {
-						paths1 = get_rf_sb_paths(write, desired);
-						if (paths1->size() > 0) {
-							FENCE_PRINT("From write1 to write2: \n");
-							//print_rf_sb_paths(paths1, write, desired);
-							candidates = imposeSync(NULL, paths1);
-						} else {
-							FENCE_PRINT("Have to impose sc on write1 & write2: \n");
-							ACT_PRINT(write);
-							ACT_PRINT(desired);
-							candidates = imposeSC(NULL, write, desired);
+					
+					// Find all writes between the write1 and the read
+					action_list_t *write2s = new action_list_t();
+					ModelAction *write2;
+					action_list_t::iterator findIt = find(list->begin(), list->end(), write);
+					findIt++;
+					do {
+						write2 = *findIt;
+						if (write2->is_write() && write2->get_location() ==
+							write->get_location()) {
+							write2s->push_back(write2);
 						}
-					} else {
-						FENCE_PRINT("write1 mo before write2. \n");
-					}
-
-					if (!isSCEdge(desired, act) &&
-						!desired->happens_before(act)) {
-						paths2 = get_rf_sb_paths(desired, act);
-						if (paths2->size() > 0) {
-							FENCE_PRINT("From write2 to read: \n");
-							//print_rf_sb_paths(paths2, desired, act);
-							//FENCE_PRINT("paths2 size: %d\n", paths2->size());
-							if (candidates == NULL) {
-								candidates = imposeSync(NULL, paths2);
+						findIt++;
+					} while (write2 != act);
+					//FENCE_PRINT("write2s set size: %d\n", write2s->size());
+					for (action_list_t::iterator itWrite2 = write2s->begin();
+						itWrite2 != write2s->end(); itWrite2++) {
+						write2 = *itWrite2;
+						// act->read, write->write1 & write2->write2
+						if (!isSCEdge(write, write2) &&
+							!write->happens_before(write2)) {
+							paths1 = get_rf_sb_paths(write, write2);
+							if (paths1->size() > 0) {
+								FENCE_PRINT("From write1 to write2: \n");
+								//print_rf_sb_paths(paths1, write, write2);
+								candidates = imposeSync(NULL, paths1);
 							} else {
-								candidates = imposeSync(candidates, paths2);
+								FENCE_PRINT("Have to impose sc on write1 & write2: \n");
+								ACT_PRINT(write);
+								ACT_PRINT(write2);
+								candidates = imposeSC(NULL, write, write2);
 							}
-							// Add candidates to potentialResults list
-							//ModelList<memory_order *>::iterator it1 = candidates->begin();
-							//printWildcardResult(*it1, wildcardNum);
-							//potentialResults->insert(potentialResults->end(),
-							//	candidates->begin(), candidates->end());
-							addMoreCandidates(potentialResults, candidates);
 						} else {
-							FENCE_PRINT("Have to impose sc on write2 & read: \n");
-							ACT_PRINT(desired);
-							ACT_PRINT(act);
-							if (candidates == NULL) {
-								candidates = imposeSC(NULL, desired, act);
-							} else {
-								candidates = imposeSC(candidates, desired, act);
-							}
-							//potentialResults->insert(potentialResults->end(),
-							//	candidates->begin(), candidates->end());
-
-							addMoreCandidates(potentialResults, candidates);
+							FENCE_PRINT("write1 mo before write2. \n");
 						}
-					} else {
-						FENCE_PRINT("write2 hb/sc before read. \n");
+
+						if (!isSCEdge(write2, act) &&
+							!write2->happens_before(act)) {
+							paths2 = get_rf_sb_paths(write2, act);
+							if (paths2->size() > 0) {
+								FENCE_PRINT("From write2 to read: \n");
+								//print_rf_sb_paths(paths2, write2, act);
+								//FENCE_PRINT("paths2 size: %d\n", paths2->size());
+								if (candidates == NULL) {
+									candidates = imposeSync(NULL, paths2);
+								} else {
+									candidates = imposeSync(candidates, paths2);
+								}
+								// Add candidates to potentialResults list
+								//ModelList<memory_order *>::iterator it1 = candidates->begin();
+								//printWildcardResult(*it1, wildcardNum);
+								//potentialResults->insert(potentialResults->end(),
+								//	candidates->begin(), candidates->end());
+								addMoreCandidates(potentialResults, candidates);
+							} else {
+								FENCE_PRINT("Have to impose sc on write2 & read: \n");
+								ACT_PRINT(write2);
+								ACT_PRINT(act);
+								if (candidates == NULL) {
+									candidates = imposeSC(NULL, write2, act);
+								} else {
+									candidates = imposeSC(candidates, write2, act);
+								}
+								//potentialResults->insert(potentialResults->end(),
+								//	candidates->begin(), candidates->end());
+
+								addMoreCandidates(potentialResults, candidates);
+							}
+						} else {
+							FENCE_PRINT("write2 hb/sc before read. \n");
+						}
 					}
 				} else { // Pattern (b) read future value
 					// act->read, write->futureWrite
@@ -735,11 +753,11 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		int write_seqnum = write->get_seq_number();
 		if (id_to_int(write->get_tid()) == idx1) {
 			if (write_seqnum >= act1->get_seq_number()) { // Find a path
-				FENCE_PRINT("Find a path.\n");
+				//FENCE_PRINT("Find a path.\n");
 				paths->push_back(path);
 				continue;
 			} else { // Not a rfUsb path
-				FENCE_PRINT("Not a path.\n");
+				//FENCE_PRINT("Not a path.\n");
 				path->clear();
 				continue;
 			}
