@@ -129,11 +129,7 @@ void SCFence::actionAtModelCheckingFinish() {
 		model_print("Original size: %d!\n", results->size());
 		pruneResults();
 		model_print("Pruned size: %d!\n", results->size());
-		for (ModelList<Inference*>::iterator it = results->begin(); it !=
-			results->end(); it++) {
-			Inference *result = *it;
-			result->print();
-		}
+		printWildcardResults(results);
 	}
 }
 
@@ -279,6 +275,7 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 		bool updateSucc = true;
 		if (wasNullList) {
 			Inference *infer = new Inference(curInference);
+			infer->print();
 			if (release_seq) {
 				const ModelAction *relHead = path->front()->get_reads_from(),
 					*lastRead = path->back();
@@ -528,7 +525,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						if (paths2->size() > 0) {
 							FENCE_PRINT("From write2 to read: \n");
 							//print_rf_sb_paths(paths2, desired, act);
-							FENCE_PRINT("paths2 size: %d\n", paths2->size());
+							//FENCE_PRINT("paths2 size: %d\n", paths2->size());
 							if (candidates == NULL) {
 								candidates = imposeSync(NULL, paths2);
 							} else {
@@ -539,11 +536,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							//printWildcardResult(*it1, wildcardNum);
 							//potentialResults->insert(potentialResults->end(),
 							//	candidates->begin(), candidates->end());
-							model_print("IN candidates size: %d\n", candidates->size());
-							model_print("IN potential results size: %d.\n", potentialResults->size());
-							printWildcardResults(candidates);
 							addMoreCandidates(potentialResults, candidates);
-							model_print("IN potential results size: %d.\n", potentialResults->size());
 						} else {
 							FENCE_PRINT("Have to impose sc on write2 & read: \n");
 							ACT_PRINT(desired);
@@ -616,8 +609,11 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 
 void SCFence::printWildcardResults(ModelList<Inference*> *results) {
 	for (ModelList<Inference*>::iterator it = results->begin(); it !=
-		results->end(); it++)
+		results->end(); it++) {
+		int idx = distance(results->begin(), it) + 1;
+		model_print("Result %d:\n", idx);
 		(*it)->print();
+	}
 }
 
 void SCFence::analyze(action_list_t *actions) {

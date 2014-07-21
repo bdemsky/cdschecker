@@ -68,6 +68,7 @@ typedef struct Inference {
 		for (; i <= newsize; i++)
 			newOrders[i] = WILDCARD_NONEXIST;
 		model_free(orders);
+		size = newsize;
 		orders = newOrders;
 	}
 
