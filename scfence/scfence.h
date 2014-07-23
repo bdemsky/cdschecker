@@ -24,6 +24,11 @@ using std::memory_order;
 #define CV_PRINT(x) (x)
 #endif
 
+
+#define WILDCARD_ACT_PRINT(x)\
+	FENCE_PRINT("Wildcard: %d\n", get_wildcard_id((x)->get_original_mo()));\
+	ACT_PRINT(x);
+
 /* Forward declaration */
 class SCFence;
 
@@ -82,12 +87,15 @@ typedef struct Inference {
 		}
 	}
 
-	bool strengthen(memory_order wildcard, memory_order mo) {
+	bool strengthen(const ModelAction *act, memory_order mo) {
+		memory_order wildcard = act->get_original_mo();
+		int wildcardID = get_wildcard_id(wildcard);
 		if (!is_wildcard(wildcard)) {
 			model_print("We cannot make this update!\n");
+			model_print("wildcard: %d --> mo: %d\n", wildcardID, mo);
+			act->print();
 			return false;
 		}
-		int wildcardID = get_wildcard_id(wildcard);
 		if (wildcardID > size)
 			resize(wildcardID);
 		ASSERT (is_normal_mo(mo));
@@ -119,6 +127,11 @@ typedef struct Inference {
 				orders[wildcardID] = mo;
 				break;
 		}
+		FENCE_PRINT("\n");
+		FENCE_PRINT("Strengthened wildcard:%d\n", wildcardID);
+		WILDCARD_ACT_PRINT(act);
+		FENCE_PRINT("-> %s\n", get_mo_str(mo));
+		FENCE_PRINT("\n");
 		return true;
 	}
 

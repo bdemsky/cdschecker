@@ -279,10 +279,8 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 			if (release_seq) {
 				const ModelAction *relHead = path->front()->get_reads_from(),
 					*lastRead = path->back();
-				updateSucc = infer->strengthen(relHead->get_original_mo(),
-					memory_order_release);
-				updateSucc = infer->strengthen(lastRead->get_original_mo(),
-					memory_order_acquire);
+				updateSucc = infer->strengthen(relHead, memory_order_release);
+				updateSucc = infer->strengthen(lastRead, memory_order_acquire);
 			} else {
 				for (action_list_t::iterator it = path->begin(); it != path->end(); it++) {
 					const ModelAction *read = *it,
@@ -290,10 +288,8 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 					//FENCE_PRINT("path size:%d\n", path->size());
 					//write->print();
 					//read->print();
-					updateSucc = infer->strengthen(write->get_original_mo(),
-						memory_order_release);
-					updateSucc = infer->strengthen(read->get_original_mo(),
-						memory_order_acquire);
+					updateSucc = infer->strengthen(write, memory_order_release);
+					updateSucc = infer->strengthen(read, memory_order_acquire);
 				}
 			}
 			if (updateSucc) {
@@ -311,19 +307,15 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 				if (release_seq) {
 					const ModelAction *relHead = path->front()->get_reads_from(),
 						*lastRead = path->back();
-					updateSucc = infer->strengthen(relHead->get_original_mo(),
-						memory_order_release);
-					updateSucc = infer->strengthen(lastRead->get_original_mo(),
-						memory_order_acquire);
+					updateSucc = infer->strengthen(relHead, memory_order_release);
+					updateSucc = infer->strengthen(lastRead, memory_order_acquire);
 				} else {
 					for (action_list_t::iterator it = path->begin(); it !=
 						path->end(); it++) {
 						const ModelAction *read = *it,
 							*write = read->get_reads_from();
-						updateSucc = infer->strengthen(write->get_original_mo(),
-							memory_order_release);
-						updateSucc = infer->strengthen(read->get_original_mo(),
-							memory_order_acquire);
+						updateSucc = infer->strengthen(write, memory_order_release);
+						updateSucc = infer->strengthen(read, memory_order_acquire);
 					}	
 				}
 				if (!updateSucc) {
@@ -349,10 +341,8 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 	bool updateSucc = true;
 	if (wasNullList) {
 		Inference *infer = new Inference(curInference);
-		updateSucc = infer->strengthen(act1->get_original_mo(),
-			memory_order_seq_cst);
-		updateSucc = infer->strengthen(act2->get_original_mo(),
-			memory_order_seq_cst);
+		updateSucc = infer->strengthen(act1, memory_order_seq_cst);
+		updateSucc = infer->strengthen(act2, memory_order_seq_cst);
 
 		if (updateSucc) {
 			partialCandidates->push_back(infer);
@@ -367,10 +357,8 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 			i_cand++) {
 			updateSucc = true;
 			Inference *infer = *i_cand;
-			updateSucc = infer->strengthen(act1->get_original_mo(),
-				memory_order_seq_cst);
-			updateSucc = infer->strengthen(act2->get_original_mo(),
-				memory_order_seq_cst);
+			updateSucc = infer->strengthen(act1, memory_order_seq_cst);
+			updateSucc = infer->strengthen(act2, memory_order_seq_cst);
 
 			if (!updateSucc) {
 				// This inference won't work
@@ -390,7 +378,10 @@ bool SCFence::addMoreCandidate(ModelList<Inference*> *existCandidates, Inference
 	for (it = existCandidates->begin(); it != existCandidates->end(); it++) {
 		Inference *exist = *it;
 		res = exist->compareTo(newCandidate);
-		if (res == 0 || res == -1) { // Got an equal or stronger candidate
+		if (res == 0) { // Got an equal or stronger candidate
+			//FENCE_PRINT("Got an equal or stronger candidate, NOT adding!\n");
+			return false;
+		} else if (res == -1) { // Got a stronger candidate
 			//FENCE_PRINT("Got an equal or stronger candidate, NOT adding!\n");
 			return false;
 		} else if (res == 1) {
@@ -443,11 +434,11 @@ bool SCFence::addMoreCandidates(ModelList<Inference*> *existCandidates, ModelLis
 
 
 void SCFence::addPotentialFixes(action_list_t *list) {
-	sync_paths_t *paths1 = NULL, *paths2 = NULL;
-	ModelList<Inference*> *candidates = NULL;
-	const ModelAction *unInitRead = NULL;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
-		const ModelAction *act = *it;
+		sync_paths_t *paths1 = NULL, *paths2 = NULL;
+		ModelList<Inference*> *candidates = NULL;
+		const ModelAction *unInitRead = NULL,
+			*act = *it;
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from();
@@ -468,7 +459,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						paths1 = get_rf_sb_paths(theWrite, act);
 						if (paths1->size() > 0) {
 							FENCE_PRINT("From some write to uninit read: \n");
-							//print_rf_sb_paths(paths1, theWrite, act);
+							print_rf_sb_paths(paths1, theWrite, act);
 							candidates = imposeSync(NULL, paths1);
 							model_print("candidates size: %d.\n", candidates->size());
 							//potentialResults->insert(potentialResults->end(),
@@ -524,7 +515,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							paths1 = get_rf_sb_paths(write, write2);
 							if (paths1->size() > 0) {
 								FENCE_PRINT("From write1 to write2: \n");
-								//print_rf_sb_paths(paths1, write, write2);
+								print_rf_sb_paths(paths1, write, write2);
 								candidates = imposeSync(NULL, paths1);
 							} else {
 								FENCE_PRINT("Have to impose sc on write1 & write2: \n");
@@ -541,7 +532,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							paths2 = get_rf_sb_paths(write2, act);
 							if (paths2->size() > 0) {
 								FENCE_PRINT("From write2 to read: \n");
-								//print_rf_sb_paths(paths2, write2, act);
+								print_rf_sb_paths(paths2, write2, act);
 								//FENCE_PRINT("paths2 size: %d\n", paths2->size());
 								if (candidates == NULL) {
 									candidates = imposeSync(NULL, paths2);
@@ -577,11 +568,29 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 					FENCE_PRINT("Running through pattern (b)!\n");
 					// Fixing one direction (read -> futureWrite)
 					paths1 = get_rf_sb_paths(act, write);
-					if (paths1->size() > 0) {
-						FENCE_PRINT("From read to future write: \n");
-						//print_rf_sb_paths(paths1, act, write);
-						candidates = imposeSync(NULL, paths1);
-						model_print("candidates size: %d.\n", candidates->size());
+					paths2 = get_rf_sb_paths(write, act);
+					if (paths1->size() > 0 || paths2->size() > 0) {
+						if (paths1->size() > 0) {
+							// Fixing one direction (read -> futureWrite )
+							FENCE_PRINT("From read to future write: \n");
+							print_rf_sb_paths(paths1, act, write);
+							candidates = imposeSync(NULL, paths1);
+							model_print("candidates size: %d.\n", candidates->size());
+							//potentialResults->insert(potentialResults->end(),
+							//	candidates->begin(), candidates->end());
+							addMoreCandidates(potentialResults, candidates);
+						}
+						if (paths2->size() > 0) {
+							FENCE_PRINT("paths2 size in pattern(b) : %d\n",
+								paths2->size());
+							if (candidates != NULL)
+								delete candidates;
+							// Fixing the other direction (futureWrite -> read)
+							FENCE_PRINT("From future write to read: \n");
+							print_rf_sb_paths(paths2, write, act);
+							candidates = imposeSync(NULL, paths2);
+							model_print("candidates size: %d.\n", candidates->size());
+						}
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
 						ACT_PRINT(act);
@@ -595,23 +604,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						*/
 						candidates = imposeSC(NULL, act, write);
 					}
-
-					// Fixing the other direction (futureWrite -> read)
-					Inference *anotherInfer = new Inference(curInference);
-					bool updateSucc = true;
-					updateSucc = anotherInfer->strengthen(
-						write->get_original_mo(), memory_order_release);
-					updateSucc = anotherInfer->strengthen(
-						act->get_original_mo(), memory_order_acquire);
-					if (!updateSucc) {
-						delete anotherInfer;
-					} else {
-						candidates->push_back(anotherInfer);
-					}
-					//potentialResults->insert(potentialResults->end(),
-					//	candidates->begin(), candidates->end());
-					addMoreCandidates(potentialResults, candidates);
-
 				}
 				model_print("candidates size: %d.\n", candidates->size());
 				model_print("potential results size: %d.\n", potentialResults->size());
@@ -656,6 +648,7 @@ void SCFence::analyze(action_list_t *actions) {
 
 	// Now we find a non-SC execution
 	if (cyclic) {
+		print_list(list);
 		addPotentialFixes(list);
 		Inference *candidate = potentialResults->front();
 		if (candidate == NULL) {
@@ -700,7 +693,6 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 	action_list_t::iterator it1 = list1->begin();
 	// First action of the thread where act1 belongs
 	ModelAction *start = *it1;
-	int start_seqnum = start->get_seq_number();
 	
 	// The container for all possible results
 	sync_paths_t *paths = new sync_paths_t();
@@ -782,7 +774,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 
 void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end) {
 	FENCE_PRINT("Starting from:\n");
-	ACT_PRINT(start);
+	WILDCARD_ACT_PRINT(start);
 	for (sync_paths_t::iterator paths_i = paths->begin(); paths_i !=
 		paths->end(); paths_i++) {
 		FENCE_PRINT("Path %d:\n", distance(paths->begin(), paths_i));
@@ -794,10 +786,10 @@ void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, c
 			const ModelAction *read = *it,
 				*write = read->get_reads_from(),
 				*next_read = (i_next != path->end()) ? *i_next : NULL;
-			ACT_PRINT(write);
+			WILDCARD_ACT_PRINT(write);
 			if (next_read == NULL || next_read->get_reads_from() != read) {
 				// Not the same RMW, also print the read operation
-				ACT_PRINT(read);/*
+				WILDCARD_ACT_PRINT(read);/*
 				model_print("Right here!\n");
 				model_print("wildcard: %d\n",
 					get_wildcard_id(read->get_original_mo()));*/
@@ -807,7 +799,7 @@ void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, c
 	}
 
 	FENCE_PRINT("Ending with:\n");
-	ACT_PRINT(end);
+	WILDCARD_ACT_PRINT(end);
 }
 
 bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2) {

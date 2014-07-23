@@ -6,6 +6,7 @@
 
 #define wildcard(x) ((memory_order) (0x1000+x))
 #define get_wildcard_id(x) ((int) (x-0x1000))
+#define get_wildcard_id_zero(x) ((get_wildcard_id(x)) > 0 ? get_wildcard_id(x) : 0)
 
 #define INIT_WILDCARD_NUM 20
 #define WILDCARD_NONEXIST (memory_order) -1
