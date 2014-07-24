@@ -238,7 +238,8 @@ class SCFence : public TraceAnalysis {
 	void reset(action_list_t *list);
 	ModelAction* pruneArray(ModelAction**, int);
 
-	void parseOption(char *opt);
+	bool parseOption(char *opt);
+	char* parseOptionHelper(char *opt, int *optIdx);
 	/** Functions that work for infering the parameters */
 	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
 	void print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end);
@@ -258,6 +259,7 @@ class SCFence : public TraceAnalysis {
 	 * potentialResults list
 	 */
 	void addPotentialFixes(action_list_t *list);
+	bool addFixesImplicitMO(action_list_t *list);
 	bool addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates);
 	bool addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate);
 	

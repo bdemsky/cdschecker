@@ -197,36 +197,63 @@ void SCFence::initializeByFile() {
 	fclose(fp);
 }
 
-void SCFence::parseOption(char *opt) {
-	char optionChar;
-	int optIdx = 0;
-	do {
-		optionChar = opt[optIdx++];
-		char *val = model_malloc(32 * sizeof(char));
-		int valIdx = 0;
-		do {
-			if (opt[optIdx] == '\0' || opt[optIdx] == '_') {
-				break;
-			}
-			val[valIdx++] = opt[optIdx++];
-		} while (opt[optIdx] != '\0' && opt[optIdx] != '_');
-		val[valIdx] = '\0';
-		switch (optIdx) {
-			case 'f': // Read initial inference from file
+char* SCFence::parseOptionHelper(char *opt, int *optIdx) {
+	char *res = (char*) model_malloc(1024 * sizeof(char));
+	int resIdx = 0;
+	while (opt[*optIdx] != '\0' && opt[*optIdx] != '_') {
+		res[resIdx++] = opt[(*optIdx)++];
+	}
+	res[resIdx] = '\0';
+	return res;
+}
 
+bool SCFence::parseOption(char *opt) {
+	int optIdx = 0;
+	char *val = NULL;
+	while (true) {
+		char option = opt[optIdx++];
+		val = parseOptionHelper(opt, &optIdx);
+		switch (option) {
+			case 'f': // Read initial inference from file
+				//model_print("Parsing f option!\n");
+				candidateFile = val;
+				//model_print("f value: %s\n", val);
+				if (strcmp(val, "") == 0) {
+					model_print("Need to specify a file that contains initial inference!\n");
+					return true;
+				}
 				break;
 			case 'b': // The bound above 
-
+				//model_print("Parsing b option!\n");
+				//model_print("b value: %s\n", val);
+				implicitMOReadBound = atoi(val);
+				if (implicitMOReadBound <= 0) {
+					model_print("Enter valid bound value!\n");
+					return true;
+				}
 				break;
 			case 'm': // Infer the modification order from repetitive reads from
 					  // the same write
-
+				//model_print("Parsing m option!\n");
+				//model_print("m value: %s\n", val);
+				inferImplicitMO = true;
+				if (strcmp(val, "") != 0) {
+					model_print("option doesn't take any arguments!\n");
+					return true;
+				}
 				break;
 			default:
+				model_print("Unknown SCFence option: %c!\n", option);
+				return true;
 				break;
 		}
-		optIdx++;
+		if (opt[optIdx] == '_') {
+			optIdx++;
+		} else {
+			break;
+		}
 	}
+	return false;
 
 }
 
@@ -245,9 +272,9 @@ bool SCFence::option(char * opt) {
 	} else if (strcmp(opt, "time")==0) {
 		time=true;
 		return false;
-	} else if (strcmp(opt, "help") != 0) {
-		candidateFile = opt;
-		initializeByFile();
+	} else if (!parseOption(opt)) {
+		if (candidateFile != NULL)
+			initializeByFile();
 		return false;
 	} else {
 		model_print("SC Analysis options\n");
@@ -256,6 +283,11 @@ bool SCFence::option(char * opt) {
 		model_print("nonsc -- print non-sc execution\n");
 		model_print("quiet -- print nothing\n");
 		model_print("time -- time execution of scanalysis\n");
+		
+		model_print("OR short options with _ (understore) as separator\n");
+		model_print("f -- takes candidate file as argument\n");
+		model_print("m -- imply implicit modification order, takes no arguments\n");
+		model_print("b -- specify the bound for the mo implication, takes a number as argument\n");
 		model_print("\n");
 		return true;
 	}
@@ -664,6 +696,66 @@ void SCFence::printWildcardResults(ModelList<Inference*> *results) {
 	}
 }
 
+/** Return false to indicate there's no implied mo for this execution */
+bool SCFence::addFixesImplicitMO(action_list_t *list) {
+	for (action_list_t::reverse_iterator rit2 = list->rbegin(); rit2 !=
+		list->rend(); rit2++) {
+		ModelAction *write2 = *rit2;
+		if (!write2->is_write())
+			continue;
+		action_list_t::reverse_iterator rit1 = rit2;
+		rit1++;
+		for (; rit1 != list->rend(); rit1++) {
+			ModelAction *write1 = *rit1;
+			if (!write1->is_write() || write1->get_location() !=
+				write2->get_location())
+				continue;
+			if (write2->get_seq_number() - write1->get_seq_number() <
+				implicitMOReadBound) {
+				// This is just a fast break
+				break;
+			}
+			int readCnt = 0;
+			action_list_t::reverse_iterator ritRead = rit2;
+			ritRead++;
+			for (; ritRead != rit1; ritRead++) {
+				ModelAction *read = *ritRead;
+				if (!read->is_read() || read->get_location() !=
+					write1->get_location())
+					continue;
+				readCnt++;
+			}
+			if (readCnt > implicitMOReadBound) {
+				// Found it, make write1 --hb-> write2
+				FENCE_PRINT("Running through pattern (c) -- implicit mo!\n");
+				sync_paths_t *paths1 = get_rf_sb_paths(write1, write2);
+				if (paths1->size() > 0) {
+					FENCE_PRINT("From write1 to write2: \n");
+					print_rf_sb_paths(paths1, write1, write2);
+					ModelList<Inference*> *candidates = imposeSync(NULL, paths1);
+					addMoreCandidates(potentialResults, candidates);
+					model_print("candidates size: %d.\n", candidates->size());
+					model_print("potential results size: %d.\n", potentialResults->size());
+					delete candidates;
+
+					// Directly return 
+					return true;
+				} else {
+					FENCE_PRINT("Cannot establish hb between write1 & write2: \n");
+					ACT_PRINT(write1);
+					ACT_PRINT(write2);
+					break;
+				}
+			} else {
+				break;
+			}
+		}
+		// The two writes aren't the pair, keep looking for write1
+		break;
+	}
+	return false;
+}
+
 void SCFence::analyze(action_list_t *actions) {
 	struct timeval start;
 	struct timeval finish;
@@ -684,7 +776,6 @@ void SCFence::analyze(action_list_t *actions) {
 	}
 	update_stats();
 
-	print_list(list);
 	// Now we find a non-SC execution
 	if (cyclic) {
 		print_list(list);
@@ -701,6 +792,25 @@ void SCFence::analyze(action_list_t *actions) {
 		delete curInference;
 		curInference = candidate;
 		model->restart();
+	} else {
+	// Also check if we should imply the implicit modification order
+		model_print("inferImplictMO: %d\n", inferImplicitMO);
+		model_print("too_many_steps: %d\n", execution->too_many_steps());
+		model_print("maxreads & implicitReadBound: %d & %d\n",
+			model->params.maxreads, implicitMOReadBound);
+		if (inferImplicitMO && execution->too_many_steps() &&
+			model->params.maxreads < implicitMOReadBound) {
+			print_list(list);
+			bool infered = addFixesImplicitMO(list);
+			if (infered) {
+				Inference *candidate = potentialResults->front();
+				potentialResults->pop_front();
+				// Clear the current inference before over-writing
+				delete curInference;
+				curInference = candidate;
+				model->restart();
+			}
+		}
 	}
 }
 
