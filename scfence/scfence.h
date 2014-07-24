@@ -28,7 +28,7 @@ using std::memory_order;
 
 
 #define WILDCARD_ACT_PRINT(x)\
-	FENCE_PRINT("Wildcard: %d\n", get_wildcard_id((x)->get_original_mo()));\
+	FENCE_PRINT("Wildcard: %d\n", get_wildcard_id_zero((x)->get_original_mo()));\
 	ACT_PRINT(x);
 
 /* Forward declaration */
@@ -59,7 +59,7 @@ typedef struct Inference {
 	}
 
 	Inference(Inference *infer) {
-		ASSERT (infer->size > 0);
+		ASSERT (infer->size > 0 && infer->size <= MAX_WILDCARD_NUM);
 		orders = (memory_order *) model_malloc((infer->size + 1) * sizeof(memory_order*));
 		this->size = infer->size;
 		for (int i = 0; i <= size; i++)
@@ -67,7 +67,7 @@ typedef struct Inference {
 	}
 
 	void resize(int newsize) {
-		ASSERT (newsize > size);
+		ASSERT (newsize > size && newsize <= MAX_WILDCARD_NUM);
 		memory_order *newOrders = (memory_order *) model_malloc((newsize + 1) * sizeof(memory_order*));
 		int i;
 		for (i = 0; i <= size; i++)
@@ -129,12 +129,43 @@ typedef struct Inference {
 				orders[wildcardID] = mo;
 				break;
 		}
+		/*
 		FENCE_PRINT("\n");
 		FENCE_PRINT("Strengthened wildcard:%d\n", wildcardID);
 		WILDCARD_ACT_PRINT(act);
 		FENCE_PRINT("-> %s\n", get_mo_str(mo));
 		FENCE_PRINT("\n");
+		*/
 		return true;
+	}
+
+	/** @Return:
+		1 -> 'this' > one of the inferences in the result list
+		0 -> 'this' == one of the inferences in the result list
+		-1 -> 'this' is weaker or uncomparable to any of the inferences
+	*/
+	int compareTo(ModelList<Inference*> *list) {
+		for (ModelList<Inference*>::iterator it = list->begin(); it !=
+			list->end(); it++) {
+			Inference *res = *it;
+			int compVal = compareTo(res);
+			if (compVal == 1) {
+				FENCE_PRINT("Comparing reulsts: %d!\n", compVal);
+				res->print();
+				FENCE_PRINT("\n");
+				print();
+				FENCE_PRINT("\n");
+				return 1;
+			} else if (compVal == 0) {
+				FENCE_PRINT("Comparing reulsts: %d!\n", compVal);
+				res->print();
+				FENCE_PRINT("\n");
+				print();
+				FENCE_PRINT("\n");
+				return 0;
+			}
+		}
+		return -1;
 	}
 
 
@@ -190,6 +221,7 @@ typedef struct Inference {
 	}
 
 	void print() {
+		ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
 		for (int i = 1; i <= size; i++) {
 	        memory_order mo = orders[i];
 			if (mo != WILDCARD_NONEXIST) {
@@ -262,6 +294,8 @@ class SCFence : public TraceAnalysis {
 	bool addFixesImplicitMO(action_list_t *list);
 	bool addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates);
 	bool addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate);
+	/** Get next inference from the potential result list */
+	bool getNextCandidate();
 	
 	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths);
 	ModelList<Inference*>* imposeSC(ModelList<Inference*> *partialCandidates, const ModelAction *act1, const ModelAction *act2);

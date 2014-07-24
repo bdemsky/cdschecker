@@ -534,7 +534,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							model_print("candidates size: %d.\n", candidates->size());
 							//potentialResults->insert(potentialResults->end(),
 							//	candidates->begin(), candidates->end());
-							addMoreCandidates(potentialResults, candidates);
 							solveUninit = true;
 						} else {
 							FENCE_PRINT("Might not be able to impose sync to solve the uninit \n");
@@ -575,9 +574,10 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						}
 						findIt++;
 					} while (write2 != act);
-					//FENCE_PRINT("write2s set size: %d\n", write2s->size());
+					FENCE_PRINT("write2s set size: %d\n", write2s->size());
 					for (action_list_t::iterator itWrite2 = write2s->begin();
 						itWrite2 != write2s->end(); itWrite2++) {
+						candidates = NULL;
 						write2 = *itWrite2;
 						// act->read, write->write1 & write2->write2
 						if (!isSCEdge(write, write2) &&
@@ -609,12 +609,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 								} else {
 									candidates = imposeSync(candidates, paths2);
 								}
-								// Add candidates to potentialResults list
-								//ModelList<memory_order *>::iterator it1 = candidates->begin();
-								//printWildcardResult(*it1, wildcardNum);
-								//potentialResults->insert(potentialResults->end(),
-								//	candidates->begin(), candidates->end());
-								addMoreCandidates(potentialResults, candidates);
 							} else {
 								FENCE_PRINT("Have to impose sc on write2 & read: \n");
 								ACT_PRINT(write2);
@@ -624,14 +618,18 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 								} else {
 									candidates = imposeSC(candidates, write2, act);
 								}
-								//potentialResults->insert(potentialResults->end(),
-								//	candidates->begin(), candidates->end());
-
-								addMoreCandidates(potentialResults, candidates);
 							}
 						} else {
 							FENCE_PRINT("write2 hb/sc before read. \n");
 						}
+						
+						// Add candidates to potentialResults list for current
+						// write2
+						printWildcardResults(candidates);
+						addMoreCandidates(potentialResults, candidates);
+						model_print("potential results size: %d.\n", potentialResults->size());
+						printWildcardResults(potentialResults);
+						delete candidates;
 					}
 				} else { // Pattern (b) read future value
 					// act->read, write->futureWrite
@@ -646,11 +644,15 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							print_rf_sb_paths(paths1, act, write);
 							candidates = imposeSync(NULL, paths1);
 							model_print("candidates size: %d.\n", candidates->size());
+							model_print("potential results size: %d.\n", potentialResults->size());
+							printWildcardResults(potentialResults);
 							//potentialResults->insert(potentialResults->end(),
 							//	candidates->begin(), candidates->end());
 							addMoreCandidates(potentialResults, candidates);
+							delete candidates;
 						}
 						if (paths2->size() > 0) {
+							candidates = NULL;
 							FENCE_PRINT("paths2 size in pattern(b) : %d\n",
 								paths2->size());
 							if (candidates != NULL)
@@ -660,6 +662,8 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							print_rf_sb_paths(paths2, write, act);
 							candidates = imposeSync(NULL, paths2);
 							model_print("candidates size: %d.\n", candidates->size());
+							addMoreCandidates(potentialResults, candidates);
+							delete candidates;
 						}
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
@@ -673,12 +677,10 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 
 						*/
 						candidates = imposeSC(NULL, act, write);
+						addMoreCandidates(potentialResults, candidates);
+						delete candidates;
 					}
 				}
-				model_print("candidates size: %d.\n", candidates->size());
-				model_print("potential results size: %d.\n", potentialResults->size());
-				delete candidates;
-				
 				// Just eliminate the first cycle we see in the execution
 				break;
 			}
@@ -698,6 +700,7 @@ void SCFence::printWildcardResults(ModelList<Inference*> *results) {
 
 /** Return false to indicate there's no implied mo for this execution */
 bool SCFence::addFixesImplicitMO(action_list_t *list) {
+	ModelList<Inference*> *candidates = NULL;
 	for (action_list_t::reverse_iterator rit2 = list->rbegin(); rit2 !=
 		list->rend(); rit2++) {
 		ModelAction *write2 = *rit2;
@@ -710,11 +713,6 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 			if (!write1->is_write() || write1->get_location() !=
 				write2->get_location())
 				continue;
-			if (write2->get_seq_number() - write1->get_seq_number() <
-				implicitMOReadBound) {
-				// This is just a fast break
-				break;
-			}
 			int readCnt = 0;
 			action_list_t::reverse_iterator ritRead = rit2;
 			ritRead++;
@@ -728,33 +726,61 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 			if (readCnt > implicitMOReadBound) {
 				// Found it, make write1 --hb-> write2
 				FENCE_PRINT("Running through pattern (c) -- implicit mo!\n");
+				FENCE_PRINT("Read count between the two writes: %d\n", readCnt);
+				FENCE_PRINT("implicitMOReadBound: %d\n", implicitMOReadBound);
+				WILDCARD_ACT_PRINT(write1);
+				WILDCARD_ACT_PRINT(write2);
 				sync_paths_t *paths1 = get_rf_sb_paths(write1, write2);
 				if (paths1->size() > 0) {
 					FENCE_PRINT("From write1 to write2: \n");
 					print_rf_sb_paths(paths1, write1, write2);
-					ModelList<Inference*> *candidates = imposeSync(NULL, paths1);
-					addMoreCandidates(potentialResults, candidates);
-					model_print("candidates size: %d.\n", candidates->size());
-					model_print("potential results size: %d.\n", potentialResults->size());
-					delete candidates;
-
-					// Directly return 
-					return true;
+					candidates = imposeSync(candidates, paths1);
 				} else {
 					FENCE_PRINT("Cannot establish hb between write1 & write2: \n");
 					ACT_PRINT(write1);
 					ACT_PRINT(write2);
-					break;
 				}
-			} else {
-				break;
 			}
 		}
-		// The two writes aren't the pair, keep looking for write1
-		break;
+		// Find other pairs of writes
 	}
-	return false;
+	if (candidates == NULL) {
+		return false;
+	} else {
+		model_print("potential results size: %d.\n", potentialResults->size());
+		model_print("candidates size: %d.\n", candidates->size());
+		printWildcardResults(candidates);
+		potentialResults->insert(potentialResults->end(),
+			candidates->begin(), candidates->end());
+		model_print("potential results size: %d.\n", potentialResults->size());
+		delete candidates;
+	}
 }
+
+bool SCFence::getNextCandidate() {
+	while (true) {
+		Inference *candidate = potentialResults->front();
+		if (candidate == NULL) {
+			// We are unable to find any inferences
+			return false;
+		}
+		//printWildcardResult(candidate, wildcardNum);
+		potentialResults->pop_front();
+		model_print("potential results size: %d.\n", potentialResults->size());
+		int compVal = candidate->compareTo(results);
+		// Only try those candidates weaker than the results
+		if (compVal == 0 || compVal == 1) {
+			delete candidate;
+			continue;
+		}
+		// Clear the current inference before over-writing
+		delete curInference;
+		curInference = candidate;
+		curInference->print();
+		return true;
+	}
+}
+
 
 void SCFence::analyze(action_list_t *actions) {
 	struct timeval start;
@@ -780,6 +806,10 @@ void SCFence::analyze(action_list_t *actions) {
 	if (cyclic) {
 		print_list(list);
 		addPotentialFixes(list);
+		if (!getNextCandidate()) {
+			model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+		}
+		/*
 		Inference *candidate = potentialResults->front();
 		if (candidate == NULL) {
 			// We are unable to find any inferences
@@ -791,6 +821,7 @@ void SCFence::analyze(action_list_t *actions) {
 		// Clear the current inference before over-writing
 		delete curInference;
 		curInference = candidate;
+		*/
 		model->restart();
 	} else {
 	// Also check if we should imply the implicit modification order
@@ -803,11 +834,16 @@ void SCFence::analyze(action_list_t *actions) {
 			print_list(list);
 			bool infered = addFixesImplicitMO(list);
 			if (infered) {
+				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
+				if (!getNextCandidate()) {
+					model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+				}
+				/*
 				Inference *candidate = potentialResults->front();
 				potentialResults->pop_front();
 				// Clear the current inference before over-writing
 				delete curInference;
-				curInference = candidate;
+				curInference = candidate;*/
 				model->restart();
 			}
 		}
