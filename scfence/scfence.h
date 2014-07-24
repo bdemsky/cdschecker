@@ -12,6 +12,8 @@
 using std::memory_order;
 #endif
 
+#define DEFAULT_REPETITIVE_READ_BOUND 10 
+
 #define FENCE_OUTPUT
 
 #ifdef FENCE_OUTPUT
@@ -236,6 +238,7 @@ class SCFence : public TraceAnalysis {
 	void reset(action_list_t *list);
 	ModelAction* pruneArray(ModelAction**, int);
 
+	void parseOption(char *opt);
 	/** Functions that work for infering the parameters */
 	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
 	void print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end);
@@ -285,5 +288,9 @@ class SCFence : public TraceAnalysis {
 	static ModelList<Inference*> *results;
 	/** The file which provides a list of candidate wilcard inferences */
 	static char *candidateFile;
+	/** The swich of whether we consider the repetitive read to infer mo (_m) */
+	static bool inferImplicitMO;
+	/** The bound above which we think that write should be the last write (_b) */
+	static int implicitMOReadBound;
 };
 #endif

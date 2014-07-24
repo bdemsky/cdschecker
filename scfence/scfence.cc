@@ -20,6 +20,9 @@ char *SCFence::candidateFile;
 ModelList<Inference *> *SCFence::results;
 ModelList<Inference *> *SCFence::potentialResults;
 
+bool SCFence::inferImplicitMO;
+int SCFence::implicitMOReadBound;
+
 SCFence::SCFence() :
 	cvmap(),
 	cyclic(false),
@@ -38,6 +41,8 @@ SCFence::SCFence() :
 	potentialResults = new ModelList<Inference*>();
 	results = new ModelList<Inference*>();
 	candidateFile = NULL;
+	inferImplicitMO = false;
+	implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
 }
 
 SCFence::~SCFence() {
@@ -190,6 +195,39 @@ void SCFence::initializeByFile() {
 	curInference =  potentialResults->front();
 	potentialResults->pop_front();
 	fclose(fp);
+}
+
+void SCFence::parseOption(char *opt) {
+	char optionChar;
+	int optIdx = 0;
+	do {
+		optionChar = opt[optIdx++];
+		char *val = model_malloc(32 * sizeof(char));
+		int valIdx = 0;
+		do {
+			if (opt[optIdx] == '\0' || opt[optIdx] == '_') {
+				break;
+			}
+			val[valIdx++] = opt[optIdx++];
+		} while (opt[optIdx] != '\0' && opt[optIdx] != '_');
+		val[valIdx] = '\0';
+		switch (optIdx) {
+			case 'f': // Read initial inference from file
+
+				break;
+			case 'b': // The bound above 
+
+				break;
+			case 'm': // Infer the modification order from repetitive reads from
+					  // the same write
+
+				break;
+			default:
+				break;
+		}
+		optIdx++;
+	}
+
 }
 
 bool SCFence::option(char * opt) {
@@ -646,6 +684,7 @@ void SCFence::analyze(action_list_t *actions) {
 	}
 	update_stats();
 
+	print_list(list);
 	// Now we find a non-SC execution
 	if (cyclic) {
 		print_list(list);
