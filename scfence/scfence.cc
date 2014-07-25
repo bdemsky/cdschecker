@@ -578,6 +578,8 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 					for (action_list_t::iterator itWrite2 = write2s->begin();
 						itWrite2 != write2s->end(); itWrite2++) {
 						candidates = NULL;
+						FENCE_PRINT("write2:\n");
+						ACT_PRINT(write2);
 						write2 = *itWrite2;
 						// act->read, write->write1 & write2->write2
 						if (!isSCEdge(write, write2) &&
@@ -625,10 +627,11 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						
 						// Add candidates to potentialResults list for current
 						// write2
-						printWildcardResults(candidates);
+						model_print("candidates size: %d.\n", candidates->size());
+						//printWildcardResults(candidates);
 						addMoreCandidates(potentialResults, candidates);
 						model_print("potential results size: %d.\n", potentialResults->size());
-						printWildcardResults(potentialResults);
+						//printWildcardResults(potentialResults);
 						delete candidates;
 					}
 				} else { // Pattern (b) read future value
@@ -741,12 +744,16 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					ACT_PRINT(write2);
 				}
 			}
+			break;
 		}
+		//if (candidates != NULL)
+			//break;
 		// Find other pairs of writes
 	}
 	if (candidates == NULL) {
 		return false;
 	} else {
+		model_print("In mo infer:\n");
 		model_print("potential results size: %d.\n", potentialResults->size());
 		model_print("candidates size: %d.\n", candidates->size());
 		printWildcardResults(candidates);
@@ -754,6 +761,7 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 			candidates->begin(), candidates->end());
 		model_print("potential results size: %d.\n", potentialResults->size());
 		delete candidates;
+		return true;
 	}
 }
 
@@ -824,11 +832,12 @@ void SCFence::analyze(action_list_t *actions) {
 		*/
 		model->restart();
 	} else {
-	// Also check if we should imply the implicit modification order
+		// Also check if we should imply the implicit modification order
 		model_print("inferImplictMO: %d\n", inferImplicitMO);
-		model_print("too_many_steps: %d\n", execution->too_many_steps());
+		model_print("too_many_steps: %d\n",
+			execution->too_many_steps());
 		model_print("maxreads & implicitReadBound: %d & %d\n",
-			model->params.maxreads, implicitMOReadBound);
+		    model->params.maxreads, implicitMOReadBound);
 		if (inferImplicitMO && execution->too_many_steps() &&
 			model->params.maxreads < implicitMOReadBound) {
 			print_list(list);
