@@ -3,6 +3,7 @@
 #include "threads-model.h"
 #include "clockvector.h"
 #include "execution.h"
+#include "cyclegraph.h"
 #include <sys/time.h>
 
 #include "model.h"
@@ -739,6 +740,12 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 			}
 			if (readCnt > implicitMOReadBound) {
 				// Found it, make write1 --hb-> write2
+				bool isMO1 = execution->get_mo_graph()->checkReachable(write1, write2);
+				bool isMO2 = execution->get_mo_graph()->checkReachable(write2, write1);
+				//if (!isMO &&) {
+				//	break;
+				//}
+				FENCE_PRINT("write1 --mo-> write2?: %d, %d\n", isMO1, isMO2);
 				FENCE_PRINT("Running through pattern (c) -- implicit mo!\n");
 				FENCE_PRINT("Read count between the two writes: %d\n", readCnt);
 				FENCE_PRINT("implicitMOReadBound: %d\n", implicitMOReadBound);
