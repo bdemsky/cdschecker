@@ -150,18 +150,22 @@ typedef struct Inference {
 			Inference *res = *it;
 			int compVal = compareTo(res);
 			if (compVal == 1) {
+				/*
 				FENCE_PRINT("Comparing reulsts: %d!\n", compVal);
 				res->print();
 				FENCE_PRINT("\n");
 				print();
 				FENCE_PRINT("\n");
+				*/
 				return 1;
 			} else if (compVal == 0) {
+				/*
 				FENCE_PRINT("Comparing reulsts: %d!\n", compVal);
 				res->print();
 				FENCE_PRINT("\n");
 				print();
 				FENCE_PRINT("\n");
+				*/
 				return 0;
 			}
 		}
