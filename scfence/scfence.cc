@@ -103,7 +103,7 @@ void SCFence::pruneResults() {
 	ModelList<Inference*> *newResults = new ModelList<Inference*>();
 	ModelList<Inference*>::iterator it, itNew;
 
-	addMoreCandidates(newResults, results);
+	addMoreCandidates(newResults, results, false);
 	results->clear();
 	model_free(results);
 	results = newResults;
@@ -194,7 +194,7 @@ void SCFence::initializeByFile() {
 					mo = memory_order_seq_cst;
 				(*infer)[curNum] = mo;
 			}
-			if (!addMoreCandidate(potentialResults, infer))
+			if (!addMoreCandidate(potentialResults, infer, true))
 				delete infer;
 		}
 	}
@@ -448,7 +448,7 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 	return partialCandidates;
 }
 
-bool SCFence::addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate) {
+bool SCFence::addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate, bool addStronger) {
 	ModelList<Inference*>::iterator it;
 	int res;
 	bool isWeaker = false;
@@ -460,7 +460,8 @@ bool SCFence::addMoreCandidate(ModelList<Inference*> *existCandidates, Inference
 			return false;
 		} else if (res == -1) { // Got a stronger candidate
 			//FENCE_PRINT("Got an equal or stronger candidate, NOT adding!\n");
-			//return false;
+			if (!addStronger)
+				return false;
 		} else if (res == 1) { // Got a weaker candidate
 			//isWeaker = true;
 			// But should remove the stronger existing candidate before adding
@@ -491,12 +492,12 @@ bool SCFence::addMoreCandidate(ModelList<Inference*> *existCandidates, Inference
 	return true;
 }
 
-bool SCFence::addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates) {
+bool SCFence::addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates, bool addStronger) {
 	bool added = false;
 	ModelList<Inference*>::iterator it;
 	for (it = newCandidates->begin(); it != newCandidates->end(); it++) {
 		Inference *newCandidate = *it;
-		added = addMoreCandidate(existCandidates, newCandidate);
+		added = addMoreCandidate(existCandidates, newCandidate, addStronger);
 		if (added) {
 			added = true;
 		} else {
@@ -636,7 +637,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						// write2
 						model_print("candidates size: %d.\n", candidates->size());
 						//printWildcardResults(candidates);
-						addMoreCandidates(potentialResults, candidates);
+						addMoreCandidates(potentialResults, candidates, true);
 						model_print("potential results size: %d.\n", potentialResults->size());
 						//printWildcardResults(potentialResults);
 						delete candidates;
@@ -658,7 +659,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							printWildcardResults(potentialResults);
 							//potentialResults->insert(potentialResults->end(),
 							//	candidates->begin(), candidates->end());
-							addMoreCandidates(potentialResults, candidates);
+							addMoreCandidates(potentialResults, candidates, true);
 							delete candidates;
 						}
 						if (paths2->size() > 0) {
@@ -672,7 +673,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							print_rf_sb_paths(paths2, write, act);
 							candidates = imposeSync(NULL, paths2);
 							model_print("candidates size: %d.\n", candidates->size());
-							addMoreCandidates(potentialResults, candidates);
+							addMoreCandidates(potentialResults, candidates, true);
 							delete candidates;
 						}
 					} else {
@@ -687,7 +688,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 
 						*/
 						candidates = imposeSC(NULL, act, write);
-						addMoreCandidates(potentialResults, candidates);
+						addMoreCandidates(potentialResults, candidates, true);
 						delete candidates;
 					}
 				}
@@ -751,7 +752,7 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					candidates = imposeSync(NULL, paths1);
 					model_print("potential results size: %d.\n", potentialResults->size());
 					// Add the candidates as potential results
-					addMoreCandidates(potentialResults, candidates);
+					addMoreCandidates(potentialResults, candidates, true);
 					delete candidates;
 					return true;
 					model_print("potential results size: %d.\n", potentialResults->size());

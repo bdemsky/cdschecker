@@ -294,8 +294,8 @@ class SCFence : public TraceAnalysis {
 	 */
 	void addPotentialFixes(action_list_t *list);
 	bool addFixesImplicitMO(action_list_t *list);
-	bool addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates);
-	bool addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate);
+	bool addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates, bool addStronger);
+	bool addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate, bool addStronger);
 	/** Get next inference from the potential result list */
 	bool getNextCandidate();
 	
