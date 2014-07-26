@@ -735,12 +735,10 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 			}
 			if (readCnt > implicitMOReadBound) {
 				// Found it, make write1 --hb-> write2
-				bool isMO1 = execution->get_mo_graph()->checkReachable(write1, write2);
-				bool isMO2 = execution->get_mo_graph()->checkReachable(write2, write1);
-				//if (!isMO &&) {
-				//	break;
-				//}
-				FENCE_PRINT("write1 --mo-> write2?: %d, %d\n", isMO1, isMO2);
+				bool isMO = execution->get_mo_graph()->checkReachable(write1, write2);
+				if (isMO) // Only impose mo when it doesn't have mo impsed
+					break;
+				//FENCE_PRINT("write1 --mo-> write2?: %d\n", isMO1);
 				FENCE_PRINT("Running through pattern (c) -- implicit mo!\n");
 				FENCE_PRINT("Read count between the two writes: %d\n", readCnt);
 				FENCE_PRINT("implicitMOReadBound: %d\n", implicitMOReadBound);
@@ -750,40 +748,12 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 				if (paths1->size() > 0) {
 					FENCE_PRINT("From write1 to write2: \n");
 					print_rf_sb_paths(paths1, write1, write2);
-					ModelList<Inference*> *curCandidates = imposeSync(NULL, paths1);
-					candidates = imposeSync(candidates, paths1);
+					candidates = imposeSync(NULL, paths1);
 					model_print("potential results size: %d.\n", potentialResults->size());
-					// Add the curCandidates as potential results
-					for (ModelList<Inference*>::iterator it =
-						curCandidates->begin(); it != curCandidates->end(); it++) {
-						Inference *curCand = *it;
-						// The candidate won't work
-						int compVal = curCand->compareTo(curInference);
-						if (compVal == 0)
-							continue;
-						if (addMoreCandidate(potentialResults, curCand)) {
-							model_print("curCand\n");
-							curCand->print();
-						} else {
-							delete curCand;
-						}
-					}
-					delete curCandidates;
-					model_print("potential results size: %d.\n", potentialResults->size());
-
 					// Add the candidates as potential results
-					for (ModelList<Inference*>::iterator it =
-						candidates->begin(); it != candidates->end(); it++) {
-						Inference *cand = *it;
-						// The candidate won't work
-						int compVal = cand->compareTo(curInference);
-						if (compVal == 0)
-							continue;
-						if (addMoreCandidate(potentialResults, cand)) {
-							model_print("cand\n");
-							cand->print();
-						}
-					}
+					addMoreCandidates(potentialResults, candidates);
+					delete candidates;
+					return true;
 					model_print("potential results size: %d.\n", potentialResults->size());
 /*
 					model_print("potential results size: %d.\n", potentialResults->size());
@@ -795,7 +765,6 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					delete candidates;
 					return true;
 */
-
 				} else {
 					FENCE_PRINT("Cannot establish hb between write1 & write2: \n");
 					ACT_PRINT(write1);
@@ -808,11 +777,7 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 			//break;
 		// Find other pairs of writes
 	}
-	if (candidates == NULL)
-		return false;
- 	if (candidates->size() == 0)
-		delete candidates;
-	return true;
+	return false;
 }
 
 bool SCFence::getNextCandidate() {
@@ -891,7 +856,7 @@ void SCFence::analyze(action_list_t *actions) {
 		    model->params.maxreads, implicitMOReadBound);
 		*/
 		if (inferImplicitMO && execution->too_many_steps() &&
-			model->params.maxreads < implicitMOReadBound) {
+			!execution->is_complete_execution()) {
 			print_list(list);
 			bool infered = addFixesImplicitMO(list);
 			if (infered) {

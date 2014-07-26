@@ -302,6 +302,13 @@ bool ModelChecker::next_execution()
 
 		checkDataRaces();
 		run_trace_analyses();
+	} else if (inspect_plugin && execution->too_many_steps() &&
+		!execution->is_complete_execution()) {
+		/* This execution reaches a bound, still throw it to the inspect plugin
+		 * to check special cases (e.g. liveness problem caused by lousy mo for
+		 * scfence plugin
+		 */
+		 inspect_plugin->analyze(execution->get_action_trace());
 	}
 
 	record_stats();
