@@ -11,11 +11,6 @@
 #include <stdio.h>
 #include <algorithm>
 
-
-void print_nothing(const char *str, ...) {
-
-}
-
 Inference *SCFence::curInference;
 char *SCFence::candidateFile;
 ModelList<Inference *> *SCFence::results;

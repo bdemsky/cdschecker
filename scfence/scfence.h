@@ -21,9 +21,9 @@ using std::memory_order;
 #define ACT_PRINT(x) (x)->print()
 #define CV_PRINT(x) (x)->print()
 #else
-#define FENCE_PRINT print_nothing
-#define ACT_PRINT(x) (x)
-#define CV_PRINT(x) (x)
+#define FENCE_PRINT
+#define ACT_PRINT(x)
+#define CV_PRINT(x)
 #endif
 
 
@@ -35,8 +35,6 @@ using std::memory_order;
 class SCFence;
 
 extern SCFence *scfence;
-
-void print_nothing(const char *str, ...);
 
 /** A list of load operations can represent the union of reads-from &
  * sequence-before edges; And we have a list of lists of load operations to
