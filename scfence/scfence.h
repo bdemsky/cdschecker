@@ -53,12 +53,16 @@ static const char * get_mo_str(memory_order order);
 typedef struct Inference {
 	memory_order *orders;
 	int size;
+
+	bool explored;
+
 	
 	Inference() {
 		orders = (memory_order *) model_malloc((4 + 1) * sizeof(memory_order*));
-		this->size = 4;
+		size = 4;
 		for (int i = 0; i <= size; i++)
 			orders[i] = WILDCARD_NONEXIST;
+		explored = false;
 	}
 
 	Inference(Inference *infer) {
@@ -67,6 +71,7 @@ typedef struct Inference {
 		this->size = infer->size;
 		for (int i = 0; i <= size; i++)
 			orders[i] = infer->orders[i];
+		explored = false;
 	}
 
 	void resize(int newsize) {
@@ -143,40 +148,6 @@ typedef struct Inference {
 	}
 
 	/** @Return:
-		1 -> 'this' > one of the inferences in the result list
-		0 -> 'this' == one of the inferences in the result list
-		-1 -> 'this' is weaker or uncomparable to any of the inferences
-	*/
-	int compareTo(ModelList<Inference*> *list) {
-		for (ModelList<Inference*>::iterator it = list->begin(); it !=
-			list->end(); it++) {
-			Inference *res = *it;
-			int compVal = compareTo(res);
-			if (compVal == 1) {
-				/*
-				FENCE_PRINT("Comparing reulsts: %d!\n", compVal);
-				res->print();
-				FENCE_PRINT("\n");
-				print();
-				FENCE_PRINT("\n");
-				*/
-				return 1;
-			} else if (compVal == 0) {
-				/*
-				FENCE_PRINT("Comparing reulsts: %d!\n", compVal);
-				res->print();
-				FENCE_PRINT("\n");
-				print();
-				FENCE_PRINT("\n");
-				*/
-				return 0;
-			}
-		}
-		return -1;
-	}
-
-
-	/** @Return:
 		1 -> 'this> infer';
 		-1 -> 'this < infer'
 		0 -> 'this == infer'
@@ -227,6 +198,14 @@ typedef struct Inference {
 		return result;
 	}
 
+	void setExplored(bool val) {
+		explored = val;
+	}
+
+	bool getExplored() {
+		return explored;
+	}
+
 	void print() {
 		ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
 		for (int i = 1; i <= size; i++) {
@@ -246,35 +225,6 @@ typedef struct Inference {
 } Inference;
 
 
-/** This represents an inference node in the inference stack. It is associated
- * with one inference we might or might not finish exploring */
-typedef struct InferenceNode {
-	/** The inference assoicates with this node */
-	Inference *infer;
-
-	/** Indicate whether this node has been thoroughly explored */
-	bool explored;
-	
-	InferenceNode(Inference *infer, bool explored) :
-		infer(infer),
-		explored(explored) {}
-
-	InferenceNode(Inference *infer) :
-		infer(infer),
-		explored(false) {}
-
-	Inference* getInference() const { return infer; }
-	
-	void setInference(Inference* infer) { this->infer = infer; }
-
-	bool getExplored() const { return explored; }
-
-	void setExplored(bool explored) { this->explored = explored; }
-
-	MEMALLOC
-} InferenceNode;
-
-
 /** Define a HashSet that supports customized equals_to() & hash() functions so
  * that we can use it in our analysis
 */
@@ -285,15 +235,15 @@ class ModelSet : public std::unordered_set<_Key, _Hash, _KeyEqual, ModelAlloc<_K
 	MEMALLOC
 };
 
-class InferenceNodeHash : public std::hash<InferenceNode*>
+
+class InferenceHash : public std::hash<Inference*>
 {
 	public:
-	size_t operator()(InferenceNode* const X) const {
-		Inference *infer = X->getInference();
-		size_t hash = infer->orders[1] + 4096;
-		for (int i = 2; i < infer->size; i++) {
+	size_t operator()(Inference* const X) const {
+		size_t hash = X->orders[1] + 4096;
+		for (int i = 2; i < X->size; i++) {
 			hash *= 37;
-			hash += (infer->orders[i] + 4096);
+			hash += (X->orders[i] + 4096);
 		}
 		return hash;
 	}
@@ -301,53 +251,51 @@ class InferenceNodeHash : public std::hash<InferenceNode*>
 	MEMALLOC
 };
 
-class InferenceNodeEquals : public std::equal_to<InferenceNode*>
+class InferenceEquals : public std::equal_to<Inference*>
 {
 	public:
-	bool operator()(InferenceNode* const lhs, InferenceNode* const rhs) const {
-		Inference *x = lhs->getInference(),
-			*y = rhs->getInference();
-		return x->compareTo(y) == 0;
+	bool operator()(Inference* const lhs, Inference* const rhs) const {
+		return lhs->compareTo(rhs) == 0;
 	}
 
 	MEMALLOC
 };
 
 /** Type-define the inference_set_t we need throughout the analysis here */
-typedef ModelSet<InferenceNode*, InferenceNodeHash, InferenceNodeEquals> inference_node_set_t;
+typedef ModelSet<Inference*, InferenceHash, InferenceEquals> inference_set_t;
 
-typedef ModelList<InferenceNode*> inference_node_list_t;
+typedef ModelList<Inference*> inference_list_t;
 
-/** This is a stack of those inference nodes. We are exploring possible
+/** This is a stack of those inferences. We are exploring possible
  * inferences in a DFS-like way. Also, we can do an state-based like
  * optimization to reduce the explored space by recording the explored
  * inferences */
 typedef struct InferenceStack {
 	InferenceStack() {
-		exploredSet = new inference_node_set_t();
-		results = new inference_node_list_t();
-		nodes = new inference_node_list_t();
+		exploredSet = new inference_set_t();
+		results = new inference_list_t();
+		candidates = new inference_list_t();
 	}
 
 	/** The set of already explored nodes in the tree */
-	inference_node_set_t *exploredSet;
+	inference_set_t *exploredSet;
 
 	/** The list of feasible inferences */
-	inference_node_list_t *results;
+	inference_list_t *results;
 
-	/** The stack of nodes */
-	inference_node_list_t *nodes;
+	/** The stack of candidates */
+	inference_list_t *candidates;
 	
 	/** Actions to take when we find node is thoroughly explored */
-	void commitNodeExplored(InferenceNode *node) {
-		exploredSet->insert(node);
+	void commitExploredInference(Inference *infer) {
+		exploredSet->insert(infer);
 	}
 
 	/** Print the result of inferences  */
 	void printResults() {
-		for (inference_node_list_t::iterator it = results->begin(); it !=
+		for (inference_list_t::iterator it = results->begin(); it !=
 			results->end(); it++) {
-			Inference *infer = (*it)->getInference();
+			Inference *infer = *it;
 			int idx = distance(results->begin(), it);
 			model_print("Result %d:\n", idx);
 			infer->print();
@@ -359,29 +307,29 @@ typedef struct InferenceStack {
 	 * of the stack) to be explored, pop it out of the stack; if it is feasible,
 	 * we put it in the result list */
 	void commitCurInference(bool feasible) {
-		InferenceNode *node = nodes->back();
-		nodes->pop_back();
-		commitNodeExplored(node);
+		Inference *infer = candidates->back();
+		candidates->pop_back();
+		commitExploredInference(infer);
 		if (feasible) {
-			results->push_back(node);
+			results->push_back(infer);
 		}
 	}
 
 	/** Get the next available unexplored node; @Return NULL 
 	 * if we don't have next, meaning that we are done with exploring */
 	Inference* getNextInference() {
-		InferenceNode *node = NULL;
-		while (nodes->size() > 0) {
-			node = nodes->back();
-			if (node->getExplored()) {
+		Inference *infer = NULL;
+		while (candidates->size() > 0) {
+			infer = candidates->back();
+			if (infer->getExplored()) {
 				// Finish exploring this node
 				// Remove the node from the stack
-				nodes->pop_back();
+				candidates->pop_back();
 				// Record this in the exploredSet
-				commitNodeExplored(node);
+				commitExploredInference(infer);
 			} else {
-				node->setExplored(true);
-				return node->getInference();
+				infer->setExplored(true);
+				return infer;
 			}
 		}
 		return NULL;
@@ -392,11 +340,10 @@ typedef struct InferenceStack {
 	 * @Return true if the node to add has not been explored yet
 	 */
 	bool addInference(Inference *infer) {
-		InferenceNode *node = new InferenceNode(infer);
-		inference_node_set_t::iterator it = exploredSet->find(node);
+		inference_set_t::iterator it = exploredSet->find(infer);
 		if (it == exploredSet->end()) {
 			// We haven't explored this inference yet
-			nodes->push_back(node);
+			candidates->push_back(infer);
 			return true;
 		} else {
 			return false;
@@ -583,7 +530,7 @@ class SCFence : public TraceAnalysis {
 	/** The number of nodes in the stack (including those parent nodes (set as
 	 * explored) */
 	 int stackSize() {
-		return getStack()->nodes->size();
+		return getStack()->candidates->size();
 	 }
 
 	/** Set the restart flag of the model checker in order to restart the
