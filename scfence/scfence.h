@@ -21,32 +21,44 @@ using std::memory_order;
 #define FENCE_OUTPUT
 
 #ifdef FENCE_OUTPUT
-#define FENCE_PRINT model_print
-#define ACT_PRINT(x) (x)->print()
-#define CV_PRINT(x) (x)->print()
-#else
-#define FENCE_PRINT
-#define ACT_PRINT(x)
-#define CV_PRINT(x)
-#endif
 
+#define FENCE_PRINT model_print
+
+#define ACT_PRINT(x) (x)->print()
+
+#define CV_PRINT(x) (x)->print()
 
 #define WILDCARD_ACT_PRINT(x)\
 	FENCE_PRINT("Wildcard: %d\n", get_wildcard_id_zero((x)->get_original_mo()));\
 	ACT_PRINT(x);
+
+#else
+
+#define FENCE_PRINT
+
+#define ACT_PRINT(x)
+
+#define CV_PRINT(x)
+
+#define WILDCARD_ACT_PRINT(x)
+
+#endif
+
+
 
 /* Forward declaration */
 class SCFence;
 
 extern SCFence *scfence;
 
-
+typedef action_list_t path_t;
 /** A list of load operations can represent the union of reads-from &
  * sequence-before edges; And we have a list of lists of load operations to
  * represent all the possible rfUsb paths between two nodes, defined as
  * syns_paths_t here
  */
 typedef SnapList<action_list_t *> sync_paths_t;
+typedef sync_paths_t paths_t;
 
 static const char * get_mo_str(memory_order order);
 
@@ -97,16 +109,19 @@ typedef struct Inference {
 		}
 	}
 
-	/** Return false when we cannot update a specific mo because it's already
-	 * that strong or it's not a wildcard */
-	bool strengthen(const ModelAction *act, memory_order mo) {
+	/** Return the state of how we update a specific mo; If we have to make an
+	 * uncompatible inference or that inference cannot be imposed because it's
+	 * not a wildcard, it returns -1; if it is a compatible memory order but the
+	 * current memory order is no weaker than mo, it returns 0; otherwise, it
+	 * does strengthen the order, and returns 1 */
+	int strengthen(const ModelAction *act, memory_order mo) {
 		memory_order wildcard = act->get_original_mo();
 		int wildcardID = get_wildcard_id(wildcard);
 		if (!is_wildcard(wildcard)) {
 			FENCE_PRINT("We cannot make this update!\n");
 			FENCE_PRINT("wildcard: %d --> mo: %d\n", wildcardID, mo);
 			ACT_PRINT(act);
-			return false;
+			return -1;
 		}
 		if (wildcardID > size)
 			resize(wildcardID);
@@ -115,15 +130,15 @@ typedef struct Inference {
 		ASSERT (is_normal_mo_infer(orders[wildcardID]));
 		switch (orders[wildcardID]) {
 			case memory_order_seq_cst:
-				return false;
+				return 0;
 			case memory_order_relaxed:
 				if (mo == memory_order_relaxed)
-					return false;
+					return 0;
 				orders[wildcardID] = mo;
 				break;
 			case memory_order_acquire:
 				if (mo == memory_order_acquire || mo == memory_order_relaxed)
-					return false;
+					return 0;
 				if (mo == memory_order_release)
 					orders[wildcardID] = memory_order_acq_rel;
 				else if (mo >= memory_order_acq_rel && mo <=
@@ -132,7 +147,7 @@ typedef struct Inference {
 				break;
 			case memory_order_release:
 				if (mo == memory_order_release || mo == memory_order_relaxed)
-					return false;
+					return 0;
 				if (mo == memory_order_acquire)
 					orders[wildcardID] = memory_order_acq_rel;
 				else if (mo >= memory_order_acq_rel)
@@ -142,7 +157,7 @@ typedef struct Inference {
 				if (mo == memory_order_seq_cst)
 					orders[wildcardID] = mo;
 				else
-					return false;
+					return 0;
 				break;
 			default:
 				orders[wildcardID] = mo;
@@ -155,7 +170,20 @@ typedef struct Inference {
 		FENCE_PRINT("-> %s\n", get_mo_str(mo));
 		FENCE_PRINT("\n");
 		*/
-		return true;
+		return 1;
+	}
+	
+	/** A simple overload, which allows caller to pass two boolean refrence, and
+	 * we will set those two variables indicating whether we can update the
+	 * order (copatible or not) and have updated the order */
+	int strengthen(const ModelAction *act, memory_order mo, bool &canUpdate, bool &hasUpdated) {
+		int res = strengthen(act, mo);
+		if (res == -1)
+			canUpdate = false;
+		if (res == 1)
+			hasUpdated = true;
+
+		return res;
 	}
 
 	/** @Return:
@@ -333,6 +361,9 @@ typedef struct InferenceStack {
 	 * we put it in the result list */
 	void commitCurInference(bool feasible) {
 		Inference *infer = candidates->back();
+		if (!infer) {
+			return;
+		}
 		candidates->pop_back();
 		commitExploredInference(infer);
 		if (feasible) {
@@ -378,6 +409,7 @@ typedef struct InferenceStack {
 	MEMALLOC
 } InferenceStack;
 
+typedef ModelList<Inference*> candidates_t;
 
 typedef struct scfence_priv {
 	scfence_priv() {
@@ -475,11 +507,11 @@ class SCFence : public TraceAnalysis {
 
 	/** Functions that work for infering the parameters by impsing
 	 * synchronization */
-	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
+	paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
 	
 	/** Printing function for those paths imposed by happens-before; only for
 	 * the purpose of debugging */
-	void print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end);
+	void print_rf_sb_paths(paths_t *paths, const ModelAction *start, const ModelAction *end);
 
 	/** Whether there's an edge between from and to actions */
 	bool isSCEdge(const ModelAction *from, const ModelAction *to) {
@@ -511,11 +543,33 @@ class SCFence : public TraceAnalysis {
 	 * added */
 	bool addCandidates(ModelList<Inference*> *candidates);
 
+	/** Check whether a chosen reads-from path is a release sequence */
+	bool isReleaseSequence(path_t *path);
+
+	/** Impose synchronization to one inference (infer) according to path.  If
+	 * infer is NULL, we first create a new Inference by copying the current
+	 * inference; otherwise we copy a new inference by infer. We then try to
+	 * impose path to the newly created inference or the passed-in infer. If we
+	 * cannot strengthen the inference by the path, we return NULL, otherwise we
+	 * return the newly created inference */
+	Inference* imposeSyncToInference(Inference *infer, path_t *path);
+
+	/** Impose SC to one inference (infer) by action1 & action2.  If infer is
+	 * NULL, we first create a new Inference by copying the current inference;
+	 * otherwise we copy a new inference by infer. We then try to impose SC to
+	 * the newly created inference or the passed-in infer. If we cannot
+	 * strengthen the inference, we return NULL, otherwise we return the newly
+	 * created or original inference */
+	Inference* imposeSCToInference(Inference *infer, const ModelAction *act1, const ModelAction *act2);
+
 	/** Impose some paths of synchronization to an already existing candidates
 	 * of inferences; if partialCandidates is NULL, it imposes the paths to the
 	 * current inference. It returns the newly strengthened list of inferences
 	 * */
-	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths);
+	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates, paths_t *paths);
+
+	/** Recycle the allcated memory to the list of inferences */
+	void clearCandidates(ModelList<Inference*> *candidates);
 
 	/** Impose some paths of SC to an already existing candidates of inferences;
 	 * if partialCandidates is NULL, it imposes the the corrsponding SC

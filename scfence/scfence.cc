@@ -48,6 +48,8 @@ void SCFence::finish() {
 }
 
 
+/******************** SCFence-related Functions (Beginning) ********************/
+
 void SCFence::inspectModelAction(ModelAction *act) {
 	if (act == NULL) // Get pass cases like data race detector
 		return;
@@ -301,129 +303,181 @@ void SCFence::print_list(action_list_t *list) {
 	model_print("---------------------------------------------------------------------\n");
 }
 
+/******************** SCFence-related Functions (End) ********************/
 
-ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths) {
-	bool wasNullList = false;
-	if (partialCandidates == NULL) {
-		partialCandidates = new ModelList<Inference*>();
-		wasNullList = true;
-	}
 
-	for (sync_paths_t::iterator i_paths = paths->begin(); i_paths != paths->end(); i_paths++) {
-		action_list_t *path = *i_paths;
-		bool release_seq = true;
-		action_list_t::iterator it = path->begin(),
-			it_next;
-		for (; it != path->end(); it = it_next) {
-			const ModelAction *read = *it,
-				*write = read->get_reads_from(),
-				*next_read;
-			it_next = it++;
-			if (it_next != path->end()) {
-				next_read = *it_next;
-				if (write != next_read) {
-					release_seq = false;
-					break;
-				}
+
+/******************** SCAnalysis Functions (Beginning) ********************/
+
+/** Check whether a chosen reads-from path is a release sequence */
+bool SCFence::isReleaseSequence(path_t *path) {
+	ASSERT (path);
+	action_list_t::iterator it = path->begin(),
+		it_next;
+	const ModelAction *read,
+		*write,
+		*next_read;
+	for (; it != path->end(); it = it_next) {
+		read = *it;
+		write = read->get_reads_from();
+		it_next = it++;
+		if (it_next != path->end()) {
+			next_read = *it_next;
+			if (write != next_read) {
+				return false;
 			}
 		}
-		// Already know whether this can be fixed by release sequence
-		bool updateSucc = true;
-		if (wasNullList) {
-			Inference *infer = new Inference(getCurInference());
-			if (release_seq) {
-				const ModelAction *relHead = path->front()->get_reads_from(),
-					*lastRead = path->back();
-				updateSucc = infer->strengthen(relHead, memory_order_release);
-				updateSucc = infer->strengthen(lastRead, memory_order_acquire);
-			} else {
-				for (action_list_t::iterator it = path->begin(); it != path->end(); it++) {
-					const ModelAction *read = *it,
-						*write = read->get_reads_from();
-					//FENCE_PRINT("path size:%d\n", path->size());
-					//write->print();
-					//read->print();
-					updateSucc = infer->strengthen(write, memory_order_release);
-					updateSucc = infer->strengthen(read, memory_order_acquire);
-				}
-			}
-			if (updateSucc) {
-				partialCandidates->push_back(infer);
-			} else {
-				// This inference won't work
-				delete infer;
+	}
+	return true;
+}
+
+/** Impose synchronization to one inference (infer) according to path.  If infer
+ * is NULL, we first create a new Inference by copying the current inference;
+ * otherwise we copy a new inference by infer. We then try to impose path to the
+ * newly created inference or the passed-in infer. If we cannot strengthen the
+ * inference by the path, we return NULL, otherwise we return the newly created
+ * inference */
+Inference* SCFence::imposeSyncToInference(Inference *infer, path_t *path) {
+	if (!infer) {
+		infer = new Inference(getCurInference());
+	} else {
+		infer = new Inference(infer);
+	}
+	// Then try to impose path to infer
+	bool release_seq = isReleaseSequence(path);
+
+	bool canUpdate = true,
+		hasUpdated = false;
+	int updateState;
+	if (release_seq) {
+		const ModelAction *relHead = path->front()->get_reads_from(),
+			*lastRead = path->back();
+		updateState = infer->strengthen(relHead, memory_order_release,
+			canUpdate, hasUpdated);
+		updateState = infer->strengthen(lastRead, memory_order_acquire,
+			canUpdate, hasUpdated);
+	} else {
+		for (action_list_t::iterator it = path->begin(); it != path->end(); it++) {
+			const ModelAction *read = *it,
+				*write = read->get_reads_from();
+			//FENCE_PRINT("path size:%d\n", path->size());
+			//WILDCARD_ACT_PRINT(write);
+			//WILDCARD_ACT_PRINT(read);
+			updateState = infer->strengthen(write, memory_order_release,
+				canUpdate, hasUpdated);
+			updateState = infer->strengthen(read, memory_order_acquire,
+				canUpdate, hasUpdated);
+			if (updateState == -1) // We cannot strengthen the inference
+				break;
+		}
+	}
+	// Now think about returning something
+	if (canUpdate && hasUpdated) {
+		return infer;
+	} else {
+		delete infer;
+		return NULL;
+	}
+}
+
+/** Impose SC to one inference (infer) by action1 & action2.  If infer is NULL,
+ * we first create a new Inference by copying the current inference; otherwise
+ * we copy a new inference by infer. We then try to impose SC to the newly
+ * created inference or the passed-in infer. If we cannot strengthen the
+ * inference, we return NULL, otherwise we return the newly created or original
+ * inference */
+Inference* SCFence::imposeSCToInference(Inference *infer, const ModelAction *act1, const ModelAction *act2) {
+	if (!infer) {
+		infer = new Inference(getCurInference());
+	} else {
+		infer = new Inference(infer);
+	}
+	// Then try to impose SC to infer by act1 & act2
+	bool canUpdate = true,
+		hasUpdated = false;
+	int updateState;
+	infer->strengthen(act1, memory_order_seq_cst,
+		canUpdate, hasUpdated);
+	infer->strengthen(act2, memory_order_seq_cst,
+		canUpdate, hasUpdated);
+
+	// Now return something
+	if (canUpdate && hasUpdated) {
+		return infer;
+	} else {
+		delete infer;
+		return NULL;
+	}
+}
+
+void SCFence::clearCandidates(ModelList<Inference*> *candidates) {
+	for (ModelList<Inference*>::iterator it =
+		candidates->begin(); it != candidates->end();) {
+		delete (*it);
+	}
+	delete candidates;
+}
+
+ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths) {
+	ModelList<Inference*> *newCandidates = new ModelList<Inference*>();
+	Inference *infer = NULL;
+
+	for (sync_paths_t::iterator i_paths = paths->begin(); i_paths != paths->end(); i_paths++) {
+		// Iterator over all the possible paths
+		path_t *path = *i_paths;
+		// The new inference imposed synchronization by path
+		if (!partialCandidates) {
+			infer = imposeSyncToInference(NULL, path);
+			if (infer) {
+				newCandidates->push_back(infer);
 			}
 		} else { // We have a partial list of candidates
 			for (ModelList<Inference*>::iterator i_cand =
 				partialCandidates->begin(); i_cand != partialCandidates->end();
 				i_cand++) {
-				updateSucc = true;
-				Inference *infer = *i_cand;
-				if (release_seq) {
-					const ModelAction *relHead = path->front()->get_reads_from(),
-						*lastRead = path->back();
-					updateSucc = infer->strengthen(relHead, memory_order_release);
-					updateSucc = infer->strengthen(lastRead, memory_order_acquire);
-				} else {
-					for (action_list_t::iterator it = path->begin(); it !=
-						path->end(); it++) {
-						const ModelAction *read = *it,
-							*write = read->get_reads_from();
-						updateSucc = infer->strengthen(write, memory_order_release);
-						updateSucc = infer->strengthen(read, memory_order_acquire);
-					}	
-				}
-				if (!updateSucc) {
-					// This inference won't work
-					partialCandidates->erase(i_cand);
-					i_cand--;
-					delete infer;
+				// For a specific inference that already exists 
+				infer = *i_cand;
+				infer = imposeSyncToInference(infer, path);
+				if (infer) {
+					// Add this new infer to the newCandidates
+					newCandidates->push_back(infer);
 				}
 			}
 		}
 	}
-
-	return partialCandidates;
+	
+	if (partialCandidates) {
+		clearCandidates(partialCandidates);
+	}
+	return newCandidates;
 }
 
 ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidates, const ModelAction *act1, const ModelAction *act2) {
-	bool wasNullList = false;
-	if (partialCandidates == NULL) {
-		partialCandidates = new ModelList<Inference*>();
-		wasNullList = true;
-	}
+	ModelList<Inference*> *newCandidates = new ModelList<Inference*>();
+	Inference *infer = NULL;
 
-	bool updateSucc = true;
-	if (wasNullList) {
-		Inference *infer = new Inference(getCurInference());
-		updateSucc = infer->strengthen(act1, memory_order_seq_cst);
-		updateSucc = infer->strengthen(act2, memory_order_seq_cst);
-
-		if (updateSucc) {
-			partialCandidates->push_back(infer);
-		} else {
-			// This inference won't work
-			delete infer;
+	if (!partialCandidates) {
+		infer = imposeSCToInference(NULL, act1, act2);
+		if (infer) {
+			newCandidates->push_back(infer);
 		}
-
 	} else { // We have a partial list of candidates
 		for (ModelList<Inference*>::iterator i_cand =
 			partialCandidates->begin(); i_cand != partialCandidates->end();
 			i_cand++) {
-			updateSucc = true;
 			Inference *infer = *i_cand;
-			updateSucc = infer->strengthen(act1, memory_order_seq_cst);
-			updateSucc = infer->strengthen(act2, memory_order_seq_cst);
-
-			if (!updateSucc) {
-				// This inference won't work
-				partialCandidates->erase(i_cand);
-				i_cand--;
-				delete infer;
+			infer = imposeSCToInference(infer, act1, act2);
+			if (infer) {
+				newCandidates->push_back(infer);
 			}
 		}
 	}
-	return partialCandidates;
+	
+	if (partialCandidates) {
+		clearCandidates(partialCandidates);
+	}
+
+	return newCandidates;
 }
 
 
@@ -539,8 +593,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("write2 hb/sc before read. \n");
 						}
 						
-						// Add candidates to potentialResults list for current
-						// write2
+						// Add candidates for current write2 in patter (a)
 						addCandidates(candidates);
 						delete candidates;
 					}
@@ -556,6 +609,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("From read to future write: \n");
 							print_rf_sb_paths(paths1, act, write);
 							candidates = imposeSync(NULL, paths1);
+							// Add candidates for patter (b) in one direction
 							addCandidates(candidates);
 							delete candidates;
 						}
@@ -567,18 +621,14 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("From future write to read: \n");
 							print_rf_sb_paths(paths2, write, act);
 							candidates = imposeSync(NULL, paths2);
+							// Add candidates for patter (b) in another direction
+							addCandidates(candidates);
+							delete candidates;
 						}
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
-						ACT_PRINT(act);
-						ACT_PRINT(write);
-						/*
-						FENCE_PRINT("write wildcard: %d\n",
-							get_wildcard_id(write->get_original_mo()));
-						FENCE_PRINT("read wildcard: %d\n",
-							get_wildcard_id(act->get_original_mo()));
-
-						*/
+						WILDCARD_ACT_PRINT(act);
+						WILDCARD_ACT_PRINT(write);
 						candidates = imposeSC(NULL, act, write);
 						addCandidates(candidates);
 						delete candidates;
@@ -811,8 +861,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		if (!act->is_read())
 			continue;
 		//FENCE_PRINT("init read:\n");
-		//ACT_PRINT(act);
-
+		//WILDCARD_ACT_PRINT(act);
 		path = new action_list_t();
 		path->push_front(act);
 		stack->push_back(path);
@@ -843,9 +892,8 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		}
 
 		//FENCE_PRINT("Temporary read & write:\n");
-		//ACT_PRINT(read);
-		//ACT_PRINT(write);
-		
+		//WILDCAD_ACT_PRINT(read);
+		//WILDCARD_ACT_PRINT(write);
 		int write_seqnum = write->get_seq_number();
 		if (id_to_int(write->get_tid()) == idx1) {
 			if (write_seqnum >= act1->get_seq_number()) { // Find a path
@@ -872,7 +920,6 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		}
 		path->clear();
 	}
-
 	return paths;
 }
 
@@ -893,18 +940,17 @@ void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, c
 			WILDCARD_ACT_PRINT(write);
 			if (next_read == NULL || next_read->get_reads_from() != read) {
 				// Not the same RMW, also print the read operation
-				WILDCARD_ACT_PRINT(read);/*
-				model_print("Right here!\n");
-				model_print("wildcard: %d\n",
-					get_wildcard_id(read->get_original_mo()));*/
-
+				WILDCARD_ACT_PRINT(read);
 			}
 		}
+		// Output a linebreak at the end of the path
+		FENCE_PRINT("\n");
 	}
-
 	FENCE_PRINT("Ending with:\n");
 	WILDCARD_ACT_PRINT(end);
 }
+
+/******************** SCFence-related Functions (End) ********************/
 
 bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2) {
 	ClockVector *cv2 = cvmap.get(act2);
@@ -1276,3 +1322,6 @@ void SCFence::computeCV(action_list_t *list) {
 	}
 	model_free(last_act);
 }
+
+
+/******************** SCAnalysis Functions (End) ********************/
