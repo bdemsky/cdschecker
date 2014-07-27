@@ -12,14 +12,6 @@
 #include <algorithm>
 
 scfence_priv *SCFence::priv;
-Inference *SCFence::curInference;
-char *SCFence::candidateFile;
-ModelList<Inference *> *SCFence::results;
-ModelList<Inference *> *SCFence::potentialResults;
-
-bool SCFence::inferImplicitMO;
-bool SCFence::hasRestarted;
-int SCFence::implicitMOReadBound;
 
 SCFence::SCFence() :
 	cvmap(),
@@ -35,13 +27,6 @@ SCFence::SCFence() :
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
 {
-	curInference = new Inference();
-	potentialResults = new ModelList<Inference*>();
-	results = new ModelList<Inference*>();
-	candidateFile = NULL;
-	inferImplicitMO = false;
-	hasRestarted = false;
-	implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
 	priv = new scfence_priv();
 }
 
@@ -70,14 +55,15 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		memory_order_seq_cst) {
 		return;
 	} else { // For wildcards
+		Inference *curInfer = getCurInference();
 		memory_order wildcard = act->get_mo();
 		int wildcardID = get_wildcard_id(act->get_mo());
-		memory_order order = (*curInference)[wildcardID];
+		memory_order order = (*curInfer)[wildcardID];
 		if (order == WILDCARD_NONEXIST) {
-			(*curInference)[wildcardID] = memory_order_relaxed;
+			(*curInfer)[wildcardID] = memory_order_relaxed;
 			act->set_mo(memory_order_relaxed);
 		} else {
-			act->set_mo((*curInference)[wildcardID]);
+			act->set_mo((*curInfer)[wildcardID]);
 		}
 	}
 }
@@ -102,46 +88,28 @@ static const char * get_mo_str(memory_order order) {
 	}
 }
 
-
-void SCFence::pruneResults() {
-	ModelList<Inference*> *newResults = new ModelList<Inference*>();
-	ModelList<Inference*>::iterator it, itNew;
-
-	addMoreCandidates(newResults, results, false);
-	results->clear();
-	model_free(results);
-	results = newResults;
-	return;
-}
-
-
 void SCFence::exitModelChecker() {
 	model->exit_model_checker();
 }
 
 void SCFence::restartModelChecker() {
 	model->restart();
-	if (!hasRestarted)
-		hasRestarted = true;
+	if (!getHasRestarted())
+		setHasRestarted(true);
 }
 
 void SCFence::actionAtModelCheckingFinish() {
-	// First add the current inference to the result list
-	results->push_back(curInference);
-	// Remove those potential candidates stronger or equal to curInference
-	for (ModelList<Inference*>::iterator it = potentialResults->begin(); it !=
-		potentialResults->end(); it++) {
-		Inference *infer = *it;
-		int compVal = infer->compareTo(curInference);
-		if (compVal == 0 || compVal == 1) {
-			// Remove it
-			it = potentialResults->erase(it);
-			it--;
-		}
-	}
-	if (results->size() == 0) {
-		model_print("We cannot infer any parameters for you!\n");
-		model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+	// We found an inference that works, should commit it
+	commitCurInference(true);
+	Inference *next = getNextInference();
+
+	if (!next) {
+		model_print("We are done with the whole process!\n");
+		model_print("The results are as the following:\n");
+		printResults();
+	} else { // Still have candidates to explore
+		setCurInference(next);
+		restartModelChecker();
 	}
 
 	if (time)
@@ -150,23 +118,10 @@ void SCFence::actionAtModelCheckingFinish() {
 	model_print("Non-SC count: %u\n", stats->nonsccount);
 	model_print("Total actions: %llu\n", stats->actions);
 	unsigned long long actionperexec=(stats->actions)/(stats->sccount+stats->nonsccount);
-
-	
-	if (potentialResults->size() > 0) { // Still have candidates to explore
-		curInference = potentialResults->front();
-		potentialResults->pop_front();
-		restartModelChecker();
-	} else {
-		model_print("Result!\n");
-		model_print("Original size: %d!\n", results->size());
-		pruneResults();
-		model_print("Pruned size: %d!\n", results->size());
-		printWildcardResults(results);
-	}
 }
 
 void SCFence::initializeByFile() {
-	FILE *fp = fopen(candidateFile, "r");
+	FILE *fp = fopen(getCandidateFile(), "r");
 	if (fp == NULL) {
 		fprintf(stderr, "Cannot open the file!\n");
 		return;
@@ -181,7 +136,6 @@ void SCFence::initializeByFile() {
 		// Result #:
 		if (!isProcessing) {
 			fscanf(fp, "%s", str);
-
 		}
 		if (strcmp(str, "Result") == 0 || isProcessing) { // In an inference
 			fscanf(fp, "%s", str);
@@ -213,14 +167,19 @@ void SCFence::initializeByFile() {
 					mo = memory_order_seq_cst;
 				(*infer)[curNum] = mo;
 			}
-			if (!addMoreCandidate(potentialResults, infer, true))
+			if (!addInference(infer))
 				delete infer;
 		}
 	}
-	FENCE_PRINT("candidate size from file: %d\n", potentialResults->size());
-	curInference =  potentialResults->front();
-	potentialResults->pop_front();
 	fclose(fp);
+
+	FENCE_PRINT("candidate size from file: %d\n", stackSize());
+	Inference *next = getNextInference();
+	if (!next) {
+		model_print("Wrong with the candidate file\n");
+	} else {
+		setCurInference(next);
+	}
 }
 
 char* SCFence::parseOptionHelper(char *opt, int *optIdx) {
@@ -242,7 +201,7 @@ bool SCFence::parseOption(char *opt) {
 		switch (option) {
 			case 'f': // Read initial inference from file
 				//model_print("Parsing f option!\n");
-				candidateFile = val;
+				setCandidateFile(val);
 				//model_print("f value: %s\n", val);
 				if (strcmp(val, "") == 0) {
 					model_print("Need to specify a file that contains initial inference!\n");
@@ -252,8 +211,8 @@ bool SCFence::parseOption(char *opt) {
 			case 'b': // The bound above 
 				//model_print("Parsing b option!\n");
 				//model_print("b value: %s\n", val);
-				implicitMOReadBound = atoi(val);
-				if (implicitMOReadBound <= 0) {
+				setImplicitMOReadBound(atoi(val));
+				if (getImplicitMOReadBound() <= 0) {
 					model_print("Enter valid bound value!\n");
 					return true;
 				}
@@ -262,7 +221,7 @@ bool SCFence::parseOption(char *opt) {
 					  // the same write
 				//model_print("Parsing m option!\n");
 				//model_print("m value: %s\n", val);
-				inferImplicitMO = true;
+				setInferImplicitMO(true);
 				if (strcmp(val, "") != 0) {
 					model_print("option doesn't take any arguments!\n");
 					return true;
@@ -299,7 +258,7 @@ bool SCFence::option(char * opt) {
 		time=true;
 		return false;
 	} else if (!parseOption(opt)) {
-		if (candidateFile != NULL)
+		if (getCandidateFile() != NULL)
 			initializeByFile();
 		return false;
 	} else {
@@ -371,7 +330,7 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 		// Already know whether this can be fixed by release sequence
 		bool updateSucc = true;
 		if (wasNullList) {
-			Inference *infer = new Inference(curInference);
+			Inference *infer = new Inference(getCurInference());
 			if (release_seq) {
 				const ModelAction *relHead = path->front()->get_reads_from(),
 					*lastRead = path->back();
@@ -436,7 +395,7 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 
 	bool updateSucc = true;
 	if (wasNullList) {
-		Inference *infer = new Inference(curInference);
+		Inference *infer = new Inference(getCurInference());
 		updateSucc = infer->strengthen(act1, memory_order_seq_cst);
 		updateSucc = infer->strengthen(act2, memory_order_seq_cst);
 
@@ -467,65 +426,27 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 	return partialCandidates;
 }
 
-bool SCFence::addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate, bool addStronger) {
-	ModelList<Inference*>::iterator it;
-	int res;
-	bool isWeaker = false;
-	for (it = existCandidates->begin(); it != existCandidates->end(); it++) {
-		Inference *exist = *it;
-		res = exist->compareTo(newCandidate);
-		if (res == 0) { // Got an equal
-			//FENCE_PRINT("Got an equal or stronger candidate, NOT adding!\n");
-			return false;
-		} else if (res == -1) { // Got a stronger candidate
-			//FENCE_PRINT("Got an equal or stronger candidate, NOT adding!\n");
-			if (!addStronger)
-				return false;
-		} else if (res == 1) { // Got a weaker candidate
-			//isWeaker = true;
-			// But should remove the stronger existing candidate before adding
-			//delete exist;
-			//it = existCandidates->erase(it);
-			//it--;
-		} else {/*
-			FENCE_PRINT("res: %d\n", res);
-			FENCE_PRINT("exist\n");
-			printWildcardResult(exist, wildcardNum);
-			FENCE_PRINT("newCandidate\n");
-			printWildcardResult(newCandidate, wildcardNum);
-			FENCE_PRINT(" ***** ------------------- *****\n");
-			*/
-		}
-	}
-	if (isWeaker) {
-		//FENCE_PRINT("Got a weaker candidate, MUST add!\n");
-		/*
-		FENCE_PRINT("newCandidate\n");
-		printWildcardResult(newCandidate, wildcardNum);
-		FENCE_PRINT(" -----*****--------*****------ \n");
-		*/
-	} else {
-		//FENCE_PRINT("Got an uncomparable candidate, MUST add!\n");
-	}
-	existCandidates->push_back(newCandidate);
-	return true;
-}
 
-bool SCFence::addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates, bool addStronger) {
+/** Be careful that if the candidate is not added, it will be deleted in this
+ * function. Therefore, caller of this function should just delete the list when
+ * finishing calling this function. */
+bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
+	FENCE_PRINT("candidates size: %d.\n", candidates->size());
 	bool added = false;
 	ModelList<Inference*>::iterator it;
-	for (it = newCandidates->begin(); it != newCandidates->end(); it++) {
-		Inference *newCandidate = *it;
-		added = addMoreCandidate(existCandidates, newCandidate, addStronger);
+	for (it = candidates->begin(); it != candidates->end(); it++) {
+		Inference *candidate = *it;
+		added = addInference(candidate);
 		if (added) {
 			added = true;
 		} else {
-			delete newCandidate;
-			it = newCandidates->erase(it);
+			delete candidate;
+			it = candidates->erase(it);
 			it--;
 		}
 	}
 
+	FENCE_PRINT("potential results size: %d.\n", stackSize());
 	return added;
 }
 
@@ -554,7 +475,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
-					
 					// Find all writes between the write1 and the read
 					action_list_t *write2s = new action_list_t();
 					ModelAction *write2;
@@ -621,11 +541,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						
 						// Add candidates to potentialResults list for current
 						// write2
-						model_print("candidates size: %d.\n", candidates->size());
-						//printWildcardResults(candidates);
-						addMoreCandidates(potentialResults, candidates, true);
-						model_print("potential results size: %d.\n", potentialResults->size());
-						//printWildcardResults(potentialResults);
+						addCandidates(candidates);
 						delete candidates;
 					}
 				} else { // Pattern (b) read future value
@@ -640,27 +556,17 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("From read to future write: \n");
 							print_rf_sb_paths(paths1, act, write);
 							candidates = imposeSync(NULL, paths1);
-							model_print("candidates size: %d.\n", candidates->size());
-							model_print("potential results size: %d.\n", potentialResults->size());
-							printWildcardResults(potentialResults);
-							//potentialResults->insert(potentialResults->end(),
-							//	candidates->begin(), candidates->end());
-							addMoreCandidates(potentialResults, candidates, true);
+							addCandidates(candidates);
 							delete candidates;
 						}
 						if (paths2->size() > 0) {
 							candidates = NULL;
 							FENCE_PRINT("paths2 size in pattern(b) : %d\n",
 								paths2->size());
-							if (candidates != NULL)
-								delete candidates;
 							// Fixing the other direction (futureWrite -> read)
 							FENCE_PRINT("From future write to read: \n");
 							print_rf_sb_paths(paths2, write, act);
 							candidates = imposeSync(NULL, paths2);
-							model_print("candidates size: %d.\n", candidates->size());
-							addMoreCandidates(potentialResults, candidates, true);
-							delete candidates;
 						}
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
@@ -674,7 +580,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 
 						*/
 						candidates = imposeSC(NULL, act, write);
-						addMoreCandidates(potentialResults, candidates, true);
+						addCandidates(candidates);
 						delete candidates;
 					}
 				}
@@ -682,16 +588,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 				break;
 			}
 		}
-	}
-}
-
-
-void SCFence::printWildcardResults(ModelList<Inference*> *results) {
-	for (ModelList<Inference*>::iterator it = results->begin(); it !=
-		results->end(); it++) {
-		int idx = distance(results->begin(), it) + 1;
-		model_print("Result %d:\n", idx);
-		(*it)->print();
 	}
 }
 
@@ -716,10 +612,7 @@ bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 					if (paths1->size() > 0) {
 						print_rf_sb_paths(paths1, write, uninit);
 						candidates = imposeSync(NULL, paths1);
-						model_print("candidates size: %d.\n", candidates->size());
-						addMoreCandidates(potentialResults, candidates, true);
-						model_print("potential results size: %d.\n", potentialResults->size());
-					
+						addCandidates(candidates);
 						delete candidates;
 					}
 				}
@@ -757,7 +650,7 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					continue;
 				readCnt++;
 			}
-			if (readCnt > implicitMOReadBound) {
+			if (readCnt > getImplicitMOReadBound()) {
 				// Found it, make write1 --hb-> write2
 				bool isMO = execution->get_mo_graph()->checkReachable(write1, write2);
 				if (isMO) // Only impose mo when it doesn't have mo impsed
@@ -765,7 +658,8 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 				//FENCE_PRINT("write1 --mo-> write2?: %d\n", isMO1);
 				FENCE_PRINT("Running through pattern (c) -- implicit mo!\n");
 				FENCE_PRINT("Read count between the two writes: %d\n", readCnt);
-				FENCE_PRINT("implicitMOReadBound: %d\n", implicitMOReadBound);
+				FENCE_PRINT("implicitMOReadBound: %d\n",
+					getImplicitMOReadBound());
 				WILDCARD_ACT_PRINT(write1);
 				WILDCARD_ACT_PRINT(write2);
 				sync_paths_t *paths1 = get_rf_sb_paths(write1, write2);
@@ -773,22 +667,10 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					FENCE_PRINT("From write1 to write2: \n");
 					print_rf_sb_paths(paths1, write1, write2);
 					candidates = imposeSync(NULL, paths1);
-					model_print("potential results size: %d.\n", potentialResults->size());
 					// Add the candidates as potential results
-					addMoreCandidates(potentialResults, candidates, true);
+					addCandidates(candidates);
 					delete candidates;
 					return true;
-					model_print("potential results size: %d.\n", potentialResults->size());
-/*
-					model_print("potential results size: %d.\n", potentialResults->size());
-					model_print("candidates size: %d.\n", candidates->size());
-					printWildcardResults(candidates);
-					potentialResults->insert(potentialResults->end(),
-						candidates->begin(), candidates->end());
-					model_print("potential results size: %d.\n", potentialResults->size());
-					delete candidates;
-					return true;
-*/
 				} else {
 					FENCE_PRINT("Cannot establish hb between write1 & write2: \n");
 					ACT_PRINT(write1);
@@ -804,40 +686,19 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 	return false;
 }
 
-bool SCFence::getNextCandidate() {
-	while (true) {
-		Inference *candidate = potentialResults->front();
-		if (candidate == NULL) {
-			// We are unable to find any inferences
-			return false;
-		}
-		//printWildcardResult(candidate, wildcardNum);
-		potentialResults->pop_front();
-		model_print("potential results size: %d.\n", potentialResults->size());
-		int compVal = candidate->compareTo(results);
-		// Only try those candidates weaker than the results
-		if (compVal == 0 || compVal == 1) {
-			delete candidate;
-			continue;
-		}
-		// Clear the current inference before over-writing
-		delete curInference;
-		curInference = candidate;
-		curInference->print();
-		return true;
-	}
-}
-
-
 void SCFence::analyze(action_list_t *actions) {
 	struct timeval start;
 	struct timeval finish;
 	if (time)
 		gettimeofday(&start, NULL);
 
+	Inference *next = NULL;
 	// First of all check if there's any uninitialzed read bugs
 	if (execution->have_bug_reports()) {
-		addFixesBuggyExecution(actions);
+		if (addFixesBuggyExecution(actions)) {
+			next = getNextInference();
+			restartModelChecker();
+		}
 	}
 	
 	/* Build up the thread lists for general purpose */
@@ -858,52 +719,38 @@ void SCFence::analyze(action_list_t *actions) {
 	if (cyclic) {
 		print_list(list);
 		addPotentialFixes(list);
-		if (!getNextCandidate()) {
+		next = getNextInference();
+		if (!next) {
 			model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+		} else {
+			restartModelChecker();
 		}
-		/*
-		Inference *candidate = potentialResults->front();
-		if (candidate == NULL) {
-			// We are unable to find any inferences
-			model_print("Maybe you should have more wildcards parameters for us to infer!\n");
-			return;
-		}
-		//printWildcardResult(candidate, wildcardNum);
-		potentialResults->pop_front();
-		// Clear the current inference before over-writing
-		delete curInference;
-		curInference = candidate;
-		*/
-		restartModelChecker();
 	} else {
 		// Also check if we should imply the implicit modification order
 		/*
-		model_print("inferImplictMO: %d\n", inferImplicitMO);
+		model_print("inferImplictMO: %d\n", getInferImplicitMO());
 		model_print("too_many_steps: %d\n",
 			execution->too_many_steps());
 		model_print("maxreads & implicitReadBound: %d & %d\n",
-		    model->params.maxreads, implicitMOReadBound);
+		    model->params.maxreads, getImplicitMOReadBound());
 		*/
-		if (inferImplicitMO && execution->too_many_steps() &&
+		if (getInferImplicitMO() && execution->too_many_steps() &&
 			!execution->is_complete_execution()) {
 			print_list(list);
 			bool infered = addFixesImplicitMO(list);
 			if (infered) {
+				next = getNextInference();
 				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
-				if (!getNextCandidate()) {
+				if (!next) {
 					model_print("No candidates left!\n");
+				} else {
+					restartModelChecker();
 				}
-				/*
-				Inference *candidate = potentialResults->front();
-				potentialResults->pop_front();
-				// Clear the current inference before over-writing
-				delete curInference;
-				curInference = candidate;*/
-				restartModelChecker();
 			} else {
 				model_print("Weird!! We cannot infer the mo for infinite reads!\n");
 				model_print("Maybe you should have more wildcards parameters for us to infer!\n");
-				if (!getNextCandidate()) {
+				next = getNextInference();
+				if (!next) {
 					model_print("No candidates left!\n");
 					exitModelChecker();
 				} else {

@@ -314,7 +314,7 @@ class InferenceNodeEquals : public std::equal_to<InferenceNode*>
 };
 
 /** Type-define the inference_set_t we need throughout the analysis here */
-typedef ModelSet<InferenceNode*, InferenceNodeHash, InferenceNodeEquals> node_set_t;
+typedef ModelSet<InferenceNode*, InferenceNodeHash, InferenceNodeEquals> inference_node_set_t;
 
 typedef ModelList<InferenceNode*> inference_node_list_t;
 
@@ -324,10 +324,13 @@ typedef ModelList<InferenceNode*> inference_node_list_t;
  * inferences */
 typedef struct InferenceStack {
 	InferenceStack() {
+		exploredSet = new inference_node_set_t();
+		results = new inference_node_list_t();
+		nodes = new inference_node_list_t();
 	}
 
 	/** The set of already explored nodes in the tree */
-	node_set_t *exploredSet;
+	inference_node_set_t *exploredSet;
 
 	/** The list of feasible inferences */
 	inference_node_list_t *results;
@@ -338,6 +341,17 @@ typedef struct InferenceStack {
 	/** Actions to take when we find node is thoroughly explored */
 	void commitNodeExplored(InferenceNode *node) {
 		exploredSet->insert(node);
+	}
+
+	/** Print the result of inferences  */
+	void printResults() {
+		for (inference_node_list_t::iterator it = results->begin(); it !=
+			results->end(); it++) {
+			Inference *infer = (*it)->getInference();
+			int idx = distance(results->begin(), it);
+			model_print("Result %d:\n", idx);
+			infer->print();
+		}
 	}
 
 	/** When we finish model checking or cannot further strenghen with the
@@ -379,7 +393,7 @@ typedef struct InferenceStack {
 	 */
 	bool addInference(Inference *infer) {
 		InferenceNode *node = new InferenceNode(infer);
-		node_set_t::iterator it = exploredSet->find(node);
+		inference_node_set_t::iterator it = exploredSet->find(node);
 		if (it == exploredSet->end()) {
 			// We haven't explored this inference yet
 			nodes->push_back(node);
@@ -395,6 +409,7 @@ typedef struct InferenceStack {
 
 typedef struct scfence_priv {
 	scfence_priv() {
+		inferenceStack = new InferenceStack();
 		curInference = new Inference();
 		candidateFile = NULL;
 		inferImplicitMO = false;
@@ -402,11 +417,11 @@ typedef struct scfence_priv {
 		implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
 	}
 
+	/** The stack of the InferenceNode we maintain for exploring */
+	InferenceStack *inferenceStack;
+
 	/** The current inference */
 	Inference *curInference;
-
-	/** The stack of the InferenceNode we maintain for exploring */
-	InferenceStack *stack;
 
 	/** The file which provides a list of candidate wilcard inferences */
 	char *candidateFile;
@@ -440,6 +455,8 @@ class SCFence : public TraceAnalysis {
 	SNAPSHOTALLOC
 
  private:
+	/********************** SC-related stuff (beginning) **********************/
+
 	void update_stats();
 	void print_list(action_list_t *list);
 	int buildVectors(SnapVector<action_list_t> *threadlist, int *maxthread, action_list_t *);
@@ -452,43 +469,6 @@ class SCFence : public TraceAnalysis {
 	void check_rf(action_list_t *list);
 	void reset(action_list_t *list);
 	ModelAction* pruneArray(ModelAction**, int);
-
-	bool parseOption(char *opt);
-	char* parseOptionHelper(char *opt, int *optIdx);
-	/** Functions that work for infering the parameters */
-	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
-	void print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end);
-	bool isSCEdge(const ModelAction *from, const ModelAction *to) {
-		return from->is_seqcst() && to->is_seqcst();
-	}
-
-	bool isConflicting(const ModelAction *act1, const ModelAction *act2) {
-		return act1->get_location() == act2->get_location() ? (act1->is_write()
-			|| act2->is_write()) : false;
-	}
-	
-	/** Initialize the search with a file with a list of potential candidates */
-	void initializeByFile();
-
-	/** When getting a non-SC execution, find potential fixes and add it to the
-	 * potentialResults list
-	 */
-	void addPotentialFixes(action_list_t *list);
-	bool addFixesBuggyExecution(action_list_t *list);
-	bool addFixesImplicitMO(action_list_t *list);
-	bool addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates, bool addStronger);
-	bool addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate, bool addStronger);
-	/** Get next inference from the potential result list */
-	bool getNextCandidate();
-	
-	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths);
-	ModelList<Inference*>* imposeSC(ModelList<Inference*> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
-	const char* get_mo_str(memory_order order);
-	void printWildcardResults(ModelList<Inference*> *results);
-	void pruneResults();
-
-	void restartModelChecker();
-	void exitModelChecker();
 
 	int maxthreads;
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
@@ -503,8 +483,120 @@ class SCFence : public TraceAnalysis {
 	bool print_nonsc;
 	bool time;
 	struct sc_statistics *stats;
+
+	/********************** SCF-related stuff (beginning) **********************/
+
 	
+
+
+	/********************** SCFence-related stuff (beginning) **********************/
+	
+	/** The non-snapshotting private compound data structure that has the
+	 * necessary stuff for the scfence analysis */
 	static scfence_priv *priv;
+
+	/** The function to parse the SCFence plugin options */
+	bool parseOption(char *opt);
+
+	/** Helper function for option parsing */
+	char* parseOptionHelper(char *opt, int *optIdx);
+
+	/** Functions that work for infering the parameters by impsing
+	 * synchronization */
+	sync_paths_t *get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2);
+	
+	/** Printing function for those paths imposed by happens-before; only for
+	 * the purpose of debugging */
+	void print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end);
+
+	/** Whether there's an edge between from and to actions */
+	bool isSCEdge(const ModelAction *from, const ModelAction *to) {
+		return from->is_seqcst() && to->is_seqcst();
+	}
+	
+	bool isConflicting(const ModelAction *act1, const ModelAction *act2) {
+		return act1->get_location() == act2->get_location() ? (act1->is_write()
+			|| act2->is_write()) : false;
+	}
+	
+	/** Initialize the search with a file with a list of potential candidates */
+	void initializeByFile();
+
+	/** When getting a non-SC execution, find potential fixes and add it to the
+	 * stack */
+	void addPotentialFixes(action_list_t *list);
+
+	/** When getting a buggy execution (we only target the uninitialized loads
+	 * here), find potential fixes and add it to the stack */
+	bool addFixesBuggyExecution(action_list_t *list);
+
+	/** When getting an SC and bug-free execution, we check whether we should
+	 * fix the implicit mo problems. If so, find potential fixes and add it to
+	 * the stack */
+	bool addFixesImplicitMO(action_list_t *list);
+
+	/** Add candidates with a list of inferences; returns false if nothing is
+	 * added */
+	bool addCandidates(ModelList<Inference*> *candidates);
+
+	/** Impose some paths of synchronization to an already existing candidates
+	 * of inferences; if partialCandidates is NULL, it imposes the paths to the
+	 * current inference. It returns the newly strengthened list of inferences
+	 * */
+	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths);
+
+	/** Impose some paths of SC to an already existing candidates of inferences;
+	 * if partialCandidates is NULL, it imposes the the corrsponding SC
+	 * parameters (act1 & act2) to the current inference. It returns the newly
+	 * strengthened list of inferences */
+	ModelList<Inference*>* imposeSC(ModelList<Inference*> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
+
+	const char* get_mo_str(memory_order order);
+
+	/** When we finish model checking or cannot further strenghen with the
+	 * current inference, we commit the current inference (the node at the back
+	 * of the stack) to be explored, pop it out of the stack; if it is feasible,
+	 * we put it in the result list */
+	void commitCurInference(bool feasible) {
+		getStack()->commitCurInference(feasible);	
+	}
+
+	/** Get the next available unexplored node; @Return NULL 
+	 * if we don't have next, meaning that we are done with exploring */
+	Inference* getNextInference() {
+		return getStack()->getNextInference();
+	}
+
+	/** Add one possible node that represents a fix for the current inference;
+	 * @Return true if the node to add has not been explored yet
+	 */
+	bool addInference(Inference *infer) {
+		return getStack()->addInference(infer);
+	}
+
+	/** Print the result of inferences  */
+	void printResults() {
+		getStack()->printResults();
+	}
+			
+
+	/** The number of nodes in the stack (including those parent nodes (set as
+	 * explored) */
+	 int stackSize() {
+		return getStack()->nodes->size();
+	 }
+
+	/** Set the restart flag of the model checker in order to restart the
+	 * checking process */
+	void restartModelChecker();
+	
+	/** Set the exit flag of the model checker in order to exit the whole
+	 * process */
+	void exitModelChecker();
+
+	InferenceStack* getStack() {
+		return priv->inferenceStack;
+	}
 
 	Inference* getCurInference() {
 		return priv->curInference;
@@ -546,18 +638,6 @@ class SCFence : public TraceAnalysis {
 		priv->hasRestarted = val;
 	}
 
-	static Inference *curInference;
-	/** A list of possible results */
-	static ModelList<Inference*> *potentialResults;
-	/** A list of correct inference results */
-	static ModelList<Inference*> *results;
-	/** The file which provides a list of candidate wilcard inferences */
-	static char *candidateFile;
-	/** The swich of whether we consider the repetitive read to infer mo (_m) */
-	static bool inferImplicitMO;
-	/** Whether we have restarted the model checker */
-	static bool hasRestarted;
-	/** The bound above which we think that write should be the last write (_b) */
-	static int implicitMOReadBound;
+	/********************** SCFence-related stuff (end) **********************/
 };
 #endif
