@@ -50,6 +50,9 @@ public:
 	/** Restart the model checker, supposed to be called by the pluggin */
 	void restart();
 
+	/** Exit the model checker, supposed to be called by the pluggin */
+	void exit_model_checker();
+
 	/** @returns the context for the main model-checking system thread */
 	ucontext_t * get_system_context() { return &system_context; }
 
@@ -77,11 +80,11 @@ public:
 	}
 	MEMALLOC
 private:
-	/** Flag indicating whether to restart model checker */
+	/** Flag indicating whether to restart the model checker */
 	bool restart_flag;
-
-	/** Real actions to reset the model checker */
-	void reset_model_checker();
+	
+	/** Flag indicating whether to exit the model checker */
+	bool exit_flag;
 
 	/** The scheduler to use: tracks the running/ready Threads */
 	Scheduler * scheduler;
@@ -108,7 +111,7 @@ private:
 
 	ModelVector<TraceAnalysis *> trace_analyses;
 	
-	/** Actual actions to restart the model checker */
+	/** @bref Actual actions to restart the model checker */
 	void restart_actions();
 	/** @bref Currently we allow one plugin for the purpose of inspection */
 	TraceAnalysis *inspect_plugin;

@@ -11,12 +11,14 @@
 #include <stdio.h>
 #include <algorithm>
 
+scfence_priv *SCFence::priv;
 Inference *SCFence::curInference;
 char *SCFence::candidateFile;
 ModelList<Inference *> *SCFence::results;
 ModelList<Inference *> *SCFence::potentialResults;
 
 bool SCFence::inferImplicitMO;
+bool SCFence::hasRestarted;
 int SCFence::implicitMOReadBound;
 
 SCFence::SCFence() :
@@ -38,7 +40,9 @@ SCFence::SCFence() :
 	results = new ModelList<Inference*>();
 	candidateFile = NULL;
 	inferImplicitMO = false;
+	hasRestarted = false;
 	implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
+	priv = new scfence_priv();
 }
 
 SCFence::~SCFence() {
@@ -110,6 +114,17 @@ void SCFence::pruneResults() {
 	return;
 }
 
+
+void SCFence::exitModelChecker() {
+	model->exit_model_checker();
+}
+
+void SCFence::restartModelChecker() {
+	model->restart();
+	if (!hasRestarted)
+		hasRestarted = true;
+}
+
 void SCFence::actionAtModelCheckingFinish() {
 	// First add the current inference to the result list
 	results->push_back(curInference);
@@ -124,6 +139,10 @@ void SCFence::actionAtModelCheckingFinish() {
 			it--;
 		}
 	}
+	if (results->size() == 0) {
+		model_print("We cannot infer any parameters for you!\n");
+		model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+	}
 
 	if (time)
 		model_print("Elapsed time in usec %llu\n", stats->elapsedtime);
@@ -136,7 +155,7 @@ void SCFence::actionAtModelCheckingFinish() {
 	if (potentialResults->size() > 0) { // Still have candidates to explore
 		curInference = potentialResults->front();
 		potentialResults->pop_front();
-		model->restart();
+		restartModelChecker();
 	} else {
 		model_print("Result!\n");
 		model_print("Original size: %d!\n", results->size());
@@ -515,43 +534,10 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 		sync_paths_t *paths1 = NULL, *paths2 = NULL;
 		ModelList<Inference*> *candidates = NULL;
-		const ModelAction *unInitRead = NULL,
-			*act = *it;
+		ModelAction	*act = *it;
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from();
-					
-				if (write->get_seq_number() == 0) { // Uninitialzed read
-					unInitRead = act;
-					action_list_t::iterator itWrite = it;
-					itWrite++;
-					bool solveUninit = false;
-					for (; itWrite != list->end(); itWrite++) {
-						const ModelAction *theWrite = *itWrite;
-						if (theWrite->get_location() !=
-							unInitRead->get_location()) 
-							continue;
-						FENCE_PRINT("Running through pattern (b') (unint read)!\n");
-
-						// Try to find path from theWrite to the act 
-						paths1 = get_rf_sb_paths(theWrite, act);
-						if (paths1->size() > 0) {
-							FENCE_PRINT("From some write to uninit read: \n");
-							print_rf_sb_paths(paths1, theWrite, act);
-							candidates = imposeSync(NULL, paths1);
-							model_print("candidates size: %d.\n", candidates->size());
-							//potentialResults->insert(potentialResults->end(),
-							//	candidates->begin(), candidates->end());
-							solveUninit = true;
-						} else {
-							FENCE_PRINT("Might not be able to impose sync to solve the uninit \n");
-							//ACT_PRINT(act);
-							//ACT_PRINT(write);
-						}
-					}
-					if (solveUninit)
-						break;
-				}
 
 				// Check reading old or future value
 				bool readOldVal = false;
@@ -709,6 +695,43 @@ void SCFence::printWildcardResults(ModelList<Inference*> *results) {
 	}
 }
 
+
+/** Return false to indicate there's no fixes for this execution. This can
+ * happen for specific reason such as it's a user-specified assertion failure */
+bool SCFence::addFixesBuggyExecution(action_list_t *list) {
+	ModelList<Inference*> *candidates = NULL;
+	for (action_list_t::reverse_iterator rit = list->rbegin(); rit !=
+		list->rend(); rit++) {
+		ModelAction *uninit = *rit;
+		if (uninit->get_seq_number() > 0) {
+			if (!uninit->is_uninitialized())
+				continue;
+			for (action_list_t::iterator it = list->begin(); it !=
+				list->end(); it++) {
+				ModelAction *write = *it;
+				if (write->same_var(uninit)) {
+					// Now we can try to impose sync write hb-> uninit
+					FENCE_PRINT("Running through pattern (b') (unint read)!\n");
+					sync_paths_t *paths1 = get_rf_sb_paths(write, uninit);
+					if (paths1->size() > 0) {
+						print_rf_sb_paths(paths1, write, uninit);
+						candidates = imposeSync(NULL, paths1);
+						model_print("candidates size: %d.\n", candidates->size());
+						addMoreCandidates(potentialResults, candidates, true);
+						model_print("potential results size: %d.\n", potentialResults->size());
+					
+						delete candidates;
+					}
+				}
+			}
+		}
+	}
+	if (candidates) // Has found candidates
+		return true;
+	else
+		return false;
+}
+
 /** Return false to indicate there's no implied mo for this execution */
 bool SCFence::addFixesImplicitMO(action_list_t *list) {
 	ModelList<Inference*> *candidates = NULL;
@@ -811,6 +834,11 @@ void SCFence::analyze(action_list_t *actions) {
 	struct timeval finish;
 	if (time)
 		gettimeofday(&start, NULL);
+
+	// First of all check if there's any uninitialzed read bugs
+	if (execution->have_bug_reports()) {
+		addFixesBuggyExecution(actions);
+	}
 	
 	/* Build up the thread lists for general purpose */
 	int thrdNum;
@@ -846,7 +874,7 @@ void SCFence::analyze(action_list_t *actions) {
 		delete curInference;
 		curInference = candidate;
 		*/
-		model->restart();
+		restartModelChecker();
 	} else {
 		// Also check if we should imply the implicit modification order
 		/*
@@ -863,7 +891,7 @@ void SCFence::analyze(action_list_t *actions) {
 			if (infered) {
 				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
 				if (!getNextCandidate()) {
-					model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+					model_print("No candidates left!\n");
 				}
 				/*
 				Inference *candidate = potentialResults->front();
@@ -871,7 +899,17 @@ void SCFence::analyze(action_list_t *actions) {
 				// Clear the current inference before over-writing
 				delete curInference;
 				curInference = candidate;*/
-				model->restart();
+				restartModelChecker();
+			} else {
+				model_print("Weird!! We cannot infer the mo for infinite reads!\n");
+				model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+				if (!getNextCandidate()) {
+					model_print("No candidates left!\n");
+					exitModelChecker();
+				} else {
+					restartModelChecker();
+				}
+				
 			}
 		}
 	}
@@ -902,6 +940,9 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		idx2 = id_to_int(act2->get_tid());
 	action_list_t *list1 = &dup_threadlists[idx1],
 		*list2 = &dup_threadlists[idx2];
+	if (list1->size() == 0 || list2->size() == 0) {
+		return new sync_paths_t();
+	}
 	action_list_t::iterator it1 = list1->begin();
 	// First action of the thread where act1 belongs
 	ModelAction *start = *it1;

@@ -8,6 +8,10 @@
 #include "wildcard.h"
 #include "model.h"
 
+#include <unordered_set>
+#include <functional>
+#include <utility>
+
 #ifdef __cplusplus
 using std::memory_order;
 #endif
@@ -35,6 +39,7 @@ using std::memory_order;
 class SCFence;
 
 extern SCFence *scfence;
+
 
 /** A list of load operations can represent the union of reads-from &
  * sequence-before edges; And we have a list of lists of load operations to
@@ -177,7 +182,7 @@ typedef struct Inference {
 		0 -> 'this == infer'
 		INFERENCE_INCOMPARABLE(x) -> true means incomparable
 	 */
-	int compareTo(Inference *infer) {
+	int compareTo(const Inference *infer) const {
 		int result = size == infer->size ? 0 : (size > infer->size) ? 1 : -1;
 		int smallerSize = size > infer->size ? infer->size : size;
 		int subResult;
@@ -240,7 +245,183 @@ typedef struct Inference {
 	MEMALLOC
 } Inference;
 
-typedef HashTable<memory_order, memory_order, memory_order, 4, model_malloc, model_calloc> wildcard_table_t;
+
+/** This represents an inference node in the inference stack. It is associated
+ * with one inference we might or might not finish exploring */
+typedef struct InferenceNode {
+	/** The inference assoicates with this node */
+	Inference *infer;
+
+	/** Indicate whether this node has been thoroughly explored */
+	bool explored;
+	
+	InferenceNode(Inference *infer, bool explored) :
+		infer(infer),
+		explored(explored) {}
+
+	InferenceNode(Inference *infer) :
+		infer(infer),
+		explored(false) {}
+
+	Inference* getInference() const { return infer; }
+	
+	void setInference(Inference* infer) { this->infer = infer; }
+
+	bool getExplored() const { return explored; }
+
+	void setExplored(bool explored) { this->explored = explored; }
+
+	MEMALLOC
+} InferenceNode;
+
+
+/** Define a HashSet that supports customized equals_to() & hash() functions so
+ * that we can use it in our analysis
+*/
+template<class _Key, class _Hash, class _KeyEqual>
+class ModelSet : public std::unordered_set<_Key, _Hash, _KeyEqual, ModelAlloc<_Key> >
+{
+ public:
+	MEMALLOC
+};
+
+class InferenceNodeHash : public std::hash<InferenceNode*>
+{
+	public:
+	size_t operator()(InferenceNode* const X) const {
+		Inference *infer = X->getInference();
+		size_t hash = infer->orders[1] + 4096;
+		for (int i = 2; i < infer->size; i++) {
+			hash *= 37;
+			hash += (infer->orders[i] + 4096);
+		}
+		return hash;
+	}
+
+	MEMALLOC
+};
+
+class InferenceNodeEquals : public std::equal_to<InferenceNode*>
+{
+	public:
+	bool operator()(InferenceNode* const lhs, InferenceNode* const rhs) const {
+		Inference *x = lhs->getInference(),
+			*y = rhs->getInference();
+		return x->compareTo(y) == 0;
+	}
+
+	MEMALLOC
+};
+
+/** Type-define the inference_set_t we need throughout the analysis here */
+typedef ModelSet<InferenceNode*, InferenceNodeHash, InferenceNodeEquals> node_set_t;
+
+typedef ModelList<InferenceNode*> inference_node_list_t;
+
+/** This is a stack of those inference nodes. We are exploring possible
+ * inferences in a DFS-like way. Also, we can do an state-based like
+ * optimization to reduce the explored space by recording the explored
+ * inferences */
+typedef struct InferenceStack {
+	InferenceStack() {
+	}
+
+	/** The set of already explored nodes in the tree */
+	node_set_t *exploredSet;
+
+	/** The list of feasible inferences */
+	inference_node_list_t *results;
+
+	/** The stack of nodes */
+	inference_node_list_t *nodes;
+	
+	/** Actions to take when we find node is thoroughly explored */
+	void commitNodeExplored(InferenceNode *node) {
+		exploredSet->insert(node);
+	}
+
+	/** When we finish model checking or cannot further strenghen with the
+	 * current inference, we commit the current inference (the node at the back
+	 * of the stack) to be explored, pop it out of the stack; if it is feasible,
+	 * we put it in the result list */
+	void commitCurInference(bool feasible) {
+		InferenceNode *node = nodes->back();
+		nodes->pop_back();
+		commitNodeExplored(node);
+		if (feasible) {
+			results->push_back(node);
+		}
+	}
+
+	/** Get the next available unexplored node; @Return NULL 
+	 * if we don't have next, meaning that we are done with exploring */
+	Inference* getNextInference() {
+		InferenceNode *node = NULL;
+		while (nodes->size() > 0) {
+			node = nodes->back();
+			if (node->getExplored()) {
+				// Finish exploring this node
+				// Remove the node from the stack
+				nodes->pop_back();
+				// Record this in the exploredSet
+				commitNodeExplored(node);
+			} else {
+				node->setExplored(true);
+				return node->getInference();
+			}
+		}
+		return NULL;
+	}
+
+	
+	/** Add one possible node that represents a fix for the current inference;
+	 * @Return true if the node to add has not been explored yet
+	 */
+	bool addInference(Inference *infer) {
+		InferenceNode *node = new InferenceNode(infer);
+		node_set_t::iterator it = exploredSet->find(node);
+		if (it == exploredSet->end()) {
+			// We haven't explored this inference yet
+			nodes->push_back(node);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	MEMALLOC
+} InferenceStack;
+
+
+typedef struct scfence_priv {
+	scfence_priv() {
+		curInference = new Inference();
+		candidateFile = NULL;
+		inferImplicitMO = false;
+		hasRestarted = false;
+		implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
+	}
+
+	/** The current inference */
+	Inference *curInference;
+
+	/** The stack of the InferenceNode we maintain for exploring */
+	InferenceStack *stack;
+
+	/** The file which provides a list of candidate wilcard inferences */
+	char *candidateFile;
+
+	/** Whether we consider the repetitive read to infer mo (_m) */
+	bool inferImplicitMO;
+	
+	/** The bound above which we think that write should be the last write (_b) */
+	int implicitMOReadBound;
+
+	/** Whether we have restarted the model checker */
+	bool hasRestarted;
+
+	MEMALLOC
+} scfence_priv;
 
 class SCFence : public TraceAnalysis {
  public:
@@ -293,6 +474,7 @@ class SCFence : public TraceAnalysis {
 	 * potentialResults list
 	 */
 	void addPotentialFixes(action_list_t *list);
+	bool addFixesBuggyExecution(action_list_t *list);
 	bool addFixesImplicitMO(action_list_t *list);
 	bool addMoreCandidates(ModelList<Inference*> *existCandidates, ModelList<Inference*> *newCandidates, bool addStronger);
 	bool addMoreCandidate(ModelList<Inference*> *existCandidates, Inference *newCandidate, bool addStronger);
@@ -304,6 +486,9 @@ class SCFence : public TraceAnalysis {
 	const char* get_mo_str(memory_order order);
 	void printWildcardResults(ModelList<Inference*> *results);
 	void pruneResults();
+
+	void restartModelChecker();
+	void exitModelChecker();
 
 	int maxthreads;
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
@@ -319,6 +504,48 @@ class SCFence : public TraceAnalysis {
 	bool time;
 	struct sc_statistics *stats;
 	
+	static scfence_priv *priv;
+
+	Inference* getCurInference() {
+		return priv->curInference;
+	}
+
+	void setCurInference(Inference* infer) {
+		priv->curInference = infer;
+	}
+
+	char* getCandidateFile() {
+		return priv->candidateFile;
+	}
+
+	void setCandidateFile(char* file) {
+		priv->candidateFile = file;
+	}
+
+	bool getInferImplicitMO() {
+		return priv->inferImplicitMO;
+	}
+
+	void setInferImplicitMO(bool val) {
+		priv->inferImplicitMO = val;
+	}
+
+	int getImplicitMOReadBound() {
+		return priv->implicitMOReadBound;
+	}
+
+	void setImplicitMOReadBound(int bound) {
+		priv->implicitMOReadBound = bound;
+	}
+
+	int getHasRestarted() {
+		return priv->hasRestarted;
+	}
+
+	void setHasRestarted(int val) {
+		priv->hasRestarted = val;
+	}
+
 	static Inference *curInference;
 	/** A list of possible results */
 	static ModelList<Inference*> *potentialResults;
@@ -328,6 +555,8 @@ class SCFence : public TraceAnalysis {
 	static char *candidateFile;
 	/** The swich of whether we consider the repetitive read to infer mo (_m) */
 	static bool inferImplicitMO;
+	/** Whether we have restarted the model checker */
+	static bool hasRestarted;
 	/** The bound above which we think that write should be the last write (_b) */
 	static int implicitMOReadBound;
 };

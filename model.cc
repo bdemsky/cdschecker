@@ -24,6 +24,7 @@ ModelChecker::ModelChecker(struct model_params params) :
 	/* Initialize default scheduler */
 	params(params),
 	restart_flag(false),
+	exit_flag(false),
 	scheduler(new Scheduler()),
 	node_stack(new NodeStack()),
 	execution(new ModelExecution(this, &this->params, scheduler, node_stack)),
@@ -302,11 +303,16 @@ bool ModelChecker::next_execution()
 
 		checkDataRaces();
 		run_trace_analyses();
-	} else if (inspect_plugin && execution->too_many_steps() &&
-		!execution->is_complete_execution()) {
-		/* This execution reaches a bound, still throw it to the inspect plugin
-		 * to check special cases (e.g. liveness problem caused by lousy mo for
-		 * scfence plugin
+	} else if (inspect_plugin && !execution->is_complete_execution() &&
+		//(execution->too_many_steps() || execution->have_bug_reports())) {
+		(execution->too_many_steps())) {
+		/* Normally we don't run the trace analyses when we don't get a complete
+		 * execution except that the execution cannot complete for one of the
+		 * following reasons:
+			1) it reaches a customized bound (e.g. liveness problem caused by
+			lousy mo for SCFence; or
+			2) it has bug reports (e.g. uninitialized
+			load (SCFence needs to analyze those executions too)) 
 		 */
 		 inspect_plugin->analyze(execution->get_action_trace());
 	}
@@ -325,6 +331,9 @@ bool ModelChecker::next_execution()
 	if (restart_flag) {
 		restart_actions();
 		return true;
+	}
+	if (exit_flag) {
+		return false;
 	}
 
 	if ((diverge = execution->get_next_backtrack()) == NULL)
@@ -432,6 +441,13 @@ bool ModelChecker::should_terminate_execution()
 	return false;
 }
 
+
+/** @brief Exit ModelChecker upon returning to the run loop of the model checker. */
+void ModelChecker::exit_model_checker()
+{
+	exit_flag = true;
+}
+
 /** @brief Restart ModelChecker upon returning to the run loop of the model checker. */
 void ModelChecker::restart()
 {
@@ -505,15 +521,16 @@ void ModelChecker::run()
 			model_print("******* Model-checking Finished: *******\n");
 		}
 		if (!has_next && inspect_plugin != NULL) {
-			model_print("******* Model-checking complete & restart : *******\n");
+			if (exit_flag) {
+				model_print("******* Model-checking Exit: *******\n");
+			}
 			//print_stats();
 			inspect_plugin->actionAtModelCheckingFinish();
 			// Check if the inpect plugin might have set the restart flag
 			if (restart_flag) {
-				//model_print("******* Model-checking RESTART (beginning): *******\n");
+				model_print("******* Model-checking RESTART: *******\n");
 				//print_stats();
 				//model_print("******* Model-checking RESTART (end): *******\n");
-
 				has_next = true;
 				restart_actions();
 			}
