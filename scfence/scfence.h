@@ -97,13 +97,15 @@ typedef struct Inference {
 		}
 	}
 
+	/** Return false when we cannot update a specific mo because it's already
+	 * that strong or it's not a wildcard */
 	bool strengthen(const ModelAction *act, memory_order mo) {
 		memory_order wildcard = act->get_original_mo();
 		int wildcardID = get_wildcard_id(wildcard);
 		if (!is_wildcard(wildcard)) {
-			model_print("We cannot make this update!\n");
-			model_print("wildcard: %d --> mo: %d\n", wildcardID, mo);
-			act->print();
+			FENCE_PRINT("We cannot make this update!\n");
+			FENCE_PRINT("wildcard: %d --> mo: %d\n", wildcardID, mo);
+			ACT_PRINT(act);
 			return false;
 		}
 		if (wildcardID > size)
@@ -113,17 +115,24 @@ typedef struct Inference {
 		ASSERT (is_normal_mo_infer(orders[wildcardID]));
 		switch (orders[wildcardID]) {
 			case memory_order_seq_cst:
-				break;
+				return false;
 			case memory_order_relaxed:
+				if (mo == memory_order_relaxed)
+					return false;
 				orders[wildcardID] = mo;
 				break;
 			case memory_order_acquire:
+				if (mo == memory_order_acquire || mo == memory_order_relaxed)
+					return false;
 				if (mo == memory_order_release)
 					orders[wildcardID] = memory_order_acq_rel;
-				else if (mo >= memory_order_acq_rel)
+				else if (mo >= memory_order_acq_rel && mo <=
+					memory_order_seq_cst)
 					orders[wildcardID] = mo;
 				break;
 			case memory_order_release:
+				if (mo == memory_order_release || mo == memory_order_relaxed)
+					return false;
 				if (mo == memory_order_acquire)
 					orders[wildcardID] = memory_order_acq_rel;
 				else if (mo >= memory_order_acq_rel)
@@ -132,6 +141,8 @@ typedef struct Inference {
 			case memory_order_acq_rel:
 				if (mo == memory_order_seq_cst)
 					orders[wildcardID] = mo;
+				else
+					return false;
 				break;
 			default:
 				orders[wildcardID] = mo;
@@ -204,6 +215,20 @@ typedef struct Inference {
 
 	bool getExplored() {
 		return explored;
+	}
+
+	void debug_print() {
+		ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
+		model_print("Explored: %d\n", explored);
+		/*
+		for (int i = 1; i <= size; i++) {
+	        memory_order mo = orders[i];
+			if (mo != WILDCARD_NONEXIST) {
+				// Print the wildcard inference result
+				FENCE_PRINT("wildcard %d -> memory_order_%s\n", i, get_mo_str(mo));
+			}
+		}
+		*/
 	}
 
 	void print() {

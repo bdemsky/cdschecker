@@ -697,6 +697,7 @@ void SCFence::analyze(action_list_t *actions) {
 	if (execution->have_bug_reports()) {
 		if (addFixesBuggyExecution(actions)) {
 			next = getNextInference();
+			setCurInference(next);
 			restartModelChecker();
 		}
 	}
@@ -723,6 +724,7 @@ void SCFence::analyze(action_list_t *actions) {
 		if (!next) {
 			model_print("Maybe you should have more wildcards parameters for us to infer!\n");
 		} else {
+			setCurInference(next);
 			restartModelChecker();
 		}
 	} else {
@@ -744,6 +746,7 @@ void SCFence::analyze(action_list_t *actions) {
 				if (!next) {
 					model_print("No candidates left!\n");
 				} else {
+					setCurInference(next);
 					restartModelChecker();
 				}
 			} else {
@@ -754,6 +757,7 @@ void SCFence::analyze(action_list_t *actions) {
 					model_print("No candidates left!\n");
 					exitModelChecker();
 				} else {
+					setCurInference(next);
 					restartModelChecker();
 				}
 				
