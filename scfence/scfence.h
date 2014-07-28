@@ -355,6 +355,17 @@ typedef struct InferenceStack {
 		}
 	}
 
+	/** Print the candidates of inferences  */
+	void printCandidates() {
+		for (inference_list_t::iterator it = candidates->begin(); it !=
+			candidates->end(); it++) {
+			Inference *infer = *it;
+			int idx = distance(candidates->begin(), it);
+			model_print("Candidate %d:\n", idx);
+			infer->print();
+		}
+	}
+
 	/** When we finish model checking or cannot further strenghen with the
 	 * current inference, we commit the current inference (the node at the back
 	 * of the stack) to be explored, pop it out of the stack; if it is feasible,
@@ -377,7 +388,7 @@ typedef struct InferenceStack {
 		Inference *infer = NULL;
 		while (candidates->size() > 0) {
 			infer = candidates->back();
-			if (infer->getExplored()) {
+			if (infer->getExplored() || inExploredSet(infer)) {
 				// Finish exploring this node
 				// Remove the node from the stack
 				candidates->pop_back();
@@ -396,13 +407,22 @@ typedef struct InferenceStack {
 	 * @Return true if the node to add has not been explored yet
 	 */
 	bool addInference(Inference *infer) {
-		inference_set_t::iterator it = exploredSet->find(infer);
-		if (it == exploredSet->end()) {
+		if (!inExploredSet(infer)) {
 			// We haven't explored this inference yet
 			candidates->push_back(infer);
 			return true;
 		} else {
 			return false;
+		}
+	}
+
+	/** Return false if we don't have that inference in the explored set */
+	bool inExploredSet(Inference *infer) {
+		inference_set_t::iterator it = exploredSet->find(infer);
+		if (it == exploredSet->end()) {
+			return false;
+		} else {
+			return true;
 		}
 	}
 
@@ -441,6 +461,12 @@ typedef struct scfence_priv {
 
 	MEMALLOC
 } scfence_priv;
+
+typedef enum fix_type {
+	BUGGY_EXECUTION,
+	IMPLICIT_MO,
+	NON_SC
+} fix_type_t;
 
 class SCFence : public TraceAnalysis {
  public:
@@ -528,7 +554,7 @@ class SCFence : public TraceAnalysis {
 
 	/** When getting a non-SC execution, find potential fixes and add it to the
 	 * stack */
-	void addPotentialFixes(action_list_t *list);
+	bool addFixesNonSC(action_list_t *list);
 
 	/** When getting a buggy execution (we only target the uninitialized loads
 	 * here), find potential fixes and add it to the stack */
@@ -538,6 +564,9 @@ class SCFence : public TraceAnalysis {
 	 * fix the implicit mo problems. If so, find potential fixes and add it to
 	 * the stack */
 	bool addFixesImplicitMO(action_list_t *list);
+
+	/** General fixes wrapper */
+	bool addFixes(action_list_t *list, fix_type_t type);
 
 	/** Add candidates with a list of inferences; returns false if nothing is
 	 * added */
@@ -603,6 +632,11 @@ class SCFence : public TraceAnalysis {
 	/** Print the result of inferences  */
 	void printResults() {
 		getStack()->printResults();
+	}
+
+	/** Print the candidates of inferences  */
+	void printCandidates() {
+		getStack()->printCandidates();
 	}
 			
 

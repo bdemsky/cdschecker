@@ -514,7 +514,8 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 }
 
 
-void SCFence::addPotentialFixes(action_list_t *list) {
+bool SCFence::addFixesNonSC(action_list_t *list) {
+	bool added = false;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 		sync_paths_t *paths1 = NULL, *paths2 = NULL;
 		ModelList<Inference*> *candidates = NULL;
@@ -597,7 +598,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("write2 hb/sc before read. \n");
 						}
 						// Add candidates for current write2 in patter (a)
-						addCandidates(newCandidates);
+						added = addCandidates(newCandidates);
 					}
 				} else { // Pattern (b) read future value
 					// act->read, write->futureWrite
@@ -612,7 +613,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							print_rf_sb_paths(paths1, act, write);
 							candidates = imposeSync(NULL, paths1);
 							// Add candidates for patter (b) in one direction
-							addCandidates(candidates);
+							added = addCandidates(candidates);
 						}
 						if (paths2->size() > 0) {
 							candidates = NULL;
@@ -623,14 +624,14 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							print_rf_sb_paths(paths2, write, act);
 							candidates = imposeSync(NULL, paths2);
 							// Add candidates for patter (b) in another direction
-							addCandidates(candidates);
+							added = addCandidates(candidates);
 						}
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
 						WILDCARD_ACT_PRINT(act);
 						WILDCARD_ACT_PRINT(write);
 						candidates = imposeSC(NULL, act, write);
-						addCandidates(candidates);
+						added = addCandidates(candidates);
 					}
 				}
 				// Just eliminate the first cycle we see in the execution
@@ -638,6 +639,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 			}
 		}
 	}
+	return added;
 }
 
 
@@ -733,6 +735,24 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 	return false;
 }
 
+bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
+	bool added = false;
+	switch(type) {
+		case BUGGY_EXECUTION:
+			added = addFixesBuggyExecution(list);
+			break;
+		case IMPLICIT_MO:
+			added = addFixesImplicitMO(list);
+			break;
+		case NON_SC:
+			added = addFixesNonSC(list);
+			break;
+		default:
+			break;
+	}
+	return added;
+}
+
 void SCFence::analyze(action_list_t *actions) {
 	struct timeval start;
 	struct timeval finish;
@@ -742,7 +762,7 @@ void SCFence::analyze(action_list_t *actions) {
 	Inference *next = NULL;
 	// First of all check if there's any uninitialzed read bugs
 	if (execution->have_bug_reports()) {
-		if (addFixesBuggyExecution(actions)) {
+		if (addFixes(actions, BUGGY_EXECUTION)) {
 			next = getNextInference();
 			setCurInference(next);
 			restartModelChecker();
@@ -766,7 +786,7 @@ void SCFence::analyze(action_list_t *actions) {
 	// Now we find a non-SC execution
 	if (cyclic) {
 		print_list(list);
-		addPotentialFixes(list);
+		addFixes(list, NON_SC);
 		next = getNextInference();
 		if (!next) {
 			model_print("Maybe you should have more wildcards parameters for us to infer!\n");
@@ -786,7 +806,7 @@ void SCFence::analyze(action_list_t *actions) {
 		if (getInferImplicitMO() && execution->too_many_steps() &&
 			!execution->is_complete_execution()) {
 			print_list(list);
-			bool infered = addFixesImplicitMO(list);
+			bool infered = addFixes(list, IMPLICIT_MO);
 			if (infered) {
 				next = getNextInference();
 				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
@@ -797,6 +817,8 @@ void SCFence::analyze(action_list_t *actions) {
 					restartModelChecker();
 				}
 			} else {
+				// This can be a good execution, so we can't do anything
+				/*
 				model_print("Weird!! We cannot infer the mo for infinite reads!\n");
 				model_print("Maybe you should have more wildcards parameters for us to infer!\n");
 				next = getNextInference();
@@ -807,7 +829,7 @@ void SCFence::analyze(action_list_t *actions) {
 					setCurInference(next);
 					restartModelChecker();
 				}
-				
+				*/
 			}
 		}
 	}
