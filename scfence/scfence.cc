@@ -696,6 +696,7 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 	ModelList<Inference*> *candidates = NULL;
 	bool foundFix = false;
+	bool added = false;
 	for (action_list_t::reverse_iterator rit = list->rbegin(); rit !=
 		list->rend(); rit++) {
 		ModelAction *uninitRead = *rit;
@@ -713,7 +714,7 @@ bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 						FENCE_PRINT("Running through pattern (b') (unint read)!\n");
 						print_rf_sb_paths(paths1, write, uninitRead);
 						candidates = imposeSync(NULL, paths1);
-						bool added = addCandidates(candidates);
+						added = addCandidates(candidates);
 						if (added) {
 							foundFix = true;
 							break;
@@ -725,14 +726,13 @@ bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 		if (foundFix)
 			break;
 	}
-	if (candidates) // Has found candidates
-		return true;
-	else
-		return false;
+
+	return added;
 }
 
 /** Return false to indicate there's no implied mo for this execution */
 bool SCFence::addFixesImplicitMO(action_list_t *list) {
+	bool added = false;
 	ModelList<Inference*> *candidates = NULL;
 	for (action_list_t::reverse_iterator rit2 = list->rbegin(); rit2 !=
 		list->rend(); rit2++) {
@@ -774,8 +774,9 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					print_rf_sb_paths(paths1, write1, write2);
 					candidates = imposeSync(NULL, paths1);
 					// Add the candidates as potential results
-					addCandidates(candidates);
-					return true;
+					added = addCandidates(candidates);
+					if (added)
+						return true;
 				} else {
 					FENCE_PRINT("Cannot establish hb between write1 & write2: \n");
 					ACT_PRINT(write1);
@@ -824,6 +825,7 @@ void SCFence::analyze(action_list_t *actions) {
 	if (execution->have_bug_reports()) {
 		bool added = addFixes(actions, BUGGY_EXECUTION);
 		if (added) {
+			model_print("Found an solution for buggy execution!\n");
 			next = getNextInference();
 			setCurInference(next);
 			restartModelChecker();
@@ -853,6 +855,22 @@ void SCFence::analyze(action_list_t *actions) {
 		bool added = addFixes(list, NON_SC);
 		if (added) {
 			setIsPending(false);
+		} else { // Couldn't imply anymore, backtrack
+			if (!getIsPending()) {
+				model_print("NonSC pattern backtrack\n");
+				commitCurInference(false);
+				// FIXME: Should we return here....
+				next = getNextInference();
+				if (next) {
+					setCurInference(next);
+					restartModelChecker();
+					return;
+				}
+			} else {
+				model_print("We cannot make the current inference correct\n");
+				getCurInference()->print();
+				model_print("\n");
+			}
 		}
 
 		next = getNextInference();
@@ -924,14 +942,18 @@ void SCFence::check_rf(action_list_t *list) {
 	}
 }
 
+/** This function finds all the paths that is a union of reads-from &
+ * sequence-before relationship between act1 & act2. */
 sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2) {
 	int idx1 = id_to_int(act1->get_tid()),
 		idx2 = id_to_int(act2->get_tid());
+	// Retrieves the two lists of actions of thread1 & thread2
 	action_list_t *list1 = &dup_threadlists[idx1],
 		*list2 = &dup_threadlists[idx2];
 	if (list1->size() == 0 || list2->size() == 0) {
 		return new sync_paths_t();
 	}
+
 	action_list_t::iterator it1 = list1->begin();
 	// First action of the thread where act1 belongs
 	ModelAction *start = *it1;
@@ -941,9 +963,10 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 	// A stack that records all current possible paths
 	sync_paths_t *stack = new sync_paths_t();
 	action_list_t *path;
-	// Initial stack with loads sb-ordered before act2
+	// Initialize the stack with loads sb-ordered before act2
 	for (action_list_t::iterator it2 = list2->begin(); it2 != list2->end(); it2++) {
 		ModelAction *act = *it2;
+		// We also add act2 to the path
 		if (act->get_seq_number() > act2->get_seq_number())
 			continue;
 		if (!act->is_read())
@@ -964,44 +987,43 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		if (write->get_seq_number() == 0)
 			continue;
 		/** In case of cyclic sbUrf & for the purpose of redundant path, make
-		 * sure the write appears in a new thread
+		 * sure the write appears in a new thread or in an existing thread that
+		 * is sequence-before the added read action
 		 */
-		bool atNewThrd = true;
+		bool loop = false;
 		for (action_list_t::iterator p_it = path->begin(); p_it != path->end();
 			p_it++) {
 			ModelAction *prev_read = *p_it;
 			if (id_to_int(write->get_tid()) == id_to_int(prev_read->get_tid())) {
-				//FENCE_PRINT("Reaching previous read thread, bail!\n");
-				path->clear();
-				//delete path;
-				atNewThrd = false;
-				break;
+				// In the same thread
+				if (write->get_seq_number() <= prev_read->get_seq_number()) {
+					// Have a loop
+					path->clear();
+					//delete path;
+					loop = true;
+					break;
+				}
 			}
 		}
-		if (!atNewThrd) {
+	
+		// Not a useful rfUsb path
+		if (loop) {
 			continue;
 		}
 
-		//FENCE_PRINT("Temporary read & write:\n");
-		//WILDCAD_ACT_PRINT(read);
-		//WILDCARD_ACT_PRINT(write);
-		int write_seqnum = write->get_seq_number();
+		// We then check if we got a valid path 
 		if (id_to_int(write->get_tid()) == idx1) {
-			if (write_seqnum >= act1->get_seq_number()) { // Find a path
-				//FENCE_PRINT("Find a path.\n");
-				paths->push_back(path);
-				continue;
-			} else { // Not a rfUsb path
-				//FENCE_PRINT("Not a path.\n");
-				path->clear();
-				continue;
-			}
+			// Find a path
+			paths->push_back(path);
+			continue;
 		}
+		// Extend the path with the latest read
+		int write_seqnum = write->get_seq_number();
 		int idx = id_to_int(write->get_tid());
 		action_list_t *list = &dup_threadlists[idx];
 		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 			ModelAction *act = *it;
-			if (act->get_seq_number() > write_seqnum)
+			if (act->get_seq_number() > write_seqnum) // Could be RMW
 				continue;
 			if (!act->is_read())
 				continue;

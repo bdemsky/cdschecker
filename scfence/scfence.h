@@ -205,7 +205,10 @@ typedef struct Inference {
 				//FENCE_PRINT("!=\n");
 				return -2;
 			} else {
-				if (mo1 == WILDCARD_NONEXIST && mo2 != WILDCARD_NONEXIST)
+				if ((mo1 == WILDCARD_NONEXIST && mo2 != WILDCARD_NONEXIST)
+					|| (mo1 == WILDCARD_NONEXIST && mo2 == memory_order_relaxed)
+					|| (mo1 == memory_order_relaxed && mo2 == WILDCARD_NONEXIST)
+					)
 					subResult = 1;
 				else if (mo1 != WILDCARD_NONEXIST && mo2 == WILDCARD_NONEXIST)
 					subResult = -1;
@@ -214,25 +217,12 @@ typedef struct Inference {
 
 				//FENCE_PRINT("subResult: %d\n", subResult);
 				if ((subResult > 0 && result < 0) || (subResult < 0 && result > 0)) {
-					//FENCE_PRINT("!=\n");
-					//FENCE_PRINT("in result: %d\n", result);
-					//FENCE_PRINT("in result: mo1 & mo2 %d & %d\n", mo1, mo2);
 					return -2;
 				}
 				if (subResult != 0)
 					result = subResult;
-				/*
-				if (subResult == 1) {
-					FENCE_PRINT(">\n");
-				} else if (subResult == 0) {
-					FENCE_PRINT("=\n");
-				} else if (subResult == -1) {
-					FENCE_PRINT("<\n");
-				}
-				*/
 			}
 		}
-		//FENCE_PRINT("result: %d\n", result);
 		return result;
 	}
 
@@ -409,9 +399,25 @@ typedef struct InferenceStack {
 		candidates->pop_back();
 		commitExploredInference(infer);
 		if (feasible) {
-			results->push_back(infer);
+			addResult(infer);
 		}
 	}
+
+	/** Check if we have stronger or equal inferences in the current result
+	 * list; if we do, we remove them and add the passed-in parameter infer */
+	 bool addResult(Inference *infer) {
+		for (inference_list_t::iterator it = results->begin(); it !=
+			results->end(); it++) {
+			Inference *existResult = *it;
+			int compVal = existResult->compareTo(infer);
+			if (compVal == 0 || compVal == 1) {
+				// The existing result is equal or stronger, remove it
+				it = results->erase(it);
+				it--;
+			}
+		}
+		results->push_back(infer);
+	 }
 
 	/** Get the next available unexplored node; @Return NULL 
 	 * if we don't have next, meaning that we are done with exploring */
@@ -434,7 +440,6 @@ typedef struct InferenceStack {
 				// Record this in the exploredSet
 				commitExploredInference(infer);
 			} else {
-				infer->setExplored(true);
 				return infer;
 			}
 		}
