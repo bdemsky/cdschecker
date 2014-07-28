@@ -797,8 +797,10 @@ void SCFence::analyze(action_list_t *actions) {
 			setCurInference(next);
 			restartModelChecker();
 		} else {
-			// We can't fix the problem in this execution
-			return;
+			// We can't fix the problem in this execution, but we may not be an
+			// SC execution
+			model_print("Still wrong\n");
+			//return;
 		}
 	}
 
