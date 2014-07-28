@@ -495,6 +495,10 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	if (!candidates)
 		return false;
+
+	// For the purpose of debugging, record all those candidates added here
+	ModelList<Inference*> *addedCandidates = new ModelList<Inference*>();
+
 	FENCE_PRINT("explored size: %d.\n", getStack()->exploredSetSize());
 	FENCE_PRINT("candidates size: %d.\n", candidates->size());
 	bool added = false;
@@ -506,8 +510,16 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 			added = true;
 			it = candidates->erase(it);
 			it--;
+
+			addedCandidates->push_back(candidate); 
 		}
 	}
+
+	// For debugging, print the list of candidates for this iteration
+	FENCE_PRINT("Current inference:\n");
+	getCurInference()->print();
+	FENCE_PRINT("\n");
+	printCandidates(addedCandidates);
 	
 	// Clean up the candidates
 	clearCandidates(candidates);

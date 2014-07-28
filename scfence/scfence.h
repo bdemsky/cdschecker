@@ -696,6 +696,17 @@ class SCFence : public TraceAnalysis {
 		getStack()->printResults();
 	}
 
+	void printCandidates(ModelList<Inference*> *list) {
+		for (ModelList<Inference*>::iterator it = list->begin(); it !=
+			list->end(); it++) {
+			int idx = distance(list->begin(), it);
+			Inference *infer = *it;
+			model_print("Candidate %d:\n", idx);
+			infer->print();
+			model_print("\n");
+		}
+	}
+
 	/** Print the candidates of inferences  */
 	void printCandidates() {
 		getStack()->printCandidates();
