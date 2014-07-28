@@ -411,13 +411,17 @@ Inference* SCFence::imposeSCToInference(Inference *infer, const ModelAction *act
 }
 
 void SCFence::clearCandidates(ModelList<Inference*> *candidates) {
+	ASSERT (candidates);
 	for (ModelList<Inference*>::iterator it =
-		candidates->begin(); it != candidates->end();) {
+		candidates->begin(); it != candidates->end(); it++) {
 		delete (*it);
 	}
 	delete candidates;
 }
 
+/** Impose the current inference or the partialCandidates the caller passes in.
+ *  It will clean up the partialCandidates and everything new goes to the return
+ *  value*/
 ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths) {
 	ModelList<Inference*> *newCandidates = new ModelList<Inference*>();
 	Inference *infer = NULL;
@@ -452,6 +456,9 @@ ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandida
 	return newCandidates;
 }
 
+/** Impose the current inference or the partialCandidates the caller passes in.
+ *  It will clean up the partialCandidates and everything new goes to the return
+ *  value*/
 ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidates, const ModelAction *act1, const ModelAction *act2) {
 	ModelList<Inference*> *newCandidates = new ModelList<Inference*>();
 	Inference *infer = NULL;
@@ -485,6 +492,8 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
  * function. Therefore, caller of this function should just delete the list when
  * finishing calling this function. */
 bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
+	if (!candidates)
+		return false;
 	FENCE_PRINT("candidates size: %d.\n", candidates->size());
 	bool added = false;
 	ModelList<Inference*>::iterator it;
@@ -493,13 +502,13 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 		added = addInference(candidate);
 		if (added) {
 			added = true;
-		} else {
-			delete candidate;
 			it = candidates->erase(it);
 			it--;
 		}
 	}
-
+	
+	// Clean up the candidates
+	clearCandidates(candidates);
 	FENCE_PRINT("potential results size: %d.\n", stackSize());
 	return added;
 }
@@ -509,11 +518,11 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 		sync_paths_t *paths1 = NULL, *paths2 = NULL;
 		ModelList<Inference*> *candidates = NULL;
+		ModelList<Inference*> *newCandidates = NULL;
 		ModelAction	*act = *it;
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from();
-
 				// Check reading old or future value
 				bool readOldVal = false;
 				for (action_list_t::iterator it1 = list->begin(); it1 !=
@@ -526,7 +535,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						break;
 					}
 				}
-
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
 					// Find all writes between the write1 and the read
@@ -542,14 +550,17 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						}
 						findIt++;
 					} while (write2 != act);
+					
+					// Found all the possible write2s
 					FENCE_PRINT("write2s set size: %d\n", write2s->size());
 					for (action_list_t::iterator itWrite2 = write2s->begin();
 						itWrite2 != write2s->end(); itWrite2++) {
 						candidates = NULL;
+						newCandidates = NULL;
 						FENCE_PRINT("write2:\n");
-						ACT_PRINT(write2);
+						WILDCARD_ACT_PRINT(write2);
 						write2 = *itWrite2;
-						// act->read, write->write1 & write2->write2
+						// write1->write2 (write->write2)
 						if (!isSCEdge(write, write2) &&
 							!write->happens_before(write2)) {
 							paths1 = get_rf_sb_paths(write, write2);
@@ -567,6 +578,7 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							FENCE_PRINT("write1 mo before write2. \n");
 						}
 
+						// write2->read (write2->act)
 						if (!isSCEdge(write2, act) &&
 							!write2->happens_before(act)) {
 							paths2 = get_rf_sb_paths(write2, act);
@@ -574,28 +586,18 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 								FENCE_PRINT("From write2 to read: \n");
 								print_rf_sb_paths(paths2, write2, act);
 								//FENCE_PRINT("paths2 size: %d\n", paths2->size());
-								if (candidates == NULL) {
-									candidates = imposeSync(NULL, paths2);
-								} else {
-									candidates = imposeSync(candidates, paths2);
-								}
+								newCandidates = imposeSync(candidates, paths2);
 							} else {
 								FENCE_PRINT("Have to impose sc on write2 & read: \n");
-								ACT_PRINT(write2);
-								ACT_PRINT(act);
-								if (candidates == NULL) {
-									candidates = imposeSC(NULL, write2, act);
-								} else {
-									candidates = imposeSC(candidates, write2, act);
-								}
+								WILDCARD_ACT_PRINT(write2);
+								WILDCARD_ACT_PRINT(act);
+								newCandidates = imposeSC(candidates, write2, act);
 							}
 						} else {
 							FENCE_PRINT("write2 hb/sc before read. \n");
 						}
-						
 						// Add candidates for current write2 in patter (a)
-						addCandidates(candidates);
-						delete candidates;
+						addCandidates(newCandidates);
 					}
 				} else { // Pattern (b) read future value
 					// act->read, write->futureWrite
@@ -611,7 +613,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							candidates = imposeSync(NULL, paths1);
 							// Add candidates for patter (b) in one direction
 							addCandidates(candidates);
-							delete candidates;
 						}
 						if (paths2->size() > 0) {
 							candidates = NULL;
@@ -623,7 +624,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 							candidates = imposeSync(NULL, paths2);
 							// Add candidates for patter (b) in another direction
 							addCandidates(candidates);
-							delete candidates;
 						}
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
@@ -631,7 +631,6 @@ void SCFence::addPotentialFixes(action_list_t *list) {
 						WILDCARD_ACT_PRINT(write);
 						candidates = imposeSC(NULL, act, write);
 						addCandidates(candidates);
-						delete candidates;
 					}
 				}
 				// Just eliminate the first cycle we see in the execution
@@ -663,7 +662,6 @@ bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 						print_rf_sb_paths(paths1, write, uninit);
 						candidates = imposeSync(NULL, paths1);
 						addCandidates(candidates);
-						delete candidates;
 					}
 				}
 			}
@@ -719,7 +717,6 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					candidates = imposeSync(NULL, paths1);
 					// Add the candidates as potential results
 					addCandidates(candidates);
-					delete candidates;
 					return true;
 				} else {
 					FENCE_PRINT("Cannot establish hb between write1 & write2: \n");
