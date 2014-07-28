@@ -13,6 +13,31 @@
 
 scfence_priv *SCFence::priv;
 
+// Only for the purpose of debugging
+void SCFence::initSpecialInference() {
+	specialInference = new Inference();
+	Inference *i = specialInference;
+	(*i)[1] = relaxed;
+	(*i)[2] = relaxed;
+	(*i)[3] = acquire;
+	(*i)[4] = relaxed;
+	(*i)[5] = acquire;
+	(*i)[6] = acqrel;
+	(*i)[7] = WILDCARD_NONEXIST;
+	(*i)[8] = acquire;
+	(*i)[9] = release;
+	(*i)[10] = WILDCARD_NONEXIST;
+	(*i)[11] = release;
+	(*i)[12] = WILDCARD_NONEXIST;
+	(*i)[13] = relaxed;
+	(*i)[14] = acquire;
+	(*i)[15] = acquire;
+	(*i)[16] = relaxed;
+	(*i)[17] = release;
+	(*i)[18] = WILDCARD_NONEXIST;
+	(*i)[19] = relaxed;
+}
+
 SCFence::SCFence() :
 	cvmap(),
 	cyclic(false),
@@ -22,12 +47,13 @@ SCFence::SCFence() :
 	dup_threadlists(1),
 	execution(NULL),
 	print_always(false),
-	print_buggy(true),
+	print_buggy(false),
 	print_nonsc(false),
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
 {
 	priv = new scfence_priv();
+	initSpecialInference();
 }
 
 SCFence::~SCFence() {
@@ -102,8 +128,12 @@ void SCFence::restartModelChecker() {
 
 void SCFence::actionAtModelCheckingFinish() {
 	// We found an inference that works, should commit it
+	if (!getIsPending()) {
+		model_print("Found one result!\n");
+	} else {
+		model_print("Found one pending result!\n");
+	}
 	commitCurInference(true);
-	model_print("Found one result!\n");
 	getCurInference()->print();
 	model_print("\n");
 
@@ -511,10 +541,8 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 		Inference *candidate = *it;
 		added = addInference(candidate);
 		if (added) {
-			added = true;
 			it = candidates->erase(it);
 			it--;
-
 			addedCandidates->push_back(candidate); 
 		}
 	}
@@ -523,7 +551,9 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	FENCE_PRINT("Current inference:\n");
 	getCurInference()->print();
 	FENCE_PRINT("\n");
+	FENCE_PRINT("The added inferences:\n");
 	printCandidates(addedCandidates);
+	FENCE_PRINT("\n");
 	
 	// Clean up the candidates
 	clearCandidates(candidates);
@@ -792,14 +822,16 @@ void SCFence::analyze(action_list_t *actions) {
 	Inference *next = NULL;
 	// First of all check if there's any uninitialzed read bugs
 	if (execution->have_bug_reports()) {
-		if (addFixes(actions, BUGGY_EXECUTION)) {
+		bool added = addFixes(actions, BUGGY_EXECUTION);
+		if (added) {
 			next = getNextInference();
 			setCurInference(next);
 			restartModelChecker();
 		} else {
 			// We can't fix the problem in this execution, but we may not be an
 			// SC execution
-			model_print("Still wrong\n");
+			model_print("Pending...\n");
+			setIsPending(true);
 			//return;
 		}
 	}
@@ -818,7 +850,11 @@ void SCFence::analyze(action_list_t *actions) {
 	// Now we find a non-SC execution
 	if (cyclic) {
 		print_list(list);
-		addFixes(list, NON_SC);
+		bool added = addFixes(list, NON_SC);
+		if (added) {
+			setIsPending(false);
+		}
+
 		next = getNextInference();
 		if (!next) {
 			//model_print("Maybe you should have more wildcards parameters for us to infer!\n");
@@ -838,8 +874,9 @@ void SCFence::analyze(action_list_t *actions) {
 		if (getInferImplicitMO() && execution->too_many_steps() &&
 			!execution->is_complete_execution()) {
 			print_list(list);
-			bool infered = addFixes(list, IMPLICIT_MO);
-			if (infered) {
+			bool added = addFixes(list, IMPLICIT_MO);
+			if (added) {
+				setIsPending(false);
 				next = getNextInference();
 				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
 				if (!next) {

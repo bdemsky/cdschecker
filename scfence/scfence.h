@@ -68,7 +68,6 @@ typedef struct Inference {
 
 	bool explored;
 
-	
 	Inference() {
 		orders = (memory_order *) model_malloc((4 + 1) * sizeof(memory_order*));
 		size = 4;
@@ -382,12 +381,17 @@ typedef struct InferenceStack {
 		stat.print();
 	}
 
-	/** Print the candidates of inferences  */
+	/** Print candidates of inferences */
 	void printCandidates() {
-		for (inference_list_t::iterator it = candidates->begin(); it !=
-			candidates->end(); it++) {
+		printCandidates(candidates);
+	}
+
+	/** Print the candidates of inferences  */
+	void printCandidates(inference_list_t *cands) {
+		for (inference_list_t::iterator it = cands->begin(); it !=
+			cands->end(); it++) {
 			Inference *infer = *it;
-			int idx = distance(candidates->begin(), it);
+			int idx = distance(cands->begin(), it);
 			model_print("Candidate %d:\n", idx);
 			infer->print();
 		}
@@ -423,11 +427,10 @@ typedef struct InferenceStack {
 				// Finish exploring this node
 				// Remove the node from the stack
 				candidates->pop_back();
-				if (!infer->getExplored()) {
-					FENCE_PRINT("Popped inferences not because of being explored:\n");
-					infer->print();
-					FENCE_PRINT("\n");
-				}
+
+				FENCE_PRINT("Explored inference:\n");
+				infer->print();
+				FENCE_PRINT("\n");
 				// Record this in the exploredSet
 				commitExploredInference(infer);
 			} else {
@@ -475,18 +478,9 @@ typedef struct InferenceStack {
 				FENCE_PRINT("\n");
 				*/
 				return true;
-			} else {
-				return false;
 			}
 		}
-		/*
-		inference_list_t::iterator it = exploredSet->find(infer);
-		if (it == exploredSet->end()) {
-			return false;
-		} else {
-			return true;
-		}
-		*/
+		return false;
 	}
 
 	MEMALLOC
@@ -499,6 +493,7 @@ typedef struct scfence_priv {
 		inferenceStack = new InferenceStack();
 		curInference = new Inference();
 		candidateFile = NULL;
+		isPending = false;
 		inferImplicitMO = false;
 		hasRestarted = false;
 		implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
@@ -509,6 +504,12 @@ typedef struct scfence_priv {
 
 	/** The current inference */
 	Inference *curInference;
+
+	/** Indicate whether the current inference is a pending sulotion. For
+	 * example, for the buggy execution pattern, we might not able to find a fix
+	 * for the unintialized load bug, then we will set this flag, and when we
+	 * try to get the next inference, we first check this flag */
+	 bool isPending;
 
 	/** The file which provides a list of candidate wilcard inferences */
 	char *candidateFile;
@@ -587,6 +588,11 @@ class SCFence : public TraceAnalysis {
 	/** The non-snapshotting private compound data structure that has the
 	 * necessary stuff for the scfence analysis */
 	static scfence_priv *priv;
+
+	/** An specific inference for debuggign */
+	Inference *specialInference;
+	
+	void initSpecialInference();
 
 	/** The function to parse the SCFence plugin options */
 	bool parseOption(char *opt);
@@ -750,6 +756,14 @@ class SCFence : public TraceAnalysis {
 
 	void setCandidateFile(char* file) {
 		priv->candidateFile = file;
+	}
+
+	bool getIsPending() {
+		return priv->isPending;
+	}
+
+	void setIsPending(bool isPending) {
+		priv->isPending = isPending;
 	}
 
 	bool getInferImplicitMO() {
