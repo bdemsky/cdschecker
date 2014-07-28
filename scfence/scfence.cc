@@ -103,6 +103,10 @@ void SCFence::restartModelChecker() {
 void SCFence::actionAtModelCheckingFinish() {
 	// We found an inference that works, should commit it
 	commitCurInference(true);
+	model_print("Found one result!\n");
+	getCurInference()->print();
+	model_print("\n");
+
 	Inference *next = getNextInference();
 
 	if (!next) {
@@ -661,27 +665,35 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
  * happen for specific reason such as it's a user-specified assertion failure */
 bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 	ModelList<Inference*> *candidates = NULL;
+	bool foundFix = false;
 	for (action_list_t::reverse_iterator rit = list->rbegin(); rit !=
 		list->rend(); rit++) {
-		ModelAction *uninit = *rit;
-		if (uninit->get_seq_number() > 0) {
-			if (!uninit->is_uninitialized())
+		ModelAction *uninitRead = *rit;
+		if (uninitRead->get_seq_number() > 0) {
+			if (!uninitRead->is_read() || 
+				!uninitRead->get_reads_from()->is_uninitialized())
 				continue;
 			for (action_list_t::iterator it = list->begin(); it !=
 				list->end(); it++) {
 				ModelAction *write = *it;
-				if (write->same_var(uninit)) {
-					// Now we can try to impose sync write hb-> uninit
-					FENCE_PRINT("Running through pattern (b') (unint read)!\n");
-					sync_paths_t *paths1 = get_rf_sb_paths(write, uninit);
+				if (write->same_var(uninitRead)) {
+					// Now we can try to impose sync write hb-> uninitRead
+					sync_paths_t *paths1 = get_rf_sb_paths(write, uninitRead);
 					if (paths1->size() > 0) {
-						print_rf_sb_paths(paths1, write, uninit);
+						FENCE_PRINT("Running through pattern (b') (unint read)!\n");
+						print_rf_sb_paths(paths1, write, uninitRead);
 						candidates = imposeSync(NULL, paths1);
-						addCandidates(candidates);
+						bool added = addCandidates(candidates);
+						if (added) {
+							foundFix = true;
+							break;
+						}
 					}
 				}
 			}
 		}
+		if (foundFix)
+			break;
 	}
 	if (candidates) // Has found candidates
 		return true;
@@ -772,7 +784,11 @@ void SCFence::analyze(action_list_t *actions) {
 	struct timeval finish;
 	if (time)
 		gettimeofday(&start, NULL);
-
+	
+	/* Build up the thread lists for general purpose */
+	int thrdNum;
+	buildVectors(&dup_threadlists, &thrdNum, actions);
+	
 	Inference *next = NULL;
 	// First of all check if there's any uninitialzed read bugs
 	if (execution->have_bug_reports()) {
@@ -780,14 +796,14 @@ void SCFence::analyze(action_list_t *actions) {
 			next = getNextInference();
 			setCurInference(next);
 			restartModelChecker();
+		} else {
+			// We can't fix the problem in this execution
+			return;
 		}
 	}
-	
-	/* Build up the thread lists for general purpose */
-	int thrdNum;
-	buildVectors(&dup_threadlists, &thrdNum, actions);
+
+
 	action_list_t *list = generateSC(actions);
-	
 	check_rf(list);
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
 		print_list(list);
@@ -905,6 +921,9 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		ModelAction *read = path->front();
 		//FENCE_PRINT("Temporary path size: %d\n", path->size());
 		const ModelAction *write = read->get_reads_from();
+		// If the read is uninitialized, don't do it
+		if (write->get_seq_number() == 0)
+			continue;
 		/** In case of cyclic sbUrf & for the purpose of redundant path, make
 		 * sure the write appears in a new thread
 		 */

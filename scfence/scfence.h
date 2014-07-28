@@ -423,6 +423,11 @@ typedef struct InferenceStack {
 				// Finish exploring this node
 				// Remove the node from the stack
 				candidates->pop_back();
+				if (!infer->getExplored()) {
+					FENCE_PRINT("Popped inferences not because of being explored:\n");
+					infer->print();
+					FENCE_PRINT("\n");
+				}
 				// Record this in the exploredSet
 				commitExploredInference(infer);
 			} else {
@@ -469,9 +474,9 @@ typedef struct InferenceStack {
 				infer->print();
 				FENCE_PRINT("\n");
 				*/
-				return false;
-			} else {
 				return true;
+			} else {
+				return false;
 			}
 		}
 		/*
