@@ -109,6 +109,7 @@ void SCFence::actionAtModelCheckingFinish() {
 		model_print("We are done with the whole process!\n");
 		model_print("The results are as the following:\n");
 		printResults();
+		printCandidates();
 	} else { // Still have candidates to explore
 		setCurInference(next);
 		restartModelChecker();
@@ -494,6 +495,7 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	if (!candidates)
 		return false;
+	FENCE_PRINT("explored size: %d.\n", getStack()->exploredSetSize());
 	FENCE_PRINT("candidates size: %d.\n", candidates->size());
 	bool added = false;
 	ModelList<Inference*>::iterator it;
@@ -789,7 +791,7 @@ void SCFence::analyze(action_list_t *actions) {
 		addFixes(list, NON_SC);
 		next = getNextInference();
 		if (!next) {
-			model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+			//model_print("Maybe you should have more wildcards parameters for us to infer!\n");
 		} else {
 			setCurInference(next);
 			restartModelChecker();

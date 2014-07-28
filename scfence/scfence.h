@@ -319,29 +319,54 @@ typedef ModelSet<Inference*, InferenceHash, InferenceEquals> inference_set_t;
 
 typedef ModelList<Inference*> inference_list_t;
 
+typedef struct inference_stat {
+	int notAddedAtFirstPlace;
+	int getNextNotAdded;
+
+	inference_stat() :
+		notAddedAtFirstPlace(0),
+		getNextNotAdded(0) {}
+
+	void print() {
+		model_print("Inference process statistics output:...\n");
+		model_print("The number of inference not added at the first place: %d\n",
+			notAddedAtFirstPlace);
+		model_print("The number of inference not added when getting next: %d\n",
+			getNextNotAdded);
+	}
+} inference_stat_t;
+
 /** This is a stack of those inferences. We are exploring possible
  * inferences in a DFS-like way. Also, we can do an state-based like
  * optimization to reduce the explored space by recording the explored
  * inferences */
 typedef struct InferenceStack {
 	InferenceStack() {
-		exploredSet = new inference_set_t();
+		exploredSet = new inference_list_t();
 		results = new inference_list_t();
 		candidates = new inference_list_t();
 	}
 
 	/** The set of already explored nodes in the tree */
-	inference_set_t *exploredSet;
+	inference_list_t *exploredSet;
 
 	/** The list of feasible inferences */
 	inference_list_t *results;
 
 	/** The stack of candidates */
 	inference_list_t *candidates;
+
+	/** The staticstics of inference process */
+	inference_stat_t stat;
+
+	int exploredSetSize() {
+		return exploredSet->size();
+	}
 	
 	/** Actions to take when we find node is thoroughly explored */
 	void commitExploredInference(Inference *infer) {
-		exploredSet->insert(infer);
+		if (!inExploredSet(infer))
+			exploredSet->push_back(infer);
 	}
 
 	/** Print the result of inferences  */
@@ -353,6 +378,8 @@ typedef struct InferenceStack {
 			model_print("Result %d:\n", idx);
 			infer->print();
 		}
+
+		stat.print();
 	}
 
 	/** Print the candidates of inferences  */
@@ -388,7 +415,11 @@ typedef struct InferenceStack {
 		Inference *infer = NULL;
 		while (candidates->size() > 0) {
 			infer = candidates->back();
-			if (infer->getExplored() || inExploredSet(infer)) {
+			bool inExplored = inExploredSet(infer);
+			if (inExplored) {
+				stat.getNextNotAdded++;
+			}
+			if (infer->getExplored() || inExplored) {
 				// Finish exploring this node
 				// Remove the node from the stack
 				candidates->pop_back();
@@ -412,18 +443,45 @@ typedef struct InferenceStack {
 			candidates->push_back(infer);
 			return true;
 		} else {
+			stat.notAddedAtFirstPlace++;
 			return false;
 		}
 	}
 
 	/** Return false if we don't have that inference in the explored set */
 	bool inExploredSet(Inference *infer) {
-		inference_set_t::iterator it = exploredSet->find(infer);
+		for (inference_list_t::iterator it = exploredSet->begin(); it !=
+			exploredSet->end(); it++) {
+			Inference *exploredInfer = *it;
+			// When we already have any equal or stronger explored inferences,
+			// we can say that infer is in the exploredSet
+			int compVal = exploredInfer->compareTo(infer);
+			if (compVal == 0 || compVal == -1) {
+				/*
+				if (compVal == 0)
+					FENCE_PRINT("Equal inferences:\n");
+				else
+					FENCE_PRINT("Stronger inference:\n");
+				FENCE_PRINT("Explored inference:\n");
+				exploredInfer->print();
+				FENCE_PRINT("\n");
+				FENCE_PRINT("Param (infer):\n");
+				infer->print();
+				FENCE_PRINT("\n");
+				*/
+				return false;
+			} else {
+				return true;
+			}
+		}
+		/*
+		inference_list_t::iterator it = exploredSet->find(infer);
 		if (it == exploredSet->end()) {
 			return false;
 		} else {
 			return true;
 		}
+		*/
 	}
 
 	MEMALLOC
@@ -627,6 +685,10 @@ class SCFence : public TraceAnalysis {
 	 */
 	bool addInference(Inference *infer) {
 		return getStack()->addInference(infer);
+	}
+
+	int exploredSetSize() {
+		return getStack()->exploredSetSize();
 	}
 
 	/** Print the result of inferences  */
