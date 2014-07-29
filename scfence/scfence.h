@@ -116,10 +116,9 @@ typedef struct Inference {
 	 * does strengthen the order, and returns 1 */
 	int strengthen(const ModelAction *act, memory_order mo) {
 		memory_order wildcard = act->get_original_mo();
-		int wildcardID = get_wildcard_id(wildcard);
+		int wildcardID = get_wildcard_id_zero(wildcard);
 		if (!is_wildcard(wildcard)) {
-			FENCE_PRINT("We cannot make this update!\n");
-			FENCE_PRINT("wildcard: %d --> mo: %d\n", wildcardID, mo);
+			FENCE_PRINT("We cannot make this update to %s!\n", get_mo_str(mo));
 			ACT_PRINT(act);
 			return -1;
 		}
@@ -611,6 +610,11 @@ class SCFence : public TraceAnalysis {
 	/** Initialize the search with a file with a list of potential candidates */
 	void initializeByFile();
 
+	/** The two important routine when we find or cannot find a fix for the
+	 * current inference */
+	void routineAfterAddFixes();
+	bool routineBacktrack(bool feasible);
+
 	/** When getting a non-SC execution, find potential fixes and add it to the
 	 * stack */
 	bool addFixesNonSC(action_list_t *list);
@@ -725,6 +729,14 @@ class SCFence : public TraceAnalysis {
 	/** Set the exit flag of the model checker in order to exit the whole
 	 * process */
 	void exitModelChecker();
+
+	/** Mark the explored field of the current inference to be true; it is only
+	 * a flag, and it does not mean the current inference already finishes
+	 * exploring but when it is popped out of the stack again, we know it's
+	 * explored */
+	void setExplored() {
+		getCurInference()->setExplored(true);
+	}
 
 	const char* net_mo_str(memory_order order);
 

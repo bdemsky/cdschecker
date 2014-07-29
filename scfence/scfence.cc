@@ -127,27 +127,8 @@ void SCFence::restartModelChecker() {
 }
 
 void SCFence::actionAtModelCheckingFinish() {
-	// We found an inference that works, should commit it
-	if (!getIsPending()) {
-		model_print("Found one result!\n");
-	} else {
-		model_print("Found one pending result!\n");
-	}
-	commitCurInference(true);
-	getCurInference()->print();
-	model_print("\n");
-
-	Inference *next = getNextInference();
-
-	if (!next) {
-		model_print("We are done with the whole process!\n");
-		model_print("The results are as the following:\n");
-		printResults();
-		printCandidates();
-	} else { // Still have candidates to explore
-		setCurInference(next);
-		restartModelChecker();
-	}
+	/** Backtrack with a successful inference */
+	routineBacktrack(true);
 
 	if (time)
 		model_print("Elapsed time in usec %llu\n", stats->elapsedtime);
@@ -397,8 +378,8 @@ Inference* SCFence::imposeSyncToInference(Inference *infer, path_t *path) {
 			const ModelAction *read = *it,
 				*write = read->get_reads_from();
 			//FENCE_PRINT("path size:%d\n", path->size());
-			//WILDCARD_ACT_PRINT(write);
-			//WILDCARD_ACT_PRINT(read);
+			//ACT_PRINT(write);
+			//ACT_PRINT(read);
 			updateState = infer->strengthen(write, memory_order_release,
 				canUpdate, hasUpdated);
 			updateState = infer->strengthen(read, memory_order_acquire,
@@ -540,6 +521,7 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	ModelList<Inference*>::iterator it;
 	for (it = candidates->begin(); it != candidates->end(); it++) {
 		Inference *candidate = *it;
+		/******** addInference ********/
 		added = addInference(candidate);
 		if (added) {
 			it = candidates->erase(it);
@@ -608,7 +590,7 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 						candidates = NULL;
 						newCandidates = NULL;
 						FENCE_PRINT("write2:\n");
-						WILDCARD_ACT_PRINT(write2);
+						ACT_PRINT(write2);
 						write2 = *itWrite2;
 						// write1->write2 (write->write2)
 						if (!isSCEdge(write, write2) &&
@@ -639,8 +621,8 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 								newCandidates = imposeSync(candidates, paths2);
 							} else {
 								FENCE_PRINT("Have to impose sc on write2 & read: \n");
-								WILDCARD_ACT_PRINT(write2);
-								WILDCARD_ACT_PRINT(act);
+								ACT_PRINT(write2);
+								ACT_PRINT(act);
 								newCandidates = imposeSC(candidates, write2, act);
 							}
 						} else {
@@ -650,6 +632,12 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 						added = addCandidates(newCandidates);
 					}
 				} else { // Pattern (b) read future value
+					// FIXME: To fix this pattern, we can do futureWrite -> read
+					// or eliminate the sbUrf from read to futureWrite by
+					// imposing 'crossing' synchronization from futureWrite
+					// towards the read and (See fig. future_val_fix, the read
+					// line is the fix)
+
 					// act->read, write->futureWrite
 					FENCE_PRINT("Running through pattern (b)!\n");
 					// Fixing one direction (read -> futureWrite)
@@ -666,19 +654,18 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 						}
 						if (paths2->size() > 0) {
 							candidates = NULL;
-							FENCE_PRINT("paths2 size in pattern(b) : %d\n",
-								paths2->size());
 							// Fixing the other direction (futureWrite -> read)
 							FENCE_PRINT("From future write to read: \n");
 							print_rf_sb_paths(paths2, write, act);
 							candidates = imposeSync(NULL, paths2);
 							// Add candidates for patter (b) in another direction
-							added = addCandidates(candidates);
+							if (addCandidates(candidates))
+								added = true;
 						}
 					} else {
 						FENCE_PRINT("Have to impose sc on read and future write: \n");
-						WILDCARD_ACT_PRINT(act);
-						WILDCARD_ACT_PRINT(write);
+						ACT_PRINT(act);
+						ACT_PRINT(write);
 						candidates = imposeSC(NULL, act, write);
 						added = addCandidates(candidates);
 					}
@@ -767,8 +754,8 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 				FENCE_PRINT("Read count between the two writes: %d\n", readCnt);
 				FENCE_PRINT("implicitMOReadBound: %d\n",
 					getImplicitMOReadBound());
-				WILDCARD_ACT_PRINT(write1);
-				WILDCARD_ACT_PRINT(write2);
+				ACT_PRINT(write1);
+				ACT_PRINT(write2);
 				paths_t *paths1 = get_rf_sb_paths(write1, write2);
 				if (paths1->size() > 0) {
 					FENCE_PRINT("From write1 to write2: \n");
@@ -811,6 +798,63 @@ bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
 	return added;
 }
 
+
+bool SCFence::routineBacktrack(bool feasible) {
+	model_print("Backtrack routine:\n");
+	
+	/******** commitCurInference ********/
+	commitCurInference(feasible);
+	if (feasible) {
+		if (!getIsPending()) {
+			model_print("Found one result!\n");
+		} else {
+			model_print("Found one pending result!\n");
+		}
+		getCurInference()->print();
+	} else {
+		model_print("Reach an infeasible inference!\n");
+	}
+
+	/******** getNextInference ********/
+	Inference *next = getNextInference();
+
+	if (next) {
+		/******** setCurInference ********/
+		setCurInference(next);
+		/******** restartModelChecker ********/
+		restartModelChecker();
+		return true;
+	} else {
+		// Finish exploring the whole process
+		model_print("We are done with the whole process!\n");
+		model_print("The results are as the following:\n");
+		printResults();
+		printCandidates();
+				
+		/******** exitModelChecker ********/
+		exitModelChecker();
+
+		return false;
+	}
+}
+
+void SCFence::routineAfterAddFixes() {
+	model_print("Add fixes routine:\n");
+	
+	/******** setIsPending ********/
+	setIsPending(false);
+	/******** setExplored ********/
+	setExplored();
+	/******** getNextInference ********/
+	Inference *next = getNextInference();
+	ASSERT (next);
+
+	/******** setCurInference ********/
+	setCurInference(next);
+	/******** restartModelChecker ********/
+	restartModelChecker();
+}
+
 void SCFence::analyze(action_list_t *actions) {
 	struct timeval start;
 	struct timeval finish;
@@ -821,21 +865,18 @@ void SCFence::analyze(action_list_t *actions) {
 	int thrdNum;
 	buildVectors(&dup_threadlists, &thrdNum, actions);
 	
-	Inference *next = NULL;
 	// First of all check if there's any uninitialzed read bugs
 	if (execution->have_bug_reports()) {
 		bool added = addFixes(actions, BUGGY_EXECUTION);
 		if (added) {
 			model_print("Found an solution for buggy execution!\n");
-			next = getNextInference();
-			setCurInference(next);
-			restartModelChecker();
+			routineAfterAddFixes();
+			return;
 		} else {
 			// We can't fix the problem in this execution, but we may not be an
 			// SC execution
 			model_print("Pending...\n");
 			setIsPending(true);
-			//return;
 		}
 	}
 
@@ -852,72 +893,34 @@ void SCFence::analyze(action_list_t *actions) {
 
 	// Now we find a non-SC execution
 	if (cyclic) {
+		/******** The Non-SC case (beginning) ********/
 		print_list(list);
 		bool added = addFixes(list, NON_SC);
 		if (added) {
-			setIsPending(false);
+			routineAfterAddFixes();
+			return;
 		} else { // Couldn't imply anymore, backtrack
-			if (!getIsPending()) {
-				model_print("NonSC pattern backtrack\n");
-				commitCurInference(false);
-				// FIXME: Should we return here....
-				next = getNextInference();
-				if (next) {
-					setCurInference(next);
-					restartModelChecker();
-					return;
-				}
-			} else {
-				model_print("We cannot make the current inference correct\n");
-				getCurInference()->print();
-				model_print("\n");
-			}
+			routineBacktrack(false);
+			return;
 		}
-
-		next = getNextInference();
-		if (!next) {
-			//model_print("Maybe you should have more wildcards parameters for us to infer!\n");
-		} else {
-			setCurInference(next);
-			restartModelChecker();
-		}
+		/******** The Non-SC case (end) ********/
 	} else {
-		// Also check if we should imply the implicit modification order
-		/*
-		model_print("inferImplictMO: %d\n", getInferImplicitMO());
-		model_print("too_many_steps: %d\n",
-			execution->too_many_steps());
-		model_print("maxreads & implicitReadBound: %d & %d\n",
-		    model->params.maxreads, getImplicitMOReadBound());
-		*/
+		/******** The implicit MO case (beginning) ********/
 		if (getInferImplicitMO() && execution->too_many_steps() &&
 			!execution->is_complete_execution()) {
 			print_list(list);
 			bool added = addFixes(list, IMPLICIT_MO);
 			if (added) {
-				setIsPending(false);
-				next = getNextInference();
 				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
-				if (!next) {
-					model_print("No candidates left!\n");
-				} else {
-					setCurInference(next);
-					restartModelChecker();
-				}
+				routineAfterAddFixes();
+				return;
 			} else {
-				// This can be a good execution, so we can't do anything
-				/*
+				// This can be a good execution, so we can't do anything,
+				// backtrack
 				model_print("Weird!! We cannot infer the mo for infinite reads!\n");
 				model_print("Maybe you should have more wildcards parameters for us to infer!\n");
-				next = getNextInference();
-				if (!next) {
-					model_print("No candidates left!\n");
-					exitModelChecker();
-				} else {
-					setCurInference(next);
-					restartModelChecker();
-				}
-				*/
+				routineBacktrack(false);
+				return;
 			}
 		}
 	}
