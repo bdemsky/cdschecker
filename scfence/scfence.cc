@@ -512,6 +512,9 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	if (!candidates)
 		return false;
 
+	// FIXME: First prune the candidates
+	// pruneCandidatse(candidates);
+
 	// For the purpose of debugging, record all those candidates added here
 	ModelList<Inference*> *addedCandidates = new ModelList<Inference*>();
 
