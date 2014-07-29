@@ -102,7 +102,7 @@ void SCFence::actionAtInstallation() {
 	model->set_inspect_plugin(this);
 }
 
-static const char * get_mo_str(memory_order order) {
+const char* get_mo_str(memory_order order) {
 	switch (order) {
 		case std::memory_order_relaxed: return "relaxed";
 		case std::memory_order_acquire: return "acquire";
@@ -347,7 +347,7 @@ void SCFence::print_list(action_list_t *list) {
 /** Check whether a chosen reads-from path is a release sequence */
 bool SCFence::isReleaseSequence(path_t *path) {
 	ASSERT (path);
-	action_list_t::iterator it = path->begin(),
+	path_t::iterator it = path->begin(),
 		it_next;
 	const ModelAction *read,
 		*write,
@@ -392,7 +392,7 @@ Inference* SCFence::imposeSyncToInference(Inference *infer, path_t *path) {
 		updateState = infer->strengthen(lastRead, memory_order_acquire,
 			canUpdate, hasUpdated);
 	} else {
-		for (action_list_t::iterator it = path->begin(); it != path->end(); it++) {
+		for (path_t::iterator it = path->begin(); it != path->end(); it++) {
 			const ModelAction *read = *it,
 				*write = read->get_reads_from();
 			//FENCE_PRINT("path size:%d\n", path->size());
@@ -457,11 +457,11 @@ void SCFence::clearCandidates(ModelList<Inference*> *candidates) {
 /** Impose the current inference or the partialCandidates the caller passes in.
  *  It will clean up the partialCandidates and everything new goes to the return
  *  value*/
-ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandidates, sync_paths_t *paths) {
+ModelList<Inference*>* SCFence::imposeSync(ModelList<Inference*> *partialCandidates, paths_t *paths) {
 	ModelList<Inference*> *newCandidates = new ModelList<Inference*>();
 	Inference *infer = NULL;
 
-	for (sync_paths_t::iterator i_paths = paths->begin(); i_paths != paths->end(); i_paths++) {
+	for (paths_t::iterator i_paths = paths->begin(); i_paths != paths->end(); i_paths++) {
 		// Iterator over all the possible paths
 		path_t *path = *i_paths;
 		// The new inference imposed synchronization by path
@@ -565,7 +565,7 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 bool SCFence::addFixesNonSC(action_list_t *list) {
 	bool added = false;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
-		sync_paths_t *paths1 = NULL, *paths2 = NULL;
+		paths_t *paths1 = NULL, *paths2 = NULL;
 		ModelList<Inference*> *candidates = NULL;
 		ModelList<Inference*> *newCandidates = NULL;
 		ModelAction	*act = *it;
@@ -709,7 +709,7 @@ bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 				ModelAction *write = *it;
 				if (write->same_var(uninitRead)) {
 					// Now we can try to impose sync write hb-> uninitRead
-					sync_paths_t *paths1 = get_rf_sb_paths(write, uninitRead);
+					paths_t *paths1 = get_rf_sb_paths(write, uninitRead);
 					if (paths1->size() > 0) {
 						FENCE_PRINT("Running through pattern (b') (unint read)!\n");
 						print_rf_sb_paths(paths1, write, uninitRead);
@@ -768,7 +768,7 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					getImplicitMOReadBound());
 				WILDCARD_ACT_PRINT(write1);
 				WILDCARD_ACT_PRINT(write2);
-				sync_paths_t *paths1 = get_rf_sb_paths(write1, write2);
+				paths_t *paths1 = get_rf_sb_paths(write1, write2);
 				if (paths1->size() > 0) {
 					FENCE_PRINT("From write1 to write2: \n");
 					print_rf_sb_paths(paths1, write1, write2);
@@ -944,25 +944,22 @@ void SCFence::check_rf(action_list_t *list) {
 
 /** This function finds all the paths that is a union of reads-from &
  * sequence-before relationship between act1 & act2. */
-sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2) {
+paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2) {
+	// FIXME: RMW still wrong
 	int idx1 = id_to_int(act1->get_tid()),
 		idx2 = id_to_int(act2->get_tid());
 	// Retrieves the two lists of actions of thread1 & thread2
 	action_list_t *list1 = &dup_threadlists[idx1],
 		*list2 = &dup_threadlists[idx2];
 	if (list1->size() == 0 || list2->size() == 0) {
-		return new sync_paths_t();
+		return new paths_t();
 	}
 
-	action_list_t::iterator it1 = list1->begin();
-	// First action of the thread where act1 belongs
-	ModelAction *start = *it1;
-	
 	// The container for all possible results
-	sync_paths_t *paths = new sync_paths_t();
+	paths_t *paths = new paths_t();
 	// A stack that records all current possible paths
-	sync_paths_t *stack = new sync_paths_t();
-	action_list_t *path;
+	paths_t *stack = new paths_t();
+	path_t *path;
 	// Initialize the stack with loads sb-ordered before act2
 	for (action_list_t::iterator it2 = list2->begin(); it2 != list2->end(); it2++) {
 		ModelAction *act = *it2;
@@ -973,7 +970,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 			continue;
 		//FENCE_PRINT("init read:\n");
 		//WILDCARD_ACT_PRINT(act);
-		path = new action_list_t();
+		path = new path_t();
 		path->push_front(act);
 		stack->push_back(path);
 	}
@@ -991,7 +988,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 		 * is sequence-before the added read action
 		 */
 		bool loop = false;
-		for (action_list_t::iterator p_it = path->begin(); p_it != path->end();
+		for (path_t::iterator p_it = path->begin(); p_it != path->end();
 			p_it++) {
 			ModelAction *prev_read = *p_it;
 			if (id_to_int(write->get_tid()) == id_to_int(prev_read->get_tid())) {
@@ -1027,7 +1024,7 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 				continue;
 			if (!act->is_read())
 				continue;
-			action_list_t *new_path = new action_list_t(*path);
+			path_t *new_path = new path_t(*path);
 			new_path->push_front(act);
 			stack->push_back(new_path);
 		}
@@ -1036,14 +1033,14 @@ sync_paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelActi
 	return paths;
 }
 
-void SCFence::print_rf_sb_paths(sync_paths_t *paths, const ModelAction *start, const ModelAction *end) {
+void SCFence::print_rf_sb_paths(paths_t *paths, const ModelAction *start, const ModelAction *end) {
 	FENCE_PRINT("Starting from:\n");
 	WILDCARD_ACT_PRINT(start);
-	for (sync_paths_t::iterator paths_i = paths->begin(); paths_i !=
+	for (paths_t::iterator paths_i = paths->begin(); paths_i !=
 		paths->end(); paths_i++) {
 		FENCE_PRINT("Path %d:\n", distance(paths->begin(), paths_i));
-		action_list_t *path = *paths_i;
-		action_list_t::iterator it = path->begin(), i_next;
+		path_t *path = *paths_i;
+		path_t::iterator it = path->begin(), i_next;
 		for (; it != path->end(); it++) {
 			i_next = it;
 			i_next++;

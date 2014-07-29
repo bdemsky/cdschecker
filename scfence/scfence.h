@@ -48,8 +48,11 @@ using std::memory_order;
 
 /* Forward declaration */
 class SCFence;
+class Inference;
 
 extern SCFence *scfence;
+
+static const char* get_mo_str(memory_order order);
 
 typedef action_list_t path_t;
 /** A list of load operations can represent the union of reads-from &
@@ -57,10 +60,8 @@ typedef action_list_t path_t;
  * represent all the possible rfUsb paths between two nodes, defined as
  * syns_paths_t here
  */
-typedef SnapList<action_list_t *> sync_paths_t;
+typedef SnapList<path_t *> sync_paths_t;
 typedef sync_paths_t paths_t;
-
-static const char * get_mo_str(memory_order order);
 
 typedef struct Inference {
 	memory_order *orders;
@@ -162,13 +163,6 @@ typedef struct Inference {
 				orders[wildcardID] = mo;
 				break;
 		}
-		/*
-		FENCE_PRINT("\n");
-		FENCE_PRINT("Strengthened wildcard:%d\n", wildcardID);
-		WILDCARD_ACT_PRINT(act);
-		FENCE_PRINT("-> %s\n", get_mo_str(mo));
-		FENCE_PRINT("\n");
-		*/
 		return 1;
 	}
 	
@@ -237,15 +231,6 @@ typedef struct Inference {
 	void debug_print() {
 		ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
 		model_print("Explored: %d\n", explored);
-		/*
-		for (int i = 1; i <= size; i++) {
-	        memory_order mo = orders[i];
-			if (mo != WILDCARD_NONEXIST) {
-				// Print the wildcard inference result
-				FENCE_PRINT("wildcard %d -> memory_order_%s\n", i, get_mo_str(mo));
-			}
-		}
-		*/
 	}
 
 	void print() {
@@ -596,7 +581,7 @@ class SCFence : public TraceAnalysis {
 
 	/** An specific inference for debuggign */
 	Inference *specialInference;
-	
+
 	void initSpecialInference();
 
 	/** The function to parse the SCFence plugin options */
@@ -680,8 +665,6 @@ class SCFence : public TraceAnalysis {
 	 * strengthened list of inferences */
 	ModelList<Inference*>* imposeSC(ModelList<Inference*> *partialCandidates, const ModelAction *act1, const ModelAction *act2);
 
-	const char* get_mo_str(memory_order order);
-
 	/** When we finish model checking or cannot further strenghen with the
 	 * current inference, we commit the current inference (the node at the back
 	 * of the stack) to be explored, pop it out of the stack; if it is feasible,
@@ -742,6 +725,8 @@ class SCFence : public TraceAnalysis {
 	/** Set the exit flag of the model checker in order to exit the whole
 	 * process */
 	void exitModelChecker();
+
+	const char* net_mo_str(memory_order order);
 
 	InferenceStack* getStack() {
 		return priv->inferenceStack;
