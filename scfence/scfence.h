@@ -615,6 +615,9 @@ class SCFence : public TraceAnalysis {
 	void routineAfterAddFixes();
 	bool routineBacktrack(bool feasible);
 
+	/** A subroutine to find candidates for pattern (b) */
+	ModelList<Inference*>* getFixesFromPatternB(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter);
+
 	/** When getting a non-SC execution, find potential fixes and add it to the
 	 * stack */
 	bool addFixesNonSC(action_list_t *list);

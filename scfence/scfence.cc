@@ -547,6 +547,78 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	return added;
 }
 
+ModelList<Inference*>* SCFence::getFixesFromPatternB(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter) {
+	// FIXME:
+	// To fix this pattern, we can do futureWrite -> read
+	// or eliminate the sbUrf from read to futureWrite by
+	// imposing 'crossing' synchronization from futureWrite
+	// towards the read and (See fig. future_val_fix, the read
+	// line is the fix). The good news is that we can use the
+	// sorted SC list to find out all the possible
+	// synchronization options
+
+	ModelList<Inference*> *res = new ModelList<Inference*>(),
+		*candidates = NULL;
+
+	ModelAction *read = *readIter,
+		*write = *writeIter;
+	// Fixing one direction (read -> futureWrite)
+	paths_t *paths1 = get_rf_sb_paths(read, write);
+	if (paths1->size() > 0) {
+		FENCE_PRINT("From read to future write: \n");
+		print_rf_sb_paths(paths1, read, write);
+		candidates = imposeSync(NULL, paths1);
+		// Add it to the big list
+		res->insert(res->begin(), candidates->begin(), candidates->end());
+		delete candidates;
+	}
+
+	// Fixing the other direction (futureWrite -> read) for one edge case
+	paths_t *paths2 = get_rf_sb_paths(write, read);
+	FENCE_PRINT("From future write to read (edge case): \n");
+	print_rf_sb_paths(paths2, write, read);
+	candidates = imposeSync(NULL, paths2);
+	// Add it to the big list
+	res->insert(res->end(), candidates->begin(), candidates->end());
+	delete candidates;
+
+	// Also other fixes for the direction (futureWrite -> read)
+	if (paths1->size() > 0) {
+		for (paths_t::iterator pit = paths1->begin(); pit
+			!= paths1->end(); pit++) {
+			path_t *path = *pit;
+			const ModelAction *lastRead = path->back(),
+				*firstWrite = path->front()->get_reads_from();
+			// Enumerate all the paths from write(*) to read(*)
+			// write(*): writes after lastRead and before write
+			// read(*): writes after read and before lastWrite
+			action_list_t::iterator writeBeginIter =
+				std::find(readIter, writeIter, firstWrite),
+					readEndIter = 
+			std::find(readIter, writeIter, lastRead);
+			action_list_t::iterator theWriteIter = readEndIter,
+				theReadIter = readIter;
+			theWriteIter++;
+			theReadIter++;
+			for (; theReadIter != writeBeginIter; theReadIter++) {
+				const ModelAction *theRead = *theReadIter;
+				for (; theWriteIter != std::next(writeIter); theWriteIter++) {
+					const ModelAction *theWrite = *theWriteIter;
+					paths2 = get_rf_sb_paths(theWrite, theRead);
+					if (paths2->size() > 0) {
+						candidates = imposeSync(NULL, paths2);
+						// Add it to the big list
+						res->insert(res->end(), candidates->begin(), candidates->end());
+						delete candidates;
+					}
+				}
+			}
+		}
+	}
+
+	// Return the candidates
+	return res;
+}
 
 bool SCFence::addFixesNonSC(action_list_t *list) {
 	bool added = false;
@@ -555,27 +627,23 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 		ModelList<Inference*> *candidates = NULL;
 		ModelList<Inference*> *newCandidates = NULL;
 		ModelAction	*act = *it;
+
+		// Save the iterator of the read and the write
+		action_list_t::iterator readIter = it, writeIter;
+
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from();
 				// Check reading old or future value
-				bool readOldVal = false;
-				for (action_list_t::iterator it1 = list->begin(); it1 !=
-					list->end(); it1++) {
-					ModelAction *act1 = *it1;
-					if (act1 == act)
-						break;
-					if (act1 == write) {
-						readOldVal = true;
-						break;
-					}
-				}
+				writeIter = std::find(list->begin(), list->end(), write);
+				bool readOldVal = std::distance(writeIter, readIter) > 0 ? true : false;
+
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
 					// Find all writes between the write1 and the read
 					action_list_t *write2s = new action_list_t();
 					ModelAction *write2;
-					action_list_t::iterator findIt = find(list->begin(), list->end(), write);
+					action_list_t::iterator findIt = writeIter;
 					findIt++;
 					do {
 						write2 = *findIt;
@@ -584,7 +652,7 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 							write2s->push_back(write2);
 						}
 						findIt++;
-					} while (write2 != act);
+					} while (findIt != readIter);
 					
 					// Found all the possible write2s
 					FENCE_PRINT("write2s set size: %d\n", write2s->size());
@@ -635,45 +703,11 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 						added = addCandidates(newCandidates);
 					}
 				} else { // Pattern (b) read future value
-					// FIXME: To fix this pattern, we can do futureWrite -> read
-					// or eliminate the sbUrf from read to futureWrite by
-					// imposing 'crossing' synchronization from futureWrite
-					// towards the read and (See fig. future_val_fix, the read
-					// line is the fix). The good news is that we can use the
-					// sorted SC list to find out all the possible
-					// synchronization options
-
 					// act->read, write->futureWrite
 					FENCE_PRINT("Running through pattern (b)!\n");
-					// Fixing one direction (read -> futureWrite)
-					paths1 = get_rf_sb_paths(act, write);
-					paths2 = get_rf_sb_paths(write, act);
-					if (paths1->size() > 0 || paths2->size() > 0) {
-						if (paths1->size() > 0) {
-							// Fixing one direction (read -> futureWrite )
-							FENCE_PRINT("From read to future write: \n");
-							print_rf_sb_paths(paths1, act, write);
-							candidates = imposeSync(NULL, paths1);
-							// Add candidates for patter (b) in one direction
-							added = addCandidates(candidates);
-						}
-						if (paths2->size() > 0) {
-							candidates = NULL;
-							// Fixing the other direction (futureWrite -> read)
-							FENCE_PRINT("From future write to read: \n");
-							print_rf_sb_paths(paths2, write, act);
-							candidates = imposeSync(NULL, paths2);
-							// Add candidates for patter (b) in another direction
-							if (addCandidates(candidates))
-								added = true;
-						}
-					} else {
-						FENCE_PRINT("Have to impose sc on read and future write: \n");
-						ACT_PRINT(act);
-						ACT_PRINT(write);
-						candidates = imposeSC(NULL, act, write);
-						added = addCandidates(candidates);
-					}
+					candidates = getFixesFromPatternB(list, readIter, writeIter);
+					// Add candidates for current write2 in patter (a)
+					added = addCandidates(candidates);
 				}
 				// Just eliminate the first cycle we see in the execution
 				break;
