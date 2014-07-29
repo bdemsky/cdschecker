@@ -636,7 +636,9 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 					// or eliminate the sbUrf from read to futureWrite by
 					// imposing 'crossing' synchronization from futureWrite
 					// towards the read and (See fig. future_val_fix, the read
-					// line is the fix)
+					// line is the fix). The good news is that we can use the
+					// sorted SC list to find out all the possible
+					// synchronization options
 
 					// act->read, write->futureWrite
 					FENCE_PRINT("Running through pattern (b)!\n");
