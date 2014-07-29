@@ -126,7 +126,15 @@ void SCFence::restartModelChecker() {
 		setHasRestarted(true);
 }
 
+bool SCFence::modelCheckerAtExitState() {
+	return model->get_exit_flag();
+}
+
 void SCFence::actionAtModelCheckingFinish() {
+	// Just bail if the model checker is at the exit state
+	if (modelCheckerAtExitState())
+		return;
+
 	/** Backtrack with a successful inference */
 	routineBacktrack(true);
 
@@ -389,7 +397,7 @@ Inference* SCFence::imposeSyncToInference(Inference *infer, path_t *path) {
 		}
 	}
 	// Now think about returning something
-	if (canUpdate && hasUpdated) {
+	if (canUpdate) {
 		return infer;
 	} else {
 		delete infer;
@@ -419,7 +427,7 @@ Inference* SCFence::imposeSCToInference(Inference *infer, const ModelAction *act
 		canUpdate, hasUpdated);
 
 	// Now return something
-	if (canUpdate && hasUpdated) {
+	if (canUpdate) {
 		return infer;
 	} else {
 		delete infer;
@@ -504,6 +512,36 @@ ModelList<Inference*>* SCFence::imposeSC(ModelList<Inference*> *partialCandidate
 	return newCandidates;
 }
 
+/** Only choose the weakest existing candidates & they must be stronger than the
+ * current inference */
+ModelList<Inference*>* SCFence::pruneCandidates(ModelList<Inference*> *candidates) {
+	ModelList<Inference*> *newCandidates = new ModelList<Inference*>();
+	Inference *curInfer = getCurInference();
+
+	ModelList<Inference*>::iterator it1, it2;
+	int compVal;
+	for (it1 = candidates->begin(); it1 != candidates->end(); it1++) {
+		Inference *cand = *it1;
+		compVal = cand->compareTo(curInfer);
+		if (compVal == 0) {
+			delete cand;
+			continue;
+		}
+		for (it2 = newCandidates->begin(); it2 != newCandidates->end(); it2++) {
+			Inference *addedInfer = *it2;
+			compVal = addedInfer->compareTo(cand);
+			if (compVal == 0 || compVal == 1) { // Added inference is stronger
+				delete addedInfer;
+				it2 = newCandidates->erase(it2);
+				it2--;
+			}
+		}
+		// Now push the cand to the list
+		newCandidates->push_back(cand);
+	}
+	delete candidates;
+	return newCandidates;
+}
 
 /** Be careful that if the candidate is not added, it will be deleted in this
  * function. Therefore, caller of this function should just delete the list when
@@ -512,8 +550,8 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	if (!candidates)
 		return false;
 
-	// FIXME: First prune the candidates
-	// pruneCandidatse(candidates);
+	// First prune the candidates
+	candidates = pruneCandidates(candidates);
 
 	// For the purpose of debugging, record all those candidates added here
 	ModelList<Inference*> *addedCandidates = new ModelList<Inference*>();
@@ -548,7 +586,6 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 }
 
 ModelList<Inference*>* SCFence::getFixesFromPatternB(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter) {
-	// FIXME:
 	// To fix this pattern, we can do futureWrite -> read
 	// or eliminate the sbUrf from read to futureWrite by
 	// imposing 'crossing' synchronization from futureWrite
@@ -635,15 +672,18 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from();
 				// Check reading old or future value
-				writeIter = std::find(list->begin(), list->end(), write);
-				bool readOldVal = std::distance(writeIter, readIter) > 0 ? true : false;
+				writeIter = std::find(list->begin(),
+					list->end(), write);
+				action_list_t::iterator findIt = std::find(list->begin(),
+					readIter, write);
+				bool readOldVal = findIt != readIter ? true : false;
 
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
 					// Find all writes between the write1 and the read
 					action_list_t *write2s = new action_list_t();
 					ModelAction *write2;
-					action_list_t::iterator findIt = writeIter;
+					findIt = writeIter;
 					findIt++;
 					do {
 						write2 = *findIt;
@@ -988,7 +1028,6 @@ void SCFence::check_rf(action_list_t *list) {
 /** This function finds all the paths that is a union of reads-from &
  * sequence-before relationship between act1 & act2. */
 paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2) {
-	// FIXME: RMW still wrong
 	int idx1 = id_to_int(act1->get_tid()),
 		idx2 = id_to_int(act2->get_tid());
 	// Retrieves the two lists of actions of thread1 & thread2
@@ -1426,7 +1465,7 @@ void SCFence::computeCV(action_list_t *list) {
 				merge(cv, act2, act1);
 				continue;
 			}
-			// FIXME: how to get the SC edges, only adding edges for those
+			// How to get the SC edges? only adding edges for those
 			// non-conflicting operations
 			if (!isSCEdge(act1, act2) || !isConflicting(act1, act2))
 				continue;

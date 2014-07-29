@@ -634,6 +634,10 @@ class SCFence : public TraceAnalysis {
 	/** General fixes wrapper */
 	bool addFixes(action_list_t *list, fix_type_t type);
 
+	/** Only choose the weakest existing candidates & they must be stronger than
+	 * the current inference */
+	ModelList<Inference*>* pruneCandidates(ModelList<Inference*> *candidates);
+
 	/** Add candidates with a list of inferences; returns false if nothing is
 	 * added */
 	bool addCandidates(ModelList<Inference*> *candidates);
@@ -647,6 +651,7 @@ class SCFence : public TraceAnalysis {
 	 * impose path to the newly created inference or the passed-in infer. If we
 	 * cannot strengthen the inference by the path, we return NULL, otherwise we
 	 * return the newly created inference */
+	//Inference* imposeSyncToInference(Inference *infer, path_t *path, bool &canUpdate, bool &hasUpdated);
 	Inference* imposeSyncToInference(Inference *infer, path_t *path);
 
 	/** Impose SC to one inference (infer) by action1 & action2.  If infer is
@@ -732,6 +737,8 @@ class SCFence : public TraceAnalysis {
 	/** Set the exit flag of the model checker in order to exit the whole
 	 * process */
 	void exitModelChecker();
+
+	bool modelCheckerAtExitState();
 
 	/** Mark the explored field of the current inference to be true; it is only
 	 * a flag, and it does not mean the current inference already finishes

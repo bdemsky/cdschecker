@@ -53,6 +53,9 @@ public:
 	/** Exit the model checker, supposed to be called by the pluggin */
 	void exit_model_checker();
 
+	/** Inspect plugin needs to retrive this value */
+	bool get_exit_flag() const { return exit_flag; }
+
 	/** @returns the context for the main model-checking system thread */
 	ucontext_t * get_system_context() { return &system_context; }
 
