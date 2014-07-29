@@ -347,17 +347,18 @@ void SCFence::print_list(action_list_t *list) {
 /** Check whether a chosen reads-from path is a release sequence */
 bool SCFence::isReleaseSequence(path_t *path) {
 	ASSERT (path);
-	path_t::iterator it = path->begin(),
-		it_next;
+	path_t::reverse_iterator rit = path->rbegin(),
+		rit_next;
 	const ModelAction *read,
 		*write,
 		*next_read;
-	for (; it != path->end(); it = it_next) {
-		read = *it;
+	for (; rit != path->rend(); rit++) {
+		read = *rit;
+		rit_next = rit;
+		rit_next++;
 		write = read->get_reads_from();
-		it_next = it++;
-		if (it_next != path->end()) {
-			next_read = *it_next;
+		if (rit_next != path->rend()) {
+			next_read = *rit_next;
 			if (write != next_read) {
 				return false;
 			}
@@ -963,13 +964,12 @@ paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *a
 	// Initialize the stack with loads sb-ordered before act2
 	for (action_list_t::iterator it2 = list2->begin(); it2 != list2->end(); it2++) {
 		ModelAction *act = *it2;
-		// We also add act2 to the path
+		// Add read action not sb after the act2 (including act2)
 		if (act->get_seq_number() > act2->get_seq_number())
-			continue;
+			break;
 		if (!act->is_read())
 			continue;
-		//FENCE_PRINT("init read:\n");
-		//WILDCARD_ACT_PRINT(act);
+		// Each start with a possible path
 		path = new path_t();
 		path->push_front(act);
 		stack->push_back(path);
@@ -977,69 +977,72 @@ paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *a
 	while (stack->size() > 0) {
 		path = stack->back();
 		stack->pop_back();
+		// The latest read in the temporary path
 		ModelAction *read = path->front();
-		//FENCE_PRINT("Temporary path size: %d\n", path->size());
 		const ModelAction *write = read->get_reads_from();
 		// If the read is uninitialized, don't do it
-		if (write->get_seq_number() == 0)
+		if (write->get_seq_number() == 0) {
+			delete path;
 			continue;
-		/** In case of cyclic sbUrf & for the purpose of redundant path, make
-		 * sure the write appears in a new thread or in an existing thread that
-		 * is sequence-before the added read action
+		}
+		/** In case of cyclic sbUrf, make sure the write appears in a new thread
+		 * or in an existing thread that is sequence-before the added read
+		 * actions
 		 */
 		bool loop = false;
 		for (path_t::iterator p_it = path->begin(); p_it != path->end();
 			p_it++) {
-			ModelAction *prev_read = *p_it;
-			if (id_to_int(write->get_tid()) == id_to_int(prev_read->get_tid())) {
+			ModelAction *addedRead = *p_it;
+			if (id_to_int(write->get_tid()) == id_to_int(addedRead->get_tid())) {
 				// In the same thread
-				if (write->get_seq_number() <= prev_read->get_seq_number()) {
+				if (write->get_seq_number() >= addedRead->get_seq_number()) {
 					// Have a loop
-					path->clear();
-					//delete path;
+					delete path;
 					loop = true;
 					break;
 				}
 			}
 		}
-	
-		// Not a useful rfUsb path
+		// Not a useful rfUsb path (loop)
 		if (loop) {
 			continue;
 		}
 
+		int write_seqnum = write->get_seq_number();
 		// We then check if we got a valid path 
-		if (id_to_int(write->get_tid()) == idx1) {
+		if (id_to_int(write->get_tid()) == idx1 &&
+			write_seqnum >= act1->get_seq_number()) {
 			// Find a path
 			paths->push_back(path);
 			continue;
 		}
 		// Extend the path with the latest read
-		int write_seqnum = write->get_seq_number();
 		int idx = id_to_int(write->get_tid());
 		action_list_t *list = &dup_threadlists[idx];
 		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 			ModelAction *act = *it;
 			if (act->get_seq_number() > write_seqnum) // Could be RMW
-				continue;
+				break;
 			if (!act->is_read())
 				continue;
 			path_t *new_path = new path_t(*path);
 			new_path->push_front(act);
 			stack->push_back(new_path);
 		}
-		path->clear();
+		delete path;
 	}
 	return paths;
 }
 
 void SCFence::print_rf_sb_paths(paths_t *paths, const ModelAction *start, const ModelAction *end) {
 	FENCE_PRINT("Starting from:\n");
-	WILDCARD_ACT_PRINT(start);
+	ACT_PRINT(start);
+	FENCE_PRINT("\n");
 	for (paths_t::iterator paths_i = paths->begin(); paths_i !=
 		paths->end(); paths_i++) {
-		FENCE_PRINT("Path %d:\n", distance(paths->begin(), paths_i));
 		path_t *path = *paths_i;
+		FENCE_PRINT("Path %d, size (%d):\n", distance(paths->begin(), paths_i),
+			path->size());
 		path_t::iterator it = path->begin(), i_next;
 		for (; it != path->end(); it++) {
 			i_next = it;
@@ -1047,17 +1050,17 @@ void SCFence::print_rf_sb_paths(paths_t *paths, const ModelAction *start, const 
 			const ModelAction *read = *it,
 				*write = read->get_reads_from(),
 				*next_read = (i_next != path->end()) ? *i_next : NULL;
-			WILDCARD_ACT_PRINT(write);
+			ACT_PRINT(write);
 			if (next_read == NULL || next_read->get_reads_from() != read) {
 				// Not the same RMW, also print the read operation
-				WILDCARD_ACT_PRINT(read);
+				ACT_PRINT(read);
 			}
 		}
 		// Output a linebreak at the end of the path
 		FENCE_PRINT("\n");
 	}
 	FENCE_PRINT("Ending with:\n");
-	WILDCARD_ACT_PRINT(end);
+	ACT_PRINT(end);
 }
 
 /******************** SCFence-related Functions (End) ********************/
