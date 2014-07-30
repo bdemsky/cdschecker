@@ -13,31 +13,6 @@
 
 scfence_priv *SCFence::priv;
 
-// Only for the purpose of debugging
-void SCFence::initSpecialInference() {
-	specialInference = new Inference();
-	Inference *i = specialInference;
-	(*i)[1] = relaxed;
-	(*i)[2] = relaxed;
-	(*i)[3] = acquire;
-	(*i)[4] = relaxed;
-	(*i)[5] = acquire;
-	(*i)[6] = acqrel;
-	(*i)[7] = WILDCARD_NONEXIST;
-	(*i)[8] = acquire;
-	(*i)[9] = release;
-	(*i)[10] = WILDCARD_NONEXIST;
-	(*i)[11] = release;
-	(*i)[12] = WILDCARD_NONEXIST;
-	(*i)[13] = relaxed;
-	(*i)[14] = acquire;
-	(*i)[15] = acquire;
-	(*i)[16] = relaxed;
-	(*i)[17] = release;
-	(*i)[18] = WILDCARD_NONEXIST;
-	(*i)[19] = relaxed;
-}
-
 SCFence::SCFence() :
 	cvmap(),
 	cyclic(false),
@@ -53,7 +28,6 @@ SCFence::SCFence() :
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
 {
 	priv = new scfence_priv();
-	initSpecialInference();
 }
 
 SCFence::~SCFence() {
@@ -563,7 +537,7 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	bool added = false;
 
 	/******** addInference ********/
-	added = addInference(getCurInference());
+	addInference(getCurInference());
 
 	ModelList<Inference*>::iterator it;
 	for (it = candidates->begin(); it != candidates->end(); it++) {
@@ -625,13 +599,15 @@ ModelList<Inference*>* SCFence::getFixesFromPatternA(action_list_t *list, action
 		FENCE_PRINT("write2:\n");
 		ACT_PRINT(write2);
 		// write1->write2 (write->write2)
-		// FIXME: Need to make sure at least one path is feasible
 		if (!isSCEdge(write, write2) &&
 			!write->happens_before(write2)) {
 			paths1 = get_rf_sb_paths(write, write2);
 			if (paths1->size() > 0) {
 				FENCE_PRINT("From write1 to write2: \n");
 				print_rf_sb_paths(paths1, write, write2);
+				// FIXME: Need to make sure at least one path is feasible; what
+				// if we got empty candidates here, maybe should then impose SC,
+				// same in the write2->read
 				candidates = imposeSync(NULL, paths1);
 			} else {
 				FENCE_PRINT("Have to impose sc on write1 & write2: \n");
@@ -909,10 +885,10 @@ bool SCFence::routineBacktrack(bool feasible) {
 	/******** commitCurInference ********/
 	commitCurInference(feasible);
 	if (feasible) {
-		if (!getIsPending()) {
+		if (!getBuggy()) {
 			model_print("Found one result!\n");
 		} else {
-			model_print("Found one pending result!\n");
+			model_print("Found one buggy candidate!\n");
 		}
 		getCurInference()->print();
 	} else {
@@ -945,8 +921,6 @@ bool SCFence::routineBacktrack(bool feasible) {
 void SCFence::routineAfterAddFixes() {
 	model_print("Add fixes routine begin:\n");
 	
-	/******** setIsPending ********/
-	setIsPending(false);
 	/******** setExplored ********/
 	setExplored();
 	/******** getNextInference ********/
@@ -984,8 +958,9 @@ void SCFence::analyze(action_list_t *actions) {
 		} else {
 			// We can't fix the problem in this execution, but we may not be an
 			// SC execution
-			model_print("Pending...\n");
-			setIsPending(true);
+			model_print("Buggy...\n");
+			/******** setBuggy ********/
+			setBuggy(true);
 		}
 	}
 

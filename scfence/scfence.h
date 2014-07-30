@@ -69,12 +69,15 @@ typedef struct Inference {
 
 	bool explored;
 
+	bool buggy;
+
 	Inference() {
 		orders = (memory_order *) model_malloc((4 + 1) * sizeof(memory_order*));
 		size = 4;
 		for (int i = 0; i <= size; i++)
 			orders[i] = WILDCARD_NONEXIST;
 		explored = false;
+		buggy = false;
 	}
 
 	Inference(Inference *infer) {
@@ -84,6 +87,7 @@ typedef struct Inference {
 		for (int i = 0; i <= size; i++)
 			orders[i] = infer->orders[i];
 		explored = false;
+		buggy = false;
 	}
 
 	void resize(int newsize) {
@@ -217,6 +221,14 @@ typedef struct Inference {
 			}
 		}
 		return result;
+	}
+
+	void setBuggy(bool val) {
+		buggy = val;
+	}
+
+	bool getBuggy() {
+		return buggy;
 	}
 
 	void setExplored(bool val) {
@@ -485,7 +497,6 @@ typedef struct scfence_priv {
 		inferenceStack = new InferenceStack();
 		curInference = new Inference();
 		candidateFile = NULL;
-		isPending = false;
 		inferImplicitMO = false;
 		hasRestarted = false;
 		implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
@@ -496,12 +507,6 @@ typedef struct scfence_priv {
 
 	/** The current inference */
 	Inference *curInference;
-
-	/** Indicate whether the current inference is a pending sulotion. For
-	 * example, for the buggy execution pattern, we might not able to find a fix
-	 * for the unintialized load bug, then we will set this flag, and when we
-	 * try to get the next inference, we first check this flag */
-	 bool isPending;
 
 	/** The file which provides a list of candidate wilcard inferences */
 	char *candidateFile;
@@ -580,11 +585,6 @@ class SCFence : public TraceAnalysis {
 	/** The non-snapshotting private compound data structure that has the
 	 * necessary stuff for the scfence analysis */
 	static scfence_priv *priv;
-
-	/** An specific inference for debuggign */
-	Inference *specialInference;
-
-	void initSpecialInference();
 
 	/** The function to parse the SCFence plugin options */
 	bool parseOption(char *opt);
@@ -760,6 +760,14 @@ class SCFence : public TraceAnalysis {
 		return priv->inferenceStack;
 	}
 
+	bool getBuggy() {
+		return getCurInference()->getBuggy();
+	}
+
+	bool setBuggy(bool val) {
+		getCurInference()->setBuggy(val);
+	}
+
 	Inference* getCurInference() {
 		return priv->curInference;
 	}
@@ -774,14 +782,6 @@ class SCFence : public TraceAnalysis {
 
 	void setCandidateFile(char* file) {
 		priv->candidateFile = file;
-	}
-
-	bool getIsPending() {
-		return priv->isPending;
-	}
-
-	void setIsPending(bool isPending) {
-		priv->isPending = isPending;
 	}
 
 	bool getInferImplicitMO() {
