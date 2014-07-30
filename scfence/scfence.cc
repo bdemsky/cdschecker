@@ -193,6 +193,8 @@ void SCFence::initializeByFile() {
 					mo = memory_order_seq_cst;
 				(*infer)[curNum] = mo;
 			}
+
+			/******** addInference ********/
 			if (!addInference(infer))
 				delete infer;
 		}
@@ -559,6 +561,10 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	FENCE_PRINT("explored size: %d.\n", getStack()->exploredSetSize());
 	FENCE_PRINT("candidates size: %d.\n", candidates->size());
 	bool added = false;
+
+	/******** addInference ********/
+	added = addInference(getCurInference());
+
 	ModelList<Inference*>::iterator it;
 	for (it = candidates->begin(); it != candidates->end(); it++) {
 		Inference *candidate = *it;
@@ -583,6 +589,85 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	clearCandidates(candidates);
 	FENCE_PRINT("potential results size: %d.\n", stackSize());
 	return added;
+}
+
+/** A subroutine that calculates the potential fixes for the non-sc pattern (a),
+ * a.k.a old value reading */
+ModelList<Inference*>* SCFence::getFixesFromPatternA(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter) {
+	ModelAction *read = *readIter,
+		*write = *writeIter;
+
+	ModelList<Inference*> *newCandidates = new ModelList<Inference*>(),
+		*candidates = NULL;
+	paths_t *paths1, *paths2;
+
+	// Find all writes between the write1 and the read
+	action_list_t *write2s = new action_list_t();
+	ModelAction *write2;
+	action_list_t::iterator findIt = writeIter;
+	findIt++;
+	do {
+		write2 = *findIt;
+		if (write2->is_write() && write2->get_location() ==
+			write->get_location()) {
+			write2s->push_back(write2);
+		}
+		findIt++;
+	} while (findIt != readIter);
+					
+	// Found all the possible write2s
+	newCandidates = new ModelList<Inference*>();
+	FENCE_PRINT("write2s set size: %d\n", write2s->size());
+	for (action_list_t::iterator itWrite2 = write2s->begin();
+		itWrite2 != write2s->end(); itWrite2++) {
+		write2 = *itWrite2;
+		candidates = NULL;
+		FENCE_PRINT("write2:\n");
+		ACT_PRINT(write2);
+		// write1->write2 (write->write2)
+		// FIXME: Need to make sure at least one path is feasible
+		if (!isSCEdge(write, write2) &&
+			!write->happens_before(write2)) {
+			paths1 = get_rf_sb_paths(write, write2);
+			if (paths1->size() > 0) {
+				FENCE_PRINT("From write1 to write2: \n");
+				print_rf_sb_paths(paths1, write, write2);
+				candidates = imposeSync(NULL, paths1);
+			} else {
+				FENCE_PRINT("Have to impose sc on write1 & write2: \n");
+				ACT_PRINT(write);
+				ACT_PRINT(write2);
+				candidates = imposeSC(NULL, write, write2);
+			}
+		} else {
+			FENCE_PRINT("write1 mo before write2. \n");
+		}
+
+		// write2->read (write2->read)
+		if (!isSCEdge(write2, read) &&
+			!write2->happens_before(read)) {
+			paths2 = get_rf_sb_paths(write2, read);
+			if (paths2->size() > 0) {
+				FENCE_PRINT("From write2 to read: \n");
+				print_rf_sb_paths(paths2, write2, read);
+				//FENCE_PRINT("paths2 size: %d\n", paths2->size());
+				candidates = imposeSync(candidates, paths2);
+			} else {
+				FENCE_PRINT("Have to impose sc on write2 & read: \n");
+				ACT_PRINT(write2);
+				ACT_PRINT(read);
+				candidates = imposeSC(candidates, write2, read);
+			}
+		} else {
+			FENCE_PRINT("write2 hb/sc before read. \n");
+		}
+		// Add candidates for current write2 in patter (a)
+		newCandidates->insert(newCandidates->end(),
+			candidates->begin(), candidates->end());
+	}
+
+	// Return the complete list of candidates
+	return newCandidates;
 }
 
 ModelList<Inference*>* SCFence::getFixesFromPatternB(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter) {
@@ -667,7 +752,6 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 
 		// Save the iterator of the read and the write
 		action_list_t::iterator readIter = it, writeIter;
-
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act)) {
 				const ModelAction *write = act->get_reads_from();
@@ -680,73 +764,14 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 
 				if (readOldVal) { // Pattern (a) read old value
 					FENCE_PRINT("Running through pattern (a)!\n");
-					// Find all writes between the write1 and the read
-					action_list_t *write2s = new action_list_t();
-					ModelAction *write2;
-					findIt = writeIter;
-					findIt++;
-					do {
-						write2 = *findIt;
-						if (write2->is_write() && write2->get_location() ==
-							write->get_location()) {
-							write2s->push_back(write2);
-						}
-						findIt++;
-					} while (findIt != readIter);
-					
-					// Found all the possible write2s
-					FENCE_PRINT("write2s set size: %d\n", write2s->size());
-					for (action_list_t::iterator itWrite2 = write2s->begin();
-						itWrite2 != write2s->end(); itWrite2++) {
-						candidates = NULL;
-						newCandidates = NULL;
-						FENCE_PRINT("write2:\n");
-						ACT_PRINT(write2);
-						write2 = *itWrite2;
-						// write1->write2 (write->write2)
-						if (!isSCEdge(write, write2) &&
-							!write->happens_before(write2)) {
-							paths1 = get_rf_sb_paths(write, write2);
-							if (paths1->size() > 0) {
-								FENCE_PRINT("From write1 to write2: \n");
-								print_rf_sb_paths(paths1, write, write2);
-								candidates = imposeSync(NULL, paths1);
-							} else {
-								FENCE_PRINT("Have to impose sc on write1 & write2: \n");
-								ACT_PRINT(write);
-								ACT_PRINT(write2);
-								candidates = imposeSC(NULL, write, write2);
-							}
-						} else {
-							FENCE_PRINT("write1 mo before write2. \n");
-						}
-
-						// write2->read (write2->act)
-						if (!isSCEdge(write2, act) &&
-							!write2->happens_before(act)) {
-							paths2 = get_rf_sb_paths(write2, act);
-							if (paths2->size() > 0) {
-								FENCE_PRINT("From write2 to read: \n");
-								print_rf_sb_paths(paths2, write2, act);
-								//FENCE_PRINT("paths2 size: %d\n", paths2->size());
-								newCandidates = imposeSync(candidates, paths2);
-							} else {
-								FENCE_PRINT("Have to impose sc on write2 & read: \n");
-								ACT_PRINT(write2);
-								ACT_PRINT(act);
-								newCandidates = imposeSC(candidates, write2, act);
-							}
-						} else {
-							FENCE_PRINT("write2 hb/sc before read. \n");
-						}
-						// Add candidates for current write2 in patter (a)
-						added = addCandidates(newCandidates);
-					}
+					candidates = getFixesFromPatternA(list, readIter, writeIter);
+					// Add candidates pattern (a)
+					added = addCandidates(candidates);
 				} else { // Pattern (b) read future value
 					// act->read, write->futureWrite
 					FENCE_PRINT("Running through pattern (b)!\n");
 					candidates = getFixesFromPatternB(list, readIter, writeIter);
-					// Add candidates for current write2 in patter (a)
+					// Add candidates pattern (b)
 					added = addCandidates(candidates);
 				}
 				// Just eliminate the first cycle we see in the execution
@@ -918,7 +943,7 @@ bool SCFence::routineBacktrack(bool feasible) {
 }
 
 void SCFence::routineAfterAddFixes() {
-	model_print("Add fixes routine:\n");
+	model_print("Add fixes routine begin:\n");
 	
 	/******** setIsPending ********/
 	setIsPending(false);
@@ -932,6 +957,11 @@ void SCFence::routineAfterAddFixes() {
 	setCurInference(next);
 	/******** restartModelChecker ********/
 	restartModelChecker();
+	
+	model_print("Add fixes routine end:\n");
+	model_print("Restart checking with the follwing inference:\n");
+	getCurInference()->print();
+	model_print("Checking...\n");
 }
 
 void SCFence::analyze(action_list_t *actions) {
@@ -996,9 +1026,9 @@ void SCFence::analyze(action_list_t *actions) {
 			} else {
 				// This can be a good execution, so we can't do anything,
 				// backtrack
-				model_print("Weird!! We cannot infer the mo for infinite reads!\n");
-				model_print("Maybe you should have more wildcards parameters for us to infer!\n");
-				routineBacktrack(false);
+				//model_print("Weird!! We cannot infer the mo for infinite reads!\n");
+				//model_print("Maybe you should have more wildcards parameters for us to infer!\n");
+				//routineBacktrack(false);
 				return;
 			}
 		}

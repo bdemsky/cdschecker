@@ -396,6 +396,9 @@ typedef struct InferenceStack {
 			int compVal = existResult->compareTo(infer);
 			if (compVal == 0 || compVal == 1) {
 				// The existing result is equal or stronger, remove it
+				FENCE_PRINT("We are dumping the follwing inference because it's either too weak or the same:\n");
+				existResult->print();
+				FENCE_PRINT("\n");
 				it = results->erase(it);
 				it--;
 			}
@@ -614,6 +617,9 @@ class SCFence : public TraceAnalysis {
 	 * current inference */
 	void routineAfterAddFixes();
 	bool routineBacktrack(bool feasible);
+
+	/** A subroutine to find candidates for pattern (a) */
+	ModelList<Inference*>* getFixesFromPatternA(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter);
 
 	/** A subroutine to find candidates for pattern (b) */
 	ModelList<Inference*>* getFixesFromPatternB(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter);
