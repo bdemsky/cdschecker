@@ -195,6 +195,7 @@ void SCFence::initializeByFile() {
 				delete infer;
 		}
 	}
+	getNextInference();
 	fclose(fp);
 
 	FENCE_PRINT("candidate size from file: %d\n", stackSize());
@@ -567,9 +568,11 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	ModelList<Inference*>::iterator it;
 	for (it = candidates->begin(); it != candidates->end(); it++) {
 		Inference *candidate = *it;
+		bool tmpAdded = false;
 		/******** addInference ********/
-		added = addInference(candidate);
-		if (added) {
+		tmpAdded = addInference(candidate);
+		if (tmpAdded) {
+			added = true;
 			it = candidates->erase(it);
 			it--;
 			addedCandidates->push_back(candidate); 

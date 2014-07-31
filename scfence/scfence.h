@@ -212,7 +212,6 @@ typedef struct Inference {
 			if ((mo1 == memory_order_acquire && mo2 == memory_order_release) ||
 				(mo1 == memory_order_release && mo2 == memory_order_acquire)) {
 				// Incomparable
-				//FENCE_PRINT("!=\n");
 				return -2;
 			} else {
 				if ((mo1 == WILDCARD_NONEXIST && mo2 != WILDCARD_NONEXIST)
@@ -225,7 +224,6 @@ typedef struct Inference {
 				else
 					subResult = mo1 > mo2 ? 1 : (mo1 == mo2) ? 0 : -1;
 
-				//FENCE_PRINT("subResult: %d\n", subResult);
 				if ((subResult > 0 && result < 0) || (subResult < 0 && result > 0)) {
 					return -2;
 				}
@@ -466,15 +464,14 @@ typedef struct InferenceStack {
 		Inference *infer = NULL;
 		while (candidates->size() > 0) {
 			infer = candidates->back();
+			candidates->pop_back();
 			if (!infer->getIsLeaf()) {
 				infer->setExplored(true);
-				candidates->pop_back();
 				continue;
 			}
 			if (hasBeenExplored(infer)) {
 				// Finish exploring this node
 				// Remove the node from the stack
-				candidates->pop_back();
 
 				FENCE_PRINT("Explored inference:\n");
 				infer->print();
@@ -482,6 +479,7 @@ typedef struct InferenceStack {
 
 				continue;
 			} else {
+
 				return infer;
 			}
 		}
@@ -512,15 +510,16 @@ typedef struct InferenceStack {
 	/** Return false if we haven't discovered that inference yet. Basically we
 	 * search the candidates list */
 	bool hasBeenDiscovered(Inference *infer) {
-		for (inference_list_t::iterator it = candidates->begin(); it !=
-			candidates->end(); it++) {
+		for (inference_list_t::iterator it = discoveredSet->begin(); it !=
+			discoveredSet->end(); it++) {
 			Inference *discoveredInfer = *it;
 			// When we already have an equal inferences in the candidates list
 			int compVal = discoveredInfer->compareTo(infer);
 			if (compVal == 0) {
 				return true;
 			}
-			if (compVal == -1 && infer->isExplored()) {
+			// Or the discoveredInfer is explored and infer is strong than it is
+			if (compVal == -1 && discoveredInfer->isExplored()) {
 				return true;
 			}
 		}
