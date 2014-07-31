@@ -76,7 +76,29 @@ void SCFence::actionAtInstallation() {
 	model->set_inspect_plugin(this);
 }
 
-const char* get_mo_str(memory_order order) {
+static bool isTheInference(Inference *infer) {
+	for (int i = 0; i < infer->size; i++) {
+		memory_order mo1 = infer->orders[i], mo2;
+		if (mo1 == WILDCARD_NONEXIST)
+			mo1 = relaxed;
+		switch (i) {
+			case 3:
+				mo2 = acquire;
+			break;
+			case 11:
+				mo2 = release;
+			break;
+			default:
+				mo2 = relaxed;
+			break;
+		}
+		if (mo1 != mo2)
+			return false;
+	}
+	return true;
+}
+
+static const char* get_mo_str(memory_order order) {
 	switch (order) {
 		case std::memory_order_relaxed: return "relaxed";
 		case std::memory_order_acquire: return "acquire";
@@ -536,8 +558,8 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	FENCE_PRINT("candidates size: %d.\n", candidates->size());
 	bool added = false;
 
-	/******** addInference ********/
-	addInference(getCurInference());
+	/******** addCurInference ********/
+	addCurInference();
 
 	ModelList<Inference*>::iterator it;
 	for (it = candidates->begin(); it != candidates->end(); it++) {
@@ -875,6 +897,11 @@ bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
 		default:
 			break;
 	}
+	if (added && isBuggy()) {
+		// If this is a buggy inference and we have got fixes for it, set the
+		// falg
+		setHasFixes(true);
+	}
 	return added;
 }
 
@@ -883,11 +910,11 @@ bool SCFence::routineBacktrack(bool feasible) {
 	model_print("Backtrack routine:\n");
 	
 	/******** commitCurInference ********/
-	commitCurInference(feasible);
+	commitInference(getCurInference(), feasible);
 	if (feasible) {
-		if (!getBuggy()) {
+		if (!isBuggy()) {
 			model_print("Found one result!\n");
-		} else {
+		} else if (!hasFixes()) { // Buggy and have no fixes
 			model_print("Found one buggy candidate!\n");
 		}
 		getCurInference()->print();
@@ -921,8 +948,6 @@ bool SCFence::routineBacktrack(bool feasible) {
 void SCFence::routineAfterAddFixes() {
 	model_print("Add fixes routine begin:\n");
 	
-	/******** setExplored ********/
-	setExplored();
 	/******** getNextInference ********/
 	Inference *next = getNextInference();
 	ASSERT (next);

@@ -54,6 +54,8 @@ extern SCFence *scfence;
 
 static const char* get_mo_str(memory_order order);
 
+static bool isTheInference(Inference *infer);
+
 typedef action_list_t path_t;
 /** A list of load operations can represent the union of reads-from &
  * sequence-before edges; And we have a list of lists of load operations to
@@ -67,17 +69,27 @@ typedef struct Inference {
 	memory_order *orders;
 	int size;
 
+	/** Whether this inference will lead to a buggy execution */
+	bool buggy;
+
+	/** Whether this inference has been explored */
 	bool explored;
 
-	bool buggy;
+	/** Whether this inference is a leaf of the search tree */
+	bool isLeaf;
+	
+	/** When this inference will have buggy executions, this indicates whether
+	 * it has any fixes. */
+	bool hasFixes;
 
 	Inference() {
 		orders = (memory_order *) model_malloc((4 + 1) * sizeof(memory_order*));
 		size = 4;
 		for (int i = 0; i <= size; i++)
 			orders[i] = WILDCARD_NONEXIST;
-		explored = false;
 		buggy = false;
+		hasFixes = false;
+		isLeaf = false;
 	}
 
 	Inference(Inference *infer) {
@@ -86,8 +98,9 @@ typedef struct Inference {
 		this->size = infer->size;
 		for (int i = 0; i <= size; i++)
 			orders[i] = infer->orders[i];
-		explored = false;
 		buggy = false;
+		hasFixes = false;
+		isLeaf = false;
 	}
 
 	void resize(int newsize) {
@@ -223,6 +236,22 @@ typedef struct Inference {
 		return result;
 	}
 
+	void setHasFixes(bool val) {
+		hasFixes = val;
+	}
+
+	bool getHasFixes() {
+		return hasFixes;
+	}
+
+	void setLeaf(bool val) {
+		isLeaf = val;
+	}
+
+	bool getIsLeaf() {
+		return isLeaf;
+	}
+
 	void setBuggy(bool val) {
 		buggy = val;
 	}
@@ -230,18 +259,13 @@ typedef struct Inference {
 	bool getBuggy() {
 		return buggy;
 	}
-
+	
 	void setExplored(bool val) {
 		explored = val;
 	}
 
-	bool getExplored() {
+	bool isExplored() {
 		return explored;
-	}
-
-	void debug_print() {
-		ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
-		model_print("Explored: %d\n", explored);
 	}
 
 	void print() {
@@ -324,16 +348,44 @@ typedef struct inference_stat {
 /** This is a stack of those inferences. We are exploring possible
  * inferences in a DFS-like way. Also, we can do an state-based like
  * optimization to reduce the explored space by recording the explored
- * inferences */
+ * inferences.
+
+ ********** The main algorithm **********
+ Initial:
+ 	InferenceStack stack; // Store the candiates to explore in a stack
+	Set exploredSet; // Store the explored candidates (feasible or infeasible)
+	Inference curInfer = RELAX; // Initialize the current inference to be all relaxed (RELAX)
+
+ Methods:
+ 	bool addInference(infer) {
+		// Push back infer to the stack when it's neither discvoerd nor
+		// explored, and return whether it's added or not
+	}
+
+	void commitExplored(infer) {
+		// Add infer to the exploredSet
+	}
+
+	Inference* getNextInference() {
+		
+	}
+ 
+ 
+ 
+ */
 typedef struct InferenceStack {
 	InferenceStack() {
 		exploredSet = new inference_list_t();
+		discoveredSet = new inference_list_t();
 		results = new inference_list_t();
 		candidates = new inference_list_t();
 	}
 
 	/** The set of already explored nodes in the tree */
 	inference_list_t *exploredSet;
+
+	/** The set of already discovered nodes in the tree */
+	inference_list_t *discoveredSet;
 
 	/** The list of feasible inferences */
 	inference_list_t *results;
@@ -348,12 +400,6 @@ typedef struct InferenceStack {
 		return exploredSet->size();
 	}
 	
-	/** Actions to take when we find node is thoroughly explored */
-	void commitExploredInference(Inference *infer) {
-		if (!inExploredSet(infer))
-			exploredSet->push_back(infer);
-	}
-
 	/** Print the result of inferences  */
 	void printResults() {
 		for (inference_list_t::iterator it = results->begin(); it !=
@@ -384,16 +430,12 @@ typedef struct InferenceStack {
 	}
 
 	/** When we finish model checking or cannot further strenghen with the
-	 * current inference, we commit the current inference (the node at the back
-	 * of the stack) to be explored, pop it out of the stack; if it is feasible,
-	 * we put it in the result list */
-	void commitCurInference(bool feasible) {
-		Inference *infer = candidates->back();
-		if (!infer) {
-			return;
-		}
-		candidates->pop_back();
-		commitExploredInference(infer);
+	 * inference, we commit the inference to be explored; if it is feasible, we
+	 * put it in the result list */
+	void commitInference(Inference *infer, bool feasible) {
+		ASSERT (infer);
+		
+		infer->setExplored(true);
 		if (feasible) {
 			addResult(infer);
 		}
@@ -424,11 +466,14 @@ typedef struct InferenceStack {
 		Inference *infer = NULL;
 		while (candidates->size() > 0) {
 			infer = candidates->back();
-			bool inExplored = inExploredSet(infer);
-			if (inExplored) {
-				stat.getNextNotAdded++;
+			if (!infer->getIsLeaf()) {
+				infer->setExplored(true);
+				continue;
 			}
-			if (infer->getExplored() || inExplored) {
+			//bool inExplored = inExploredSet(infer);
+			bool inExplored = false;
+			if (inExplored) {
+				/*
 				// Finish exploring this node
 				// Remove the node from the stack
 				candidates->pop_back();
@@ -438,6 +483,7 @@ typedef struct InferenceStack {
 				FENCE_PRINT("\n");
 				// Record this in the exploredSet
 				commitExploredInference(infer);
+				*/
 			} else {
 				return infer;
 			}
@@ -445,19 +491,40 @@ typedef struct InferenceStack {
 		return NULL;
 	}
 
+	void addCurInference(Inference *infer) {
+		infer->setLeaf(false);
+		candidates->push_back(infer);
+	}
 	
 	/** Add one possible node that represents a fix for the current inference;
 	 * @Return true if the node to add has not been explored yet
 	 */
 	bool addInference(Inference *infer) {
-		if (!inExploredSet(infer)) {
+		if (!hasBeenDiscovered(infer)) {
 			// We haven't explored this inference yet
+			infer->setLeaf(true);
 			candidates->push_back(infer);
+			discoveredSet->push_back(infer);
 			return true;
 		} else {
 			stat.notAddedAtFirstPlace++;
 			return false;
 		}
+	}
+
+	/** Return false if we haven't discovered that inference yet. Basically we
+	 * search the candidates list */
+	bool hasBeenDiscovered(Inference *infer) {
+		for (inference_list_t::iterator it = candidates->begin(); it !=
+			candidates->end(); it++) {
+			Inference *discoveredInfer = *it;
+			// When we already have an equal inferences in the candidates list
+			int compVal = discoveredInfer->compareTo(infer);
+			if (compVal == 0) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Return false if we don't have that inference in the explored set */
@@ -469,18 +536,6 @@ typedef struct InferenceStack {
 			// we can say that infer is in the exploredSet
 			int compVal = exploredInfer->compareTo(infer);
 			if (compVal == 0 || compVal == -1) {
-				/*
-				if (compVal == 0)
-					FENCE_PRINT("Equal inferences:\n");
-				else
-					FENCE_PRINT("Stronger inference:\n");
-				FENCE_PRINT("Explored inference:\n");
-				exploredInfer->print();
-				FENCE_PRINT("\n");
-				FENCE_PRINT("Param (infer):\n");
-				infer->print();
-				FENCE_PRINT("\n");
-				*/
 				return true;
 			}
 		}
@@ -687,8 +742,8 @@ class SCFence : public TraceAnalysis {
 	 * current inference, we commit the current inference (the node at the back
 	 * of the stack) to be explored, pop it out of the stack; if it is feasible,
 	 * we put it in the result list */
-	void commitCurInference(bool feasible) {
-		getStack()->commitCurInference(feasible);	
+	void commitInference(Inference *infer, bool feasible) {
+		getStack()->commitInference(infer, feasible);	
 	}
 
 	/** Get the next available unexplored node; @Return NULL 
@@ -702,6 +757,10 @@ class SCFence : public TraceAnalysis {
 	 */
 	bool addInference(Inference *infer) {
 		return getStack()->addInference(infer);
+	}
+
+	void addCurInference() {
+		getStack()->addCurInference(getCurInference());
 	}
 
 	int exploredSetSize() {
@@ -746,21 +805,21 @@ class SCFence : public TraceAnalysis {
 
 	bool modelCheckerAtExitState();
 
-	/** Mark the explored field of the current inference to be true; it is only
-	 * a flag, and it does not mean the current inference already finishes
-	 * exploring but when it is popped out of the stack again, we know it's
-	 * explored */
-	void setExplored() {
-		getCurInference()->setExplored(true);
-	}
-
 	const char* net_mo_str(memory_order order);
 
 	InferenceStack* getStack() {
 		return priv->inferenceStack;
 	}
 
-	bool getBuggy() {
+	void setHasFixes(bool val) {
+		getCurInference()->setHasFixes(val);
+	}
+
+	bool hasFixes() {
+		return getCurInference()->getHasFixes();
+	}
+
+	bool isBuggy() {
 		return getCurInference()->getBuggy();
 	}
 
