@@ -559,6 +559,9 @@ bool SCFence::addCandidates(ModelList<Inference*> *candidates) {
 	bool added = false;
 
 	/******** addCurInference ********/
+	// Add the current inference to the stack, but specifially it marks it as
+	// non-leaf node so that when it gets popped, we just need to commit it as
+	// explored
 	addCurInference();
 
 	ModelList<Inference*>::iterator it;

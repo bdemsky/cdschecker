@@ -468,12 +468,10 @@ typedef struct InferenceStack {
 			infer = candidates->back();
 			if (!infer->getIsLeaf()) {
 				infer->setExplored(true);
+				candidates->pop_back();
 				continue;
 			}
-			//bool inExplored = inExploredSet(infer);
-			bool inExplored = false;
-			if (inExplored) {
-				/*
+			if (hasBeenExplored(infer)) {
 				// Finish exploring this node
 				// Remove the node from the stack
 				candidates->pop_back();
@@ -481,9 +479,8 @@ typedef struct InferenceStack {
 				FENCE_PRINT("Explored inference:\n");
 				infer->print();
 				FENCE_PRINT("\n");
-				// Record this in the exploredSet
-				commitExploredInference(infer);
-				*/
+
+				continue;
 			} else {
 				return infer;
 			}
@@ -500,7 +497,7 @@ typedef struct InferenceStack {
 	 * @Return true if the node to add has not been explored yet
 	 */
 	bool addInference(Inference *infer) {
-		if (!hasBeenDiscovered(infer)) {
+		if (!hasBeenDiscovered(infer) && !hasBeenExplored(infer)) {
 			// We haven't explored this inference yet
 			infer->setLeaf(true);
 			candidates->push_back(infer);
@@ -523,20 +520,25 @@ typedef struct InferenceStack {
 			if (compVal == 0) {
 				return true;
 			}
+			if (compVal == -1 && infer->isExplored()) {
+				return true;
+			}
 		}
 		return false;
 	}
 
 	/** Return false if we don't have that inference in the explored set */
-	bool inExploredSet(Inference *infer) {
-		for (inference_list_t::iterator it = exploredSet->begin(); it !=
-			exploredSet->end(); it++) {
-			Inference *exploredInfer = *it;
-			// When we already have any equal or stronger explored inferences,
-			// we can say that infer is in the exploredSet
-			int compVal = exploredInfer->compareTo(infer);
-			if (compVal == 0 || compVal == -1) {
-				return true;
+	bool hasBeenExplored(Inference *infer) {
+		for (inference_list_t::iterator it = discoveredSet->begin(); it !=
+			discoveredSet->end(); it++) {
+			Inference *discoveredInfer = *it;
+			if (discoveredInfer->isExplored()) {
+				// When we already have any equal or stronger explored inferences,
+				// we can say that infer is in the exploredSet
+				int compVal = discoveredInfer->compareTo(infer);
+				if (compVal == 0 || compVal == -1) {
+					return true;
+				}
 			}
 		}
 		return false;
