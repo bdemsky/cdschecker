@@ -266,6 +266,19 @@ typedef struct Inference {
 		return explored;
 	}
 
+	unsigned long getHash() {
+		unsigned long hash = 0;
+		for (int i = 1; i <= size; i++) {
+	        memory_order mo = orders[i];
+			if (mo == WILDCARD_NONEXIST) {
+				mo = memory_order_relaxed;
+			}
+			hash *= 37;
+			hash += (mo + 4096);
+		}
+		return hash;
+	}
+	
 	void print() {
 		ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
 		for (int i = 1; i <= size; i++) {
@@ -275,6 +288,7 @@ typedef struct Inference {
 				FENCE_PRINT("wildcard %d -> memory_order_%s\n", i, get_mo_str(mo));
 			}
 		}
+		FENCE_PRINT("Hash: %lu\n", getHash());
 	}
 
 	~Inference() {
@@ -472,20 +486,19 @@ typedef struct InferenceStack {
 			if (hasBeenExplored(infer)) {
 				// Finish exploring this node
 				// Remove the node from the stack
-
 				FENCE_PRINT("Explored inference:\n");
 				infer->print();
 				FENCE_PRINT("\n");
-
-				continue;
 			} else {
-
 				return infer;
 			}
 		}
 		return NULL;
 	}
 
+	/** Add the current inference to the stack before adding fixes to it; in
+	 * this case, fixes will be added afterwards, and infer should've been
+	 * discovered */
 	void addCurInference(Inference *infer) {
 		infer->setLeaf(false);
 		candidates->push_back(infer);
@@ -495,8 +508,10 @@ typedef struct InferenceStack {
 	 * @Return true if the node to add has not been explored yet
 	 */
 	bool addInference(Inference *infer) {
-		if (!hasBeenDiscovered(infer) && !hasBeenExplored(infer)) {
-			// We haven't explored this inference yet
+		if (!hasBeenDiscovered(infer)) {
+			// We haven't discovered this inference yet
+
+			// Newly added nodes are leaf by default
 			infer->setLeaf(true);
 			candidates->push_back(infer);
 			discoveredSet->push_back(infer);
@@ -519,14 +534,17 @@ typedef struct InferenceStack {
 				return true;
 			}
 			// Or the discoveredInfer is explored and infer is strong than it is
+			/*
 			if (compVal == -1 && discoveredInfer->isExplored()) {
 				return true;
 			}
+			*/
 		}
 		return false;
 	}
 
-	/** Return false if we don't have that inference in the explored set */
+	/** Return false if we don't have that inference in the explored set.
+	 * Invariance: if an infrence has been explored, it must've been discovered */
 	bool hasBeenExplored(Inference *infer) {
 		for (inference_list_t::iterator it = discoveredSet->begin(); it !=
 			discoveredSet->end(); it++) {
@@ -535,7 +553,8 @@ typedef struct InferenceStack {
 				// When we already have any equal or stronger explored inferences,
 				// we can say that infer is in the exploredSet
 				int compVal = discoveredInfer->compareTo(infer);
-				if (compVal == 0 || compVal == -1) {
+				//if (compVal == 0 || compVal == -1) {
+				if (compVal == 0) {
 					return true;
 				}
 			}
