@@ -981,18 +981,20 @@ void SCFence::analyze(action_list_t *actions) {
 	
 	// First of all check if there's any uninitialzed read bugs
 	if (execution->have_bug_reports()) {
+		/*
 		bool added = addFixes(actions, BUGGY_EXECUTION);
 		if (added) {
-			model_print("Found an solution for buggy execution!\n");
+			model_print("Found a solution for buggy execution!\n");
 			routineAfterAddFixes();
 			return;
 		} else {
 			// We can't fix the problem in this execution, but we may not be an
 			// SC execution
 			model_print("Buggy...\n");
-			/******** setBuggy ********/
 			setBuggy(true);
 		}
+		*/
+		setBuggy(true);
 	}
 
 

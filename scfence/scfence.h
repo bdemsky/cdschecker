@@ -90,6 +90,7 @@ typedef struct Inference {
 		buggy = false;
 		hasFixes = false;
 		isLeaf = false;
+		explored = false;
 	}
 
 	Inference(Inference *infer) {
@@ -101,6 +102,7 @@ typedef struct Inference {
 		buggy = false;
 		hasFixes = false;
 		isLeaf = false;
+		explored = false;
 	}
 
 	void resize(int newsize) {
@@ -448,6 +450,7 @@ typedef struct InferenceStack {
 		ASSERT (infer);
 		
 		infer->setExplored(true);
+		FENCE_PRINT("Explored %lu\n", infer->getHash());
 		if (feasible) {
 			addResult(infer);
 		}
@@ -480,7 +483,7 @@ typedef struct InferenceStack {
 			infer = candidates->back();
 			candidates->pop_back();
 			if (!infer->getIsLeaf()) {
-				infer->setExplored(true);
+				commitInference(infer, false);
 				continue;
 			}
 			if (hasBeenExplored(infer)) {
@@ -515,6 +518,7 @@ typedef struct InferenceStack {
 			infer->setLeaf(true);
 			candidates->push_back(infer);
 			discoveredSet->push_back(infer);
+			FENCE_PRINT("Discovered %lu\n", infer->getHash());
 			return true;
 		} else {
 			stat.notAddedAtFirstPlace++;
@@ -531,6 +535,8 @@ typedef struct InferenceStack {
 			// When we already have an equal inferences in the candidates list
 			int compVal = discoveredInfer->compareTo(infer);
 			if (compVal == 0) {
+				FENCE_PRINT("%lu has beend discovered.\n",
+					infer->getHash());
 				return true;
 			}
 			// Or the discoveredInfer is explored and infer is strong than it is
@@ -555,6 +561,8 @@ typedef struct InferenceStack {
 				int compVal = discoveredInfer->compareTo(infer);
 				//if (compVal == 0 || compVal == -1) {
 				if (compVal == 0) {
+					FENCE_PRINT("%lu has beend explored.\n",
+						infer->getHash());
 					return true;
 				}
 			}
