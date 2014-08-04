@@ -251,6 +251,11 @@ bool SCFence::parseOption(char *opt) {
 					return true;
 				}
 				break;
+			case 't': // The timeout set to force the analysis to backtrack
+				model_print("Parsing t option!\n");
+				model_print("t value: %s\n", val);
+				setTimeout(atoi(val));
+				break;
 			default:
 				model_print("Unknown SCFence option: %c!\n", option);
 				return true;
@@ -969,6 +974,12 @@ void SCFence::routineAfterAddFixes() {
 }
 
 void SCFence::analyze(action_list_t *actions) {
+	if (isTimeout()) {
+		model_print("Backtrack because we reached the timeout bound.\n");
+		routineBacktrack(false);
+		return;
+	}
+
 	struct timeval start;
 	struct timeval finish;
 	if (time)

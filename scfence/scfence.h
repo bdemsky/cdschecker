@@ -8,9 +8,12 @@
 #include "wildcard.h"
 #include "model.h"
 
+#include <sys/time.h>
+
 #include <unordered_set>
 #include <functional>
 #include <utility>
+
 
 #ifdef __cplusplus
 using std::memory_order;
@@ -583,6 +586,8 @@ typedef struct scfence_priv {
 		inferImplicitMO = false;
 		hasRestarted = false;
 		implicitMOReadBound = DEFAULT_REPETITIVE_READ_BOUND;
+		timeout = 0;
+		gettimeofday(&lastRecordedTime, NULL);
 	}
 
 	/** The stack of the InferenceNode we maintain for exploring */
@@ -602,6 +607,12 @@ typedef struct scfence_priv {
 
 	/** Whether we have restarted the model checker */
 	bool hasRestarted;
+
+	/** The amount of time (in second) set to force the analysis to backtrack */
+	int timeout;
+
+	/** The time we recorded last time */
+	struct timeval lastRecordedTime;
 
 	MEMALLOC
 } scfence_priv;
@@ -893,6 +904,26 @@ class SCFence : public TraceAnalysis {
 
 	void setHasRestarted(int val) {
 		priv->hasRestarted = val;
+	}
+
+	void setTimeout(int timeout) {
+		priv->timeout = timeout;
+	}
+
+	bool isTimeout() {
+		struct timeval now;
+		gettimeofday(&now, NULL);
+		// Check if it should be timeout
+		struct timeval *lastRecordedTime = &priv->lastRecordedTime;
+		unsigned long long elapsedTime = (now.tv_sec*1000000 + now.tv_usec) -
+			(lastRecordedTime->tv_sec*1000000 + lastRecordedTime->tv_usec);
+
+		// Update the lastRecordedTime
+		priv->lastRecordedTime = now;
+		if (elapsedTime / 1000000.0 > priv->timeout)
+			return true;
+		else
+			return false;
 	}
 
 	/********************** SCFence-related stuff (end) **********************/
