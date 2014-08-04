@@ -195,7 +195,6 @@ void SCFence::initializeByFile() {
 				delete infer;
 		}
 	}
-	getNextInference();
 	fclose(fp);
 
 	FENCE_PRINT("candidate size from file: %d\n", stackSize());
