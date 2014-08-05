@@ -910,6 +910,10 @@ class SCFence : public TraceAnalysis {
 		priv->timeout = timeout;
 	}
 
+	int getTimeout() {
+		return priv->timeout;
+	}
+
 	bool isTimeout() {
 		struct timeval now;
 		gettimeofday(&now, NULL);

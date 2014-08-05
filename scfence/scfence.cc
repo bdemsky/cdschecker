@@ -974,7 +974,7 @@ void SCFence::routineAfterAddFixes() {
 }
 
 void SCFence::analyze(action_list_t *actions) {
-	if (isTimeout()) {
+	if (getTimeout() > 0 && isTimeout()) {
 		model_print("Backtrack because we reached the timeout bound.\n");
 		routineBacktrack(false);
 		return;
