@@ -165,7 +165,7 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 }
 
 
- unsigned int dequeue(queue_t * q) {
+bool dequeue(queue_t * q,  unsigned int * retVal) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 1; // Dequeue
@@ -173,7 +173,7 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
 	cdsannotate(SPEC_ANALYSIS, annotation_interface_begin);
-	 unsigned int __RET__ = __wrapper__dequeue(q);
+	bool __RET__ = __wrapper__dequeue(q, retVal);
 	struct anno_hb_condition *hb_condition = (struct anno_hb_condition*) malloc(sizeof(struct anno_hb_condition));
 	hb_condition->interface_num = 1; // Dequeue
 	hb_condition->hb_condition_num = 0;
@@ -185,6 +185,7 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	Dequeue_info* info = (Dequeue_info*) malloc(sizeof(Dequeue_info));
 	info->__RET__ = __RET__;
 	info->q = q;
+	info->retVal = retVal;
 	struct anno_interface_end *interface_end = (struct anno_interface_end*) malloc(sizeof(struct anno_interface_end));
 	interface_end->interface_num = 1; // Dequeue
 	interface_end->info = info;
@@ -195,7 +196,7 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	return __RET__;
 }
 
- unsigned int __wrapper__dequeue(queue_t * q)
+bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal)
 {
 	unsigned int value;
 	int success = 0;
@@ -226,7 +227,7 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
 	}
 				if (get_ptr(next) == 0) { 					
-					return 0; 				}
+					return false; 				}
 				
 								bool succ = false;
 				succ = atomic_compare_exchange_strong_explicit(&q->tail,
@@ -237,7 +238,7 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 									}
 								thrd_yield();
 			} else {
-				value = load_32(&q->nodes[get_ptr(next)].value);
+				*retVal = load_32(&q->nodes[get_ptr(next)].value);
 								
 								success = atomic_compare_exchange_strong_explicit(&q->head,
 						&head,
@@ -261,6 +262,6 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 		}
 	}
 	reclaim(get_ptr(head));
-	return value;
+	return true;
 }
 

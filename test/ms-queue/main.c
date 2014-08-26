@@ -29,12 +29,10 @@ static void main_task(void *param)
 
 	if (!pid) {
 		input[0] = 17;
-				enqueue(queue, input[0]);
-		output[0] = dequeue(queue);
-	} else {
+								bool succ = dequeue(queue, &output[0]);
+			} else {
 		input[1] = 37;
-		enqueue(queue, input[1]);
-						output[0] = dequeue(queue);
+				enqueue(queue, input[0]);
 	}
 }
 
