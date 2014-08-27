@@ -22,9 +22,11 @@ static unsigned int new_node()
 	int i;
 	int t = get_thread_num();
 	for (i = 0; i < MAX_FREELIST; i++) {
-		unsigned int node = load_32(&free_lists[t][i]);
+		unsigned int node = free_lists[t][i];
+		//unsigned int node = load_32(&free_lists[t][i]);
 				if (node) {
-			store_32(&free_lists[t][i], 0);
+			//store_32(&free_lists[t][i], 0);
+			free_lists[t][i] = 0;
 						return node;
 		}
 	}
@@ -42,11 +44,13 @@ static void reclaim(unsigned int node)
 	
 	for (i = 0; i < MAX_FREELIST; i++) {
 		
-		unsigned int idx = load_32(&free_lists[t][i]);
+		//unsigned int idx = load_32(&free_lists[t][i]);
+		unsigned int idx = free_lists[t][i];
 		
 		
 		if (idx == 0) {
-			store_32(&free_lists[t][i], node);
+			//store_32(&free_lists[t][i], node);
+			free_lists[t][i] = node;
 						return;
 		}
 	}
@@ -112,7 +116,8 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	pointer tmp;
 
 	node = new_node();
-	store_32(&q->nodes[node].value, val);
+	//store_32(&q->nodes[node].value, val);
+	q->nodes[node].value = val;
 		tmp = atomic_load_explicit(&q->nodes[node].next, relaxed);
 	set_ptr(&tmp, 0); 	atomic_store_explicit(&q->nodes[node].next, tmp, relaxed);
 
@@ -207,7 +212,7 @@ bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal)
 	while (!success) {
 		
 		head = atomic_load_explicit(&q->head, acquire);
-		tail = atomic_load_explicit(&q->tail, relaxed);
+		tail = atomic_load_explicit(&q->tail, acquire);
 		
 		next = atomic_load_explicit(&q->nodes[get_ptr(head)].next, acquire);
 				if (atomic_load_explicit(&q->head, relaxed) == head) {
@@ -238,7 +243,8 @@ bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal)
 									}
 								thrd_yield();
 			} else {
-				*retVal = load_32(&q->nodes[get_ptr(next)].value);
+				//*retVal = load_32(&q->nodes[get_ptr(next)].value);
+				*retVal = q->nodes[get_ptr(next)].value;
 								
 								success = atomic_compare_exchange_strong_explicit(&q->head,
 						&head,
