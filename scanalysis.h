@@ -7,6 +7,7 @@ struct sc_statistics {
 	unsigned long long elapsedtime;
 	unsigned int sccount;
 	unsigned int nonsccount;
+	unsigned long long actions;
 };
 
 class SCAnalysis : public TraceAnalysis {
@@ -18,7 +19,6 @@ class SCAnalysis : public TraceAnalysis {
 	virtual const char * name();
 	virtual bool option(char *);
 	virtual void finish();
-
 
 	SNAPSHOTALLOC
  private:

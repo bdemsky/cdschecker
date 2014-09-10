@@ -9,6 +9,7 @@
 #include "common.h"
 #include "threads-model.h"
 #include "nodestack.h"
+#include "wildcard.h"
 
 #define ACTION_INITIAL_CLOCK 0
 
@@ -34,6 +35,7 @@ ModelAction::ModelAction(action_type_t type, memory_order order, void *loc,
 		uint64_t value, Thread *thread) :
 	type(type),
 	order(order),
+	original_order(order),
 	location(loc),
 	value(value),
 	reads_from(NULL),
@@ -575,8 +577,10 @@ void ModelAction::print() const
 {
 	const char *type_str = get_type_str(), *mo_str = get_mo_str();
 
-	model_print("%-4d %-2d   %-13s   %7s  %14p   %-#18" PRIx64,
-			seq_number, id_to_int(tid), type_str, mo_str, location, get_return_value());
+	//model_print("%-4d %-2d   %-13s   %7s  %14p   %-#18" PRIx64,
+	//		seq_number, id_to_int(tid), type_str, mo_str, location, get_return_value());
+	model_print("%-4d %-2d   %-13s  %-2d  %7s  %14p   %-#18" PRIx64,
+			seq_number, id_to_int(tid), type_str, get_wildcard_id_zero(original_order), mo_str, location, get_return_value());
 	if (is_read()) {
 		if (reads_from)
 			model_print("  %-3d", reads_from->get_seq_number());

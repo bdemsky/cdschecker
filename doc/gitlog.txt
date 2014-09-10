@@ -1,0 +1,7 @@
+@Time: 10:17am 7/21/2014
+@Description: Merge the changes of the bug fix for bad sc reads from the
+model-checker.git repository.
+@Files:
+	execution.cc
+	execution.h
+

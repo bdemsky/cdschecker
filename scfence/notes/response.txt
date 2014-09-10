@@ -1,0 +1,79 @@
+We thank reviewers for their helpful comments and will do our best to
+address these comments in future versions.
+
+Trace(R1,R2,R3): The C/C++ memory model does not define a definition
+of trace and in general one cannot even build a total order that is
+consistent with the intrathread ordering such that all loads read from
+some previous store in the trace.
+
+CDSSpec assumes that a trace is a total order of atomic operations
+that is consistent with the sequence-before (intra-thread) order.
+
+CDSChecker happens to provide a slightly stronger guarantee --- traces
+from CDSChecker are a total order of the atomic operations that is
+also consistent with the happens-before order.
+
+Trylock(R2): Our trylock example is not intended to satisfy the
+specificaiton of C/C++11's trylock.  Instead, it is just a simple
+example to show how we address the new challenges that arise with a
+relaxed memory model.
+
+Linearizability(R3): Section 1.1 defines the traditional definition of
+linearizability for completeness --- CDSSpec does not use
+linearizability.  The problem is that linearizability assumes the
+presence of a meaningful definition of a trace.  The point of Figure 3
+is to show why linearizability is inappropriate for memory models like
+C/C++11 that do not define a meaningful trace.  See Section 2.1 for
+the explanation.
+
+Incorrect specifications(R2): Incorrect specifications would likely
+misorder data structure operations and thus are very likely to trigger
+assertion failures when checking.  Missing synchronization properties
+could allow CDSSPEC to miss bugs in the implementation.
+
+Line-up(R3): Line-up needs a meaningful trace to generate the
+equivalent sequential history.  Even a total order that is consistent
+with happens-before is not sufficient for Line-up as per our lock
+example.
+
+Contribution(R2,R3): The relaxed model brings two new challenges, lack
+of SC-like trace and synchronization properties.
+
+Prior work specifying and checking concurrent data structures falls
+into two categories: 1) based on building sequential history, but they
+cannot deal with synchronization properties; 2) based on commit
+points, but they rely on SC-like trace to generate the correct
+order. In fact, CDSSpec is to formulate correctness specification that
+relate concurrent execution under relaxed model to sequential
+execution and check synchronization properties.
+
+The introduction of linearizability, which relies on an SC-like trace,
+is to describe prior approaches. Prior work assuming an SC model, e.g.
+Line-up, would not work because it relies on a SC trace. In section
+2.1, we actually show a possible trace that cannot be checked with
+prior work if we do not allow spurious failure for trylock.
+
+Synchronization properties are new, important and non-trivial under
+the relaxed model. For instance, a concurrent queue should guarantee
+that the enqueue of an item synchronizes with the dequeue of that item
+since it may otherwise see non-fully-initialized objects. CDSSpec has
+the specific constructs dealing with this issue.
+
+Multiple sequential histories(R3): There can potentially be multiple
+histories that satisfy the constraints from the commit point order
+(all possible topological sorts). 
+We view this as a tradeoff between
+precision and complexity. 
+
+--FIXME---
+
+Lockfree hashtable(R1, R3): The behavior of the hashtable is not
+necessarily a bug, but it is a deviation from the guarantees provided
+by other concurrent hashtables
+(e.g.,java.util.ConcurrentHashMap). Such a hashtable is neither
+linearizable nor sequential consistent and exposes applications to
+weak memory behaviors.  This is noteworthy because C/C++11 normally
+guarantees that in the absence of a data race, an application program
+only sees SC executions.  Simply using the lockfree hashtable would
+break this fundamental guarantee that application programmers normally
+expect.

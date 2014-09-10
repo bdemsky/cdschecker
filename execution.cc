@@ -30,9 +30,11 @@ struct model_snapshot_members {
 		next_backtrack(NULL),
 		bugs(),
 		failed_promise(false),
+		hard_failed_promise(false),
 		too_many_reads(false),
 		no_valid_reads(false),
 		bad_synchronization(false),
+		bad_sc_read(false),
 		asserted(false)
 	{ }
 
@@ -47,10 +49,12 @@ struct model_snapshot_members {
 	ModelAction *next_backtrack;
 	SnapVector<bug_message *> bugs;
 	bool failed_promise;
+	bool hard_failed_promise;
 	bool too_many_reads;
 	bool no_valid_reads;
 	/** @brief Incorrectly-ordered synchronization was made */
 	bool bad_synchronization;
+	bool bad_sc_read;
 	bool asserted;
 
 	SNAPSHOTALLOC
@@ -198,6 +202,13 @@ void ModelExecution::wake_up_sleeping_actions(ModelAction *curr)
 void ModelExecution::set_bad_synchronization()
 {
 	priv->bad_synchronization = true;
+}
+
+/** @brief Alert the model-checker that an incorrectly-ordered
+ * synchronization was made */
+void ModelExecution::set_bad_sc_read()
+{
+	priv->bad_sc_read = true;
 }
 
 bool ModelExecution::assert_bug(const char *msg)
@@ -1304,6 +1315,12 @@ ModelAction * ModelExecution::check_current_action(ModelAction *curr)
 				if (rf) {
 					if (r_modification_order(act, rf))
 						updated = true;
+					if (act->is_seqcst()) {
+						ModelAction *last_sc_write = get_last_seq_cst_write(act);
+						if (last_sc_write != NULL && rf->happens_before(last_sc_write)) {
+							set_bad_sc_read();
+						}
+					}
 				} else if (promise) {
 					if (r_modification_order(act, promise))
 						updated = true;
@@ -1375,7 +1392,7 @@ void ModelExecution::print_infeasibility(const char *prefix) const
 	char *ptr = buf;
 	if (mo_graph->checkForCycles())
 		ptr += sprintf(ptr, "[mo cycle]");
-	if (priv->failed_promise)
+	if (priv->failed_promise || priv->hard_failed_promise)
 		ptr += sprintf(ptr, "[failed promise]");
 	if (priv->too_many_reads)
 		ptr += sprintf(ptr, "[too many reads]");
@@ -1383,6 +1400,8 @@ void ModelExecution::print_infeasibility(const char *prefix) const
 		ptr += sprintf(ptr, "[no valid reads-from]");
 	if (priv->bad_synchronization)
 		ptr += sprintf(ptr, "[bad sw ordering]");
+	if (priv->bad_sc_read)
+		ptr += sprintf(ptr, "[bad sc read]");
 	if (promises_expired())
 		ptr += sprintf(ptr, "[promise expired]");
 	if (promises.size() != 0)
@@ -1397,7 +1416,8 @@ void ModelExecution::print_infeasibility(const char *prefix) const
  */
 bool ModelExecution::is_feasible_prefix_ignore_relseq() const
 {
-	return !is_infeasible() && promises.size() == 0;
+	return !is_infeasible() && promises.size() == 0 && ! priv->failed_promise;
+
 }
 
 /**
@@ -1410,9 +1430,10 @@ bool ModelExecution::is_infeasible() const
 {
 	return mo_graph->checkForCycles() ||
 		priv->no_valid_reads ||
-		priv->failed_promise ||
 		priv->too_many_reads ||
 		priv->bad_synchronization ||
+		priv->bad_sc_read ||
+		priv->hard_failed_promise ||
 		promises_expired();
 }
 
@@ -1613,12 +1634,6 @@ bool ModelExecution::r_modification_order(ModelAction *curr, const rf_type *rf)
 				}
 			}
 
-			/* C++, Section 29.3 statement 3 (second subpoint) */
-			if (curr->is_seqcst() && last_sc_write && act == last_sc_write) {
-				added = mo_graph->addEdge(act, rf) || added;
-				break;
-			}
-
 			/*
 			 * Include at most one act per-thread that "happens
 			 * before" curr
@@ -1750,9 +1765,10 @@ bool ModelExecution::w_modification_order(ModelAction *curr, ModelVector<ModelAc
 					added = mo_graph->addEdge(act, curr) || added;
 				else if (act->is_read()) {
 					//if previous read accessed a null, just keep going
-					if (act->get_reads_from() == NULL)
-						continue;
-					added = mo_graph->addEdge(act->get_reads_from(), curr) || added;
+					if (act->get_reads_from() == NULL) {
+						added = mo_graph->addEdge(act->get_reads_from_promise(), curr) || added;
+					} else
+						added = mo_graph->addEdge(act->get_reads_from(), curr) || added;
 				}
 				break;
 			} else if (act->is_read() && !act->could_synchronize_with(curr) &&
@@ -1769,7 +1785,8 @@ bool ModelExecution::w_modification_order(ModelAction *curr, ModelVector<ModelAc
 				   pendingfuturevalue.
 
 				 */
-				if (send_fv && thin_air_constraint_may_allow(curr, act)) {
+
+				if (send_fv && thin_air_constraint_may_allow(curr, act) && check_coherence_promise(curr, act)) {
 					if (!is_infeasible())
 						send_fv->push_back(act);
 					else if (curr->is_rmw() && act->is_rmw() && curr->get_reads_from() && curr->get_reads_from() == act->get_reads_from())
@@ -1790,6 +1807,50 @@ bool ModelExecution::w_modification_order(ModelAction *curr, ModelVector<ModelAc
 
 	return added;
 }
+
+//This procedure uses cohere to prune future values that are
+//guaranteed to generate a coherence violation.
+//
+//need to see if there is (1) a promise for thread write, (2)
+//the promise is sb before write, (3) the promise can only be
+//resolved by the thread read, and (4) the promise has same
+//location as read/write
+
+bool ModelExecution::check_coherence_promise(const ModelAction * write, const ModelAction *read) {
+	thread_id_t write_tid=write->get_tid();
+	for(unsigned int i = promises.size(); i>0; i--) {
+		Promise *pr=promises[i-1];
+		if (!pr->same_location(write))
+			continue;
+		//the reading thread is the only thread that can resolve the promise
+		if (pr->get_num_was_available_threads()==1 && pr->thread_was_available(read->get_tid())) {
+			for(unsigned int j=0;j<pr->get_num_readers();j++) {
+				ModelAction *prreader=pr->get_reader(j);
+				//the writing thread reads from the promise before the write
+				if (prreader->get_tid()==write_tid &&
+						(*prreader)<(*write)) {
+					if ((*read)>(*prreader)) {
+						//check that we don't have a read between the read and promise
+						//from the same thread as read
+						bool okay=false;
+						for(const ModelAction *tmp=read;tmp!=prreader;) {
+							tmp=tmp->get_node()->get_parent()->get_action();
+							if (tmp->is_read() && tmp->same_thread(read)) {
+								okay=true;
+								break;
+							}
+						}
+						if (okay)
+							continue;
+					}
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
 
 /** Arbitrary reads from the future are not allowed.  Section 29.3
  * part 9 places some constraints.  This method checks one result of constraint
@@ -2353,7 +2414,7 @@ bool ModelExecution::resolve_promise(ModelAction *write, Promise *promise,
 	/* Make sure the promise's value matches the write's value */
 	ASSERT(promise->is_compatible(write) && promise->same_value(write));
 	if (!mo_graph->resolvePromise(promise, write))
-		priv->failed_promise = true;
+		priv->hard_failed_promise = true;
 
 	/**
 	 * @todo  It is possible to end up in an inconsistent state, where a
@@ -2465,7 +2526,7 @@ void ModelExecution::mo_check_promises(const ModelAction *act, bool is_read_chec
 			if (!pread->happens_before(act))
 			       continue;
 			if (mo_graph->checkPromise(write, promise)) {
-				priv->failed_promise = true;
+				priv->hard_failed_promise = true;
 				return;
 			}
 			break;
@@ -2477,7 +2538,7 @@ void ModelExecution::mo_check_promises(const ModelAction *act, bool is_read_chec
 
 		if (mo_graph->checkReachable(promise, write)) {
 			if (mo_graph->checkPromise(write, promise)) {
-				priv->failed_promise = true;
+				priv->hard_failed_promise = true;
 				return;
 			}
 		}

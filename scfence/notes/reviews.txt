@@ -1,0 +1,201 @@
+===========================================================================
+                           oopsla14 Review #118A
+                    Updated 30 Apr 2014 10:20:39am EDT
+---------------------------------------------------------------------------
+  Paper #118: CDSSPEC： A Specification Language For Concurrent Data
+              Structures Under the C/C++11 Memory Model
+---------------------------------------------------------------------------
+
+                      Overall merit: 3. Weak accept
+                 Reviewer expertise: 2. Some familiarity
+
+                         ===== Paper summary =====
+
+This paper propsoes a specification language system that allows developers to
+write simple specifications for concurrency data structure under C/C++11
+memory model and check the correctness of concurrent data structure against
+these specifications.
+
+              ===== Evaluation and comments for authors =====
+
+This paper looks at a timely and challenging problem: how to write correct
+concurrent data structure under the C/C++ memory model. With the weak memory
+consistency model, program correctness is not only difficult to prove but also
+difficult to reason about and specify. CDSSpec makes a nice try to solve this
+problem. The specification is not very complicated (quite C-ish), and is nice
+connected with the authors' previous CDSChecker tool.
+
+Most of my questions are presentation related. Weak memory consistency is not
+an easy-to-understand topic. Maybe because of that, the paper is not very easy
+to understand.
+
+* Why cannot developers just use a sequential implementation under sequential
+consistency model as an oracle/specification? 
+
+* Can people use CDSSpec beyond concurrent data structure? Can it work as a
+general specification checker for concurrent programs? 
+
+* Section 4.3 mentions that the CDSSpec plugin must determine the actual commit
+point. Is it guaranteed to be able to determine the actual commit point?
+
+* Page 10. What is the "sequence-before" and "synchronize with" relationship?
+
+* The examples (e.g., Lockfree hashtable) in Section 5.1 are too complicated
+to understand without figures or code snippets.
+
+* The evaluation only used injected bugs. Are there real bugs that you can use
+for evaluation?
+
+* I couldn't understand the case study of MCS Lock on page 12.
+
+===========================================================================
+                           oopsla14 Review #118B
+                     Updated 6 May 2014 9:09:34pm EDT
+---------------------------------------------------------------------------
+  Paper #118: CDSSPEC： A Specification Language For Concurrent Data
+              Structures Under the C/C++11 Memory Model
+---------------------------------------------------------------------------
+
+                      Overall merit: 2. Weak reject
+                 Reviewer expertise: 3. Knowledgeable
+
+                         ===== Paper summary =====
+
+The proposes a specification language that would enable implementations of concurrent data structures to be checked against the specification.  The key idea in the specification language is to obtain linearization points (commit points) from the programmer, specification of sequential implementations of the data structure, and pre/post conditions for the methods. The paper shows that the specification language is expressive to write a large number of concurrent data structures.
+
+              ===== Evaluation and comments for authors =====
+
+The idea of providing specification support for concurrent data structures is nice. The main challenges with concurrent data structures are (1) there are overlapping actions by the threads, (2) how to reason about points (linearization points) where action happens, and (3) the abstract specification of the data structure. 
+This paper provides specification support to capture these facts from the programmer and check implementations against it. I liked this aspect of the paper.
+
+Identifying linearization points become difficult in the presence of relaxed memory models. However, the abstract interface of the data structure should still be the same. Essentially the key contribution of this paper is the support for specifying commit points in the data structure. Identifying these commit points is in general hard.  Unfortunately,  I could not see the connection between the relaxed memory model and the specification language. Hence, the contribution from the specification language is pretty small. Likely all the intelligence is in the checker, which is already published. 
+
+How does the happens before relation in the specification language relate to the happens before relation of the memory model? Is it always possible to specify happens before relations at specific code points? How does the specification language guard against wrong specifications? 
+
+The paper also makes claims that seem to be wrong. The trylock according to the C++ 11 specification can randomly fail (to avoid problems of learning lock state across threads -- from the standard). Unfortunately, the paper claims the following: "a load is allowed to read a value written by a later store in the trace" --- Page 4. What is your definition of a trace? Unfortunately the definition of the trace is not provided. It is likely not same as the C++ standard.
+
+Although I like the overall goal of the paper, It was hard for me to figure out what is hard or novel about the specification language.
+
+===========================================================================
+                           oopsla14 Review #118C
+                     Updated 7 May 2014 12:50:04am EDT
+---------------------------------------------------------------------------
+  Paper #118: CDSSPEC： A Specification Language For Concurrent Data
+              Structures Under the C/C++11 Memory Model
+---------------------------------------------------------------------------
+
+                      Overall merit: 2. Weak reject
+                 Reviewer expertise: 3. Knowledgeable
+
+                         ===== Paper summary =====
+
+The paper presents CDSSPEC, a specification language that can be used
+to indicate the desired behavior of a concurrent data structure in
+C/C++11.  The authors also show how their specification language can
+work in concert with the CDSCHECKER model checker in order to verify
+that a program (data structure) obeys a given specification under the
+C11 memory model for a given set of inputs (unit tests).  The
+specification langauge adopts the standard technique of defining
+correct behavior of a concurrent execution by relating it to the
+behavior of a sequential data structure.  However, past approaches
+generally assume sequential consistency as a memory model when
+generating traces and specifying/searching for linearization points
+that relate the concurrent execution to a sequential one.  But,
+CDSSPEC leverages CDSCHECKER's ability to explore all behaviors of a
+program under C11's relaxed memory model, while also dealing with the
+challenge of finding a matching sequential execution whose trace may
+not match the linear order produced by the model checker of the
+concurrent data structures "linearization points".  In addition, the
+language permits specifying and checking that certain API calls result
+in appropriate happens-before synchronization.  The authors evaluate
+their work by writing specifications and unit tests for a variety of concurrent data
+structures and checking that they meet their spec with and without
+injected bugs.
+
+              ===== Evaluation and comments for authors =====
+
+At a high level, I think this is work in an important direction.
+Programmers that use low-level atomics need all the help they can get
+to implement data structures that are both efficient and correct.
+However, I think the authors could have done a better job explaining
+certain aspects of the work, including motivating the need for this
+tool.  Prior work that can specify and check concurrent data
+structures is cited (for instance Line-up).  And, while it's true that
+they assume an SC model, the results of these tools are still correct
+if certain conditions are met (i.e. data race freedom) which can also
+be checked during the model checking.  As such, I would have liked to
+have seen specific examples in this paper that show a data structure
+that would fail to check in previous work (or, more likely, a buggy
+data structure that would have successfully checked in prior work).
+
+Also, I found the discussions of orderings and traces occasionally
+sloppy.  For instance, the statement "under the C/C++11 memory model,
+this is allowed since a load is allowed to read a value that is
+written by a later store in the trace."  In what trace?  The memory
+model works on a graph with several orders.  I assume you mean the
+trace generated by CDSCHECKER, but you don't describe this trace.  You
+later describe this trace as "arbitrary" (which seems a bit of an
+overstatement).  The point is: you do not clearly show a useful example
+where it's impossible to generate a trace with commit points in linear order.
+(I'm not saying such an example doesn't exist!)  In fact, it seems
+that the key to your approach is to find such an ordering by combining 
+the memory model's rf, mo, and hb orderings.  When this composite
+relation has cycles, your approach fails.  How much of a limitation is
+this?  Did this happen in any of your benchmarks?  Aren't those
+exactly the traces that previous approaches would have a hard time
+with?
+
+Smaller, more specific comments:
+
+section 1:
+
+"One common criteria" --> "One common criterion"
+
+"Supposing that there exists a global clock..." 
+Does CDSCHECKER suppose this?
+
+"execution is correct ifi its behavior is consistent with its
+sequential history..."
+Is there really only one possible sequential history to be checked?
+
+The discussion of method-level happens-before at the end of section
+1.1 could be clarified.  Upon first reading it felt too weak...if I say a
+method happens before another, it sounds like it should complete
+entirely before the other starts.  But the property you want to
+establish is that, from the point of view of client code, the method
+call establishes a happens-before edge.
+
+"generate an program" --> "generate a program"
+
+"we implement we compile and check" --> "we implement, compile, and
+check"
+
+ When describing linearizability in your correctness model in section
+ 1.1, you indicate that "an invocation cannot be reordered before the
+ preceding responses".    And yet your example in Figure 3 requires
+ exactly that.
+
+section 4:
+
+"the equivalent sequential history" 
+Again, why don't you have to explore multiple possible sequential
+histories?
+
+"can simply calls these functions" --> "can simply call these
+functions"
+
+"If two methods are not ordered by the cpo order, we assume that they
+commute and choose an arbitrary ordering for the methods."
+Why not check all consistent total orderings?
+
+section 5:
+
+I am confused about your results on Lockfree Hashtable.  Did your
+technique find bugs (before injecting them)?  Did it fail?  Why is it
+surprising that threadA and threadB both see NULL?  If there is no
+(sequential) data dependency in either of the threads, then I would
+expect the memory model to allow the compiler to reorder them.  Are
+you claiming that the code has a data race on non-atomic accesses?  Or
+simply that users can't rely on the hashtable operations to be full
+barriers?  (I imagine that a put acts as a release and the get acts as
+an acquire.)

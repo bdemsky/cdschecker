@@ -1,0 +1,140 @@
+%-----------------------------------------------------------------------------
+%
+%               Template for sigplanconf LaTeX Class
+%
+% Name:         sigplanconf-template.tex
+%
+% Purpose:      A template for sigplanconf.cls, which is a LaTeX 2e class
+%               file for SIGPLAN conference proceedings.
+%
+% Guide:        Refer to "Author's Guide to the ACM SIGPLAN Class,"
+%               sigplanconf-guide.pdf
+%
+% Author:       Paul C. Anagnostopoulos
+%               Windfall Software
+%               978 371-2316
+%               paul@windfall.com
+%
+% Created:      15 February 2005
+%
+%-----------------------------------------------------------------------------
+
+
+\documentclass[preprint,nocopyrightspace,10pt]{sigplanconf}
+
+% The following \documentclass options may be useful:
+%
+% 10pt          To set in 10-point type instead of 9-point.
+% 11pt          To set in 11-point type instead of 9-point.
+% authoryear    To obtain author/year citation style instead of numeric.
+
+\usepackage{rotating}
+\usepackage{algpseudocode}
+\usepackage{algorithm}% http://ctan.org/pkg/algorithms
+\usepackage{algpseudocode}% http://ctan.org/pkg/algorithmicx
+%\usepackage{syntax}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{xspace}
+\usepackage[
+		pdfauthor={Peizhao Ou and Brian Demsky},
+		pdfkeywords={concurrent data structures, specification language, model
+		checking},
+]{hyperref}
+\usepackage{amssymb}
+
+\usepackage{listings}
+\usepackage{color}
+\usepackage{textcomp}
+\definecolor{listinggray}{gray}{0.9}
+\definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
+\lstset{
+	% backgroundcolor=\color{lbcolor},
+	% rulecolor=,
+	% aboveskip={1.5\baselineskip},
+	% extendedchars=true,
+	tabsize=3,
+	language=C++,
+	basicstyle=\ttfamily\scriptsize,
+	upquote=true,
+	columns=fixed,
+	showstringspaces=false,
+	breaklines=true,
+	prebreak = \raisebox{0ex}[0ex][0ex]{\ensuremath{\hookleftarrow}},
+	% frame=single,
+	showtabs=false,
+	showspaces=false,
+	showstringspaces=false,
+	identifierstyle=\ttfamily,
+	keywordstyle=\color[rgb]{0,0,1},
+	commentstyle=\color[rgb]{0.133,0.545,0.133},
+	stringstyle=\color[rgb]{0.627,0.126,0.941},
+	numbers=left,
+	numberstyle=\tiny,
+	numbersep=8pt,
+	escapeinside={/*@}{@*/}
+}
+
+\usepackage{algpseudocode}
+
+%% Not used yet
+% \usepackage{times}
+% \usepackage{latexsym}
+% \usepackage{amsfonts}
+% \usepackage{amsthm}
+% \usepackage{txfonts}
+% \usepackage{url}
+% \usepackage{subfigure}
+
+% \usepackage{bbm}
+% \usepackage{stfloats}
+
+\newcommand{\code}[1]{\text{\tt #1}}
+\newcommand{\mypara}[1]{\noindent {#1}}
+\newcommand{\etal}{\textit{et al}.\xspace}
+\newcommand{\cdschecker}[0]{\textsc{CDSChecker}\xspace}
+\newcommand{\TOOL}[0]{\textsc{SCFence}\xspace}
+
+\newcommand{\RNum}[1]{\uppercase\expandafter{\romannumeral #1\relax}}
+
+\newcommand{\TODO}[0]{\textbf{TODO}\xspace}
+\newcommand{\todo}[1]{{\bf [[#1]]}}
+%\newcommand{\todo}[1]{}
+\newcommand{\comment}[1]{}
+\newcommand{\tuple}[1]{\ensuremath \langle #1 \rangle}
+\newcommand{\rf}{\reltext{rf}}
+\newcommand{\reltext}[1]{\textit{#1}}
+
+
+\begin{document}
+
+\conferenceinfo{ISSTA '14}{date, City.} 
+\copyrightyear{2014} 
+\copyrightdata{[to be supplied]} 
+
+\sloppy
+
+\title{\TOOL: Automatic Inference of Memory Order Parameters to Obtain SC Behaviors under C/C++11}
+
+\authorinfo{Peizhao Ou and Brian Demsky}{University of California, Irvine}{\{peizhaoo,bdemsky\}@uci.edu}
+
+\maketitle
+
+\begin{abstract}
+\input{abstract}
+\end{abstract}
+
+\input{introduction}
+\input{example}
+\input{technical}
+\input{evaluation}
+\input{related}
+\input{conclusion}
+
+
+% We recommend abbrvnat bibliography style.
+\bibliographystyle{abbrvnat}
+\bibliography{confstrs-abbrv,paper}
+
+\end{document}

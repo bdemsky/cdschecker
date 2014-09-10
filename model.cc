@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <new>
 #include <stdarg.h>
+#include <string.h>
 
 #include "model.h"
 #include "action.h"
@@ -22,14 +23,18 @@ ModelChecker *model;
 ModelChecker::ModelChecker(struct model_params params) :
 	/* Initialize default scheduler */
 	params(params),
+	restart_flag(false),
+	exit_flag(false),
 	scheduler(new Scheduler()),
 	node_stack(new NodeStack()),
 	execution(new ModelExecution(this, &this->params, scheduler, node_stack)),
 	execution_number(1),
 	diverge(NULL),
 	earliest_diverge(NULL),
-	trace_analyses()
+	trace_analyses(),
+	inspect_plugin(NULL)
 {
+	memset(&stats,0,sizeof(struct execution_stats));
 }
 
 /** @brief Destructor */
@@ -255,7 +260,7 @@ void ModelChecker::print_execution(bool printbugs) const
 			get_execution_number());
 	print_program_output();
 
-	if (params.verbose >= 2) {
+	if (params.verbose >= 3) {
 		model_print("\nEarliest divergence point since last feasible execution:\n");
 		if (earliest_diverge)
 			earliest_diverge->print();
@@ -298,18 +303,38 @@ bool ModelChecker::next_execution()
 
 		checkDataRaces();
 		run_trace_analyses();
+	} else if (inspect_plugin && !execution->is_complete_execution() &&
+		//(execution->too_many_steps() || execution->have_bug_reports())) {
+		(execution->too_many_steps())) {
+		/* Normally we don't run the trace analyses when we don't get a complete
+		 * execution except that the execution cannot complete for one of the
+		 * following reasons:
+			1) it reaches a customized bound (e.g. liveness problem caused by
+			lousy mo for SCFence; or
+			2) it has bug reports (e.g. uninitialized
+			load (SCFence needs to analyze those executions too)) 
+		 */
+		 inspect_plugin->analyze(execution->get_action_trace());
 	}
 
 	record_stats();
 
 	/* Output */
-	if (params.verbose || (complete && execution->have_bug_reports()))
+	if ( (complete && params.verbose) || params.verbose>1 || (complete && execution->have_bug_reports()))
 		print_execution(complete);
 	else
 		clear_program_output();
 
 	if (complete)
 		earliest_diverge = NULL;
+
+	if (restart_flag) {
+		restart_actions();
+		return true;
+	}
+	if (exit_flag) {
+		return false;
+	}
 
 	if ((diverge = execution->get_next_backtrack()) == NULL)
 		return false;
@@ -320,6 +345,9 @@ bool ModelChecker::next_execution()
 	}
 
 	execution_number++;
+
+	if (params.maxexecutions != 0 && stats.num_complete >= params.maxexecutions)
+		return false;
 
 	reset_to_initial_state();
 	return true;
@@ -381,6 +409,9 @@ uint64_t ModelChecker::switch_to_master(ModelAction *act)
 	Thread *old = thread_current();
 	scheduler->set_current_thread(NULL);
 	ASSERT(!old->get_pending());
+	if (inspect_plugin != NULL) {
+		inspect_plugin->inspectModelAction(act);
+	}
 	old->set_pending(act);
 	if (Thread::swap(old, &system_context) < 0) {
 		perror("swap threads");
@@ -410,9 +441,34 @@ bool ModelChecker::should_terminate_execution()
 	return false;
 }
 
+
+/** @brief Exit ModelChecker upon returning to the run loop of the model checker. */
+void ModelChecker::exit_model_checker()
+{
+	exit_flag = true;
+}
+
+/** @brief Restart ModelChecker upon returning to the run loop of the model checker. */
+void ModelChecker::restart()
+{
+	restart_flag = true;
+}
+
+void ModelChecker::restart_actions()
+{
+	restart_flag = false;
+	diverge = NULL;
+	earliest_diverge = NULL;
+	reset_to_initial_state();
+	node_stack->full_reset();
+	memset(&stats,0,sizeof(struct execution_stats));
+	execution_number = 1;
+}
+
 /** @brief Run ModelChecker for the user program */
 void ModelChecker::run()
 {
+	bool has_next;
 	do {
 		thrd_t user_thread;
 		Thread *t = new Thread(execution->get_next_id(), &user_thread, &user_main_wrapper, NULL, NULL);
@@ -460,7 +516,27 @@ void ModelChecker::run()
 			t = execution->take_step(curr);
 		} while (!should_terminate_execution());
 
-	} while (next_execution());
+		has_next = next_execution();
+		if (!has_next) {
+			model_print("******* Model-checking Finished: *******\n");
+		}
+		if (!has_next && inspect_plugin != NULL) {
+			if (exit_flag) {
+				model_print("******* Model-checking Exit: *******\n");
+			}
+			//print_stats();
+			inspect_plugin->actionAtModelCheckingFinish();
+			// Check if the inpect plugin might have set the restart flag
+			if (restart_flag) {
+				model_print("******* Model-checking RESTART: *******\n");
+				//print_stats();
+				//model_print("******* Model-checking RESTART (end): *******\n");
+				has_next = true;
+				restart_actions();
+			}
+		}
+
+	} while (has_next);
 
 	execution->fixup_release_sequences();
 

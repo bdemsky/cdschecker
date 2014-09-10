@@ -116,6 +116,8 @@ public:
 
 	action_list_t * get_action_trace() { return &action_trace; }
 
+	CycleGraph * const get_mo_graph() { return mo_graph; }
+
 	SNAPSHOTALLOC
 private:
 	int get_execution_number() const;
@@ -132,6 +134,7 @@ private:
 	bool mo_may_allow(const ModelAction *writer, const ModelAction *reader);
 	bool promises_may_allow(const ModelAction *writer, const ModelAction *reader) const;
 	void set_bad_synchronization();
+	void set_bad_sc_read();
 	bool promises_expired() const;
 	bool should_wake_up(const ModelAction *curr, const Thread *thread) const;
 	void wake_up_sleeping_actions(ModelAction *curr);
@@ -187,7 +190,7 @@ private:
 	void propagate_clockvector(ModelAction *acquire, work_queue_t *work);
 	bool resolve_release_sequences(void *location, work_queue_t *work_queue);
 	void add_future_value(const ModelAction *writer, ModelAction *reader);
-
+	bool check_coherence_promise(const ModelAction *write, const ModelAction *read);
 	ModelAction * get_uninitialized_action(const ModelAction *curr) const;
 
 	action_list_t action_trace;

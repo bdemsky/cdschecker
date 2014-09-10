@@ -47,6 +47,15 @@ public:
 
 	void run();
 
+	/** Restart the model checker, supposed to be called by the pluggin */
+	void restart();
+
+	/** Exit the model checker, supposed to be called by the pluggin */
+	void exit_model_checker();
+
+	/** Inspect plugin needs to retrive this value */
+	bool get_exit_flag() const { return exit_flag; }
+
 	/** @returns the context for the main model-checking system thread */
 	ucontext_t * get_system_context() { return &system_context; }
 
@@ -69,12 +78,20 @@ public:
 	void add_trace_analysis(TraceAnalysis *a) {
 		trace_analyses.push_back(a);
 	}
-
+	void set_inspect_plugin(TraceAnalysis *a) {
+		inspect_plugin=a;
+	}
 	MEMALLOC
 private:
+	/** Flag indicating whether to restart the model checker */
+	bool restart_flag;
+	
+	/** Flag indicating whether to exit the model checker */
+	bool exit_flag;
+
 	/** The scheduler to use: tracks the running/ready Threads */
-	Scheduler * const scheduler;
-	NodeStack * const node_stack;
+	Scheduler * scheduler;
+	NodeStack * node_stack;
 	ModelExecution *execution;
 
 	int execution_number;
@@ -96,6 +113,11 @@ private:
 	ucontext_t system_context;
 
 	ModelVector<TraceAnalysis *> trace_analyses;
+	
+	/** @bref Actual actions to restart the model checker */
+	void restart_actions();
+	/** @bref Currently we allow one plugin for the purpose of inspection */
+	TraceAnalysis *inspect_plugin;
 
 	/** @brief The cumulative execution stats */
 	struct execution_stats stats;

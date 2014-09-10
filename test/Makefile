@@ -7,10 +7,12 @@ include $(BASE)/common.mk
 
 DIR := litmus
 include $(DIR)/Makefile
+NONSC_DIR := nonsc-patterns
+include $(NONSC_DIR)/Makefile
 
 DEPS := $(join $(addsuffix ., $(dir $(OBJECTS))), $(addsuffix .d, $(notdir $(OBJECTS))))
 
-CPPFLAGS += -I$(BASE) -I$(BASE)/include
+CPPFLAGS += -I$(BASE) -I$(BASE)/include -I$(BASE)/scfence -O0 -g
 
 all: $(OBJECTS)
 
