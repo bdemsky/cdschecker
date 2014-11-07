@@ -31,4 +31,8 @@
 #define seqcst memory_order_seq_cst
 #define acqrel memory_order_acq_rel
 
+#define LOAD atomic_load_explicit
+#define STORE atomic_store_explicit
+#define CAS atomic_compare_exchange_strong_explicit
+
 #endif
