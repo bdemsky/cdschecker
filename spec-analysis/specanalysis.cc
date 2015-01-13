@@ -529,8 +529,8 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 			case CP_CLEAR:
 				//model_print("CP_CLEAR\n");
 				cp_clear = (anno_cp_clear*) anno->annotation;
-				if (node->interface_num != cp_clear->interface_num)
-					continue;
+				//if (node->interface_num != cp_clear->interface_num)
+					//continue;
 				hasCorrespondingPCP = false;
 				hasCommitPoint = false;
 				// Destroy the previous list of potential commit points
@@ -790,9 +790,9 @@ void SPECAnalysis::traverseActions(action_list_t *actions) {
 				break;
 			case CP_CLEAR:
 				cp_clear = (anno_cp_clear*) anno->annotation;
-				model_print("seq_%d, tid_%d\tCP_CLEAR \tlabel_num: %d\n",
+				model_print("seq_%d, tid_%d\tCP_CLEAR \t: %d\n",
 					act->get_seq_number(),
-					act->get_tid(), cp_clear->label_num);
+					act->get_tid());
 				break;
 
 			case INTERFACE_END:
