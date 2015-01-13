@@ -190,8 +190,8 @@ bool SPECAnalysis::isCyclic() {
 
 static void dumpNodeUtil(commit_point_node *node, const char *msg) {
 	action_list_t *operations = node->operations;
-	model_print("Node: seq_%d, tid_%d, inter_%d", node->begin->get_seq_number(),
-		node->begin->get_tid(), node->interface_num);
+	model_print("Node: seq_%d, tid_%d, %s", node->begin->get_seq_number(),
+		node->begin->get_tid(), node->interface_name);
 	for (action_list_t::iterator opIter = operations->begin(); opIter !=
 		operations->end(); opIter++) {
 		ModelAction *act = *opIter;
@@ -453,6 +453,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 	anno_interface_end* end_anno;
 	int interface_num = begin_anno->interface_num;
 	node->interface_num = interface_num;
+	node->interface_name = begin_anno->interface_name;
 	node->begin = act;
 	// Don't forget the color
 	node->color = 0;
@@ -663,8 +664,8 @@ void SPECAnalysis::dumpNode(commit_point_node *node) {
 		cp_edge_type type = (*it)->type;
 		const char *relationMsg = type == HB ? "HB" : type == RF ?
 			"RF" : type == MO ? "MO" : "RBW";
-		model_print("Edge: seq_%d, inter_%d, %s\n", next_node->begin->get_seq_number(),
-			next_node->interface_num, relationMsg);
+		model_print("Edge: seq_%d, %s, %s\n", next_node->begin->get_seq_number(),
+			next_node->interface_name, relationMsg);
 	}
 }
 
@@ -708,7 +709,6 @@ void SPECAnalysis::dumpDotGraph() {
 
 void SPECAnalysis::dumpGraph(node_list_t *sorted_commit_points) {
 	model_print("---------- Dump Graph Begin ----------\n");
-	model_print("Name: Seq, TID, Interface\n");
 	action_list_t::iterator iter = cpActions->begin();
 	for (; iter != cpActions->end(); iter++) {
 		ModelAction *act = *iter;
@@ -764,35 +764,35 @@ void SPECAnalysis::traverseActions(action_list_t *actions) {
 				break;
 			case INTERFACE_BEGIN:
 				begin_anno = (anno_interface_begin*) anno->annotation;
-				model_print("seq_%d, tid_%d:\tINTERFACE_BEGIN \tinter_num: %d\n",
+				model_print("seq_%d, tid_%d:\tINTERFACE_BEGIN \tinter_name: %s\n",
 					act->get_seq_number(),
-					act->get_tid(), begin_anno->interface_num);
+					act->get_tid(), begin_anno->interface_name);
 				interface_num = begin_anno->interface_num;
 				break;
 			case POTENTIAL_CP_DEFINE:
 				pcp_define = (anno_potential_cp_define*) anno->annotation;
-				model_print("seq_%d, tid_%d:\tPOTENTIAL_CP_DEFINE \tlabel: %d\n",
+				model_print("seq_%d, tid_%d:\tPOTENTIAL_CP_DEFINE \tlabel: %s\n",
 					act->get_seq_number(),
-					act->get_tid(), pcp_define->label_num);
+					act->get_tid(), pcp_define->label_name);
 				break;
 			case CP_DEFINE:
 				cp_define = (anno_cp_define*) anno->annotation;
-				model_print("seq_%d, tid_%d:\tCP_DEFINE \tpotential_label: %d, label: %d\n",
+				model_print("seq_%d, tid_%d:\tCP_DEFINE \tpotential_label: %s, label: %s\n",
 					act->get_seq_number(),
-					act->get_tid(), cp_define->potential_cp_label_num,
-						cp_define->label_num);
+					act->get_tid(), cp_define->potential_label_name,
+						cp_define->label_name);
 				break;
 			case CP_DEFINE_CHECK:
 				cp_define_check = (anno_cp_define_check*) anno->annotation;
-				model_print("seq_%d, tid_%d\tCP_DEFINE_CHECK \tlabel_num: %d\n",
+				model_print("seq_%d, tid_%d\tCP_DEFINE_CHECK \tlabel_name: %s\n",
 					act->get_seq_number(),
-					act->get_tid(), cp_define_check->label_num);
+					act->get_tid(), cp_define_check->label_name);
 				break;
 			case CP_CLEAR:
 				cp_clear = (anno_cp_clear*) anno->annotation;
-				model_print("seq_%d, tid_%d\tCP_CLEAR \tlabel_num: %d\n",
+				model_print("seq_%d, tid_%d\tCP_CLEAR:\n",
 					act->get_seq_number(),
-					act->get_tid(), cp_clear->label_num);
+					act->get_tid());
 				break;
 
 			case INTERFACE_END:

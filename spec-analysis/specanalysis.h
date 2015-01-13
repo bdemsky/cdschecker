@@ -64,6 +64,7 @@ typedef struct commit_point_node {
 	hbcond_list_t *hb_conds;
 	call_id_t __ID__;
 	int interface_num; // Interface number
+	const char *interface_name;
 	//int cp_label_num; // Commit point label number
 	void *info;
 	ModelAction *end; // Interface end annotation

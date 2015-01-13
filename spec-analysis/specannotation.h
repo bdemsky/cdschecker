@@ -55,6 +55,7 @@ inline void free_anno_init(anno_init *tgt) {
 typedef
 struct anno_interface_begin {
 	int interface_num;
+	const char *interface_name;
 	char *msg; // For debugging only
 } anno_interface_begin;
 
@@ -74,18 +75,22 @@ struct anno_interface_end {
 typedef
 struct anno_potential_cp_define {
 	int label_num;
+	const char *label_name;
 } anno_potential_cp_define;
 
 typedef
 struct anno_cp_define {
 	int label_num;
+	const char *label_name;
 	int potential_cp_label_num;
+	const char *potential_label_name;
 	int interface_num;
 } anno_cp_define;
 
 typedef
 struct anno_cp_define_check {
 	int label_num;
+	const char *label_name;
 	int interface_num;
 } anno_cp_define_check;
 
