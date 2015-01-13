@@ -96,8 +96,8 @@ struct anno_cp_define_check {
 
 typedef
 struct anno_cp_clear {
-	int label_num;
-	int interface_num;
+	//int label_num;
+	//int interface_num;
 } anno_cp_clear;
 
 

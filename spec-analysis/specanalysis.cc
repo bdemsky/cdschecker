@@ -530,8 +530,8 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 			case CP_CLEAR:
 				//model_print("CP_CLEAR\n");
 				cp_clear = (anno_cp_clear*) anno->annotation;
-				if (node->interface_num != cp_clear->interface_num)
-					continue;
+				//if (node->interface_num != cp_clear->interface_num)
+					//continue;
 				hasCorrespondingPCP = false;
 				hasCommitPoint = false;
 				// Destroy the previous list of potential commit points

@@ -69,16 +69,18 @@ return ( ( tag_elem_t * ) wrapper ) -> data ;
 
 /* Definition of interface info struct: Dequeue */
 typedef struct Dequeue_info {
- unsigned int __RET__;
+bool __RET__;
 queue_t * q;
+ unsigned int * retVal;
 } Dequeue_info;
 /* End of info struct definition: Dequeue */
 
 /* ID function of interface: Dequeue */
 inline static call_id_t Dequeue_id(void *info, thread_id_t __TID__) {
 	Dequeue_info* theInfo = (Dequeue_info*)info;
-	 unsigned int __RET__ = theInfo->__RET__;
+	bool __RET__ = theInfo->__RET__;
 	queue_t * q = theInfo->q;
+	 unsigned int * retVal = theInfo->retVal;
 
 	call_id_t __ID__ = get_id ( front ( __queue ) );
 	return __ID__;
@@ -89,8 +91,9 @@ inline static call_id_t Dequeue_id(void *info, thread_id_t __TID__) {
 inline static bool Dequeue_check_action(void *info, call_id_t __ID__, thread_id_t __TID__) {
 	bool check_passed;
 	Dequeue_info* theInfo = (Dequeue_info*)info;
-	 unsigned int __RET__ = theInfo->__RET__;
+	bool __RET__ = theInfo->__RET__;
 	queue_t * q = theInfo->q;
+	 unsigned int * retVal = theInfo->retVal;
 
 	unsigned int _Old_Val = 0 ;
 	if ( size ( __queue ) > 0 ) {
@@ -100,7 +103,7 @@ inline static bool Dequeue_check_action(void *info, call_id_t __ID__, thread_id_
 	else {
 	_Old_Val = 0 ;
 	}
-	check_passed = _Old_Val == __RET__;
+	check_passed = _Old_Val == 0 ? ! __RET__ : _Old_Val == * retVal;
 	if (!check_passed)
 		return false;
 	return true;
@@ -183,9 +186,9 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val);
 
 void __wrapper__enqueue(queue_t * q,  unsigned int val) ;
 
- unsigned int __wrapper__dequeue(queue_t * q);
+bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal);
 
- unsigned int __wrapper__dequeue(queue_t * q) ;
+bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal) ;
 int get_thread_num();
 
 #endif
