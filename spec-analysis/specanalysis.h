@@ -138,6 +138,7 @@ class SPECAnalysis : public TraceAnalysis {
 	bool isBrokenExecution;
 	
 	bool hbEdgeMode;
+	bool verbose;
 
 	/**
 	 * Hashtable that contains all the commit point nodes, the reason to use the

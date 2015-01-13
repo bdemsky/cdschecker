@@ -18,6 +18,7 @@ SPECAnalysis::SPECAnalysis()
 	hb_rules = new hbrule_list_t();
 	isBrokenExecution = false;
 	hbEdgeMode = true;
+	verbose = false;
 }
 
 SPECAnalysis::~SPECAnalysis() {
@@ -38,9 +39,16 @@ void SPECAnalysis::finish() {
 }
 
 bool SPECAnalysis::option(char * opt) {
-	if (strcmp(opt, "non-hb") == 0) {
+	if (strcmp(opt, "nonhb") == 0) {
 		hbEdgeMode = false;
+		return false;
+	} else if (strcmp(opt, "verbose") == 0) {
+		verbose = true;
+		return false;
 	}
+	model_print("SPEC Analysis options\n");
+	model_print("nonhb-- Don't take happens-before edges to order API methods\n");
+	model_print("verbose -- Output the graph information\n");
 	return true;
 }
 
@@ -70,7 +78,9 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	
 	node_list_t *sorted_commit_points = sortCPGraph(actions);
 
-	
+	if (verbose) {
+		dumpGraph(sorted_commit_points);
+	}
 	if (sorted_commit_points == NULL) {
 		model_print("Wired data structure, fail to check!\n");
 		dumpGraph(sorted_commit_points);
