@@ -17,6 +17,7 @@ SPECAnalysis::SPECAnalysis()
 	func_table = NULL;
 	hb_rules = new hbrule_list_t();
 	isBrokenExecution = false;
+	hbEdgeMode = true;
 }
 
 SPECAnalysis::~SPECAnalysis() {
@@ -37,6 +38,9 @@ void SPECAnalysis::finish() {
 }
 
 bool SPECAnalysis::option(char * opt) {
+	if (strcmp(opt, "non-hb") == 0) {
+		hbEdgeMode = false;
+	}
 	return true;
 }
 
@@ -266,9 +270,9 @@ node_list_t* SPECAnalysis::sortCPGraph(action_list_t *actions) {
 
 
 /**
-	Be cautious: The order of adding edges to the node matters. It should
-	cooperate with the sortCPGraph() method in order to prioritize some edges.
-	Read the comment in sortCPGraph().
+	This method iterates the pair of commit points between two nodes to build
+	edges. In no-hb-edge mode, it does NOT add happens-before edges between
+	actions (nodes).
 */
 void SPECAnalysis::buildEdges() {
 	//model_print("Building edges...\n");
@@ -279,6 +283,7 @@ void SPECAnalysis::buildEdges() {
 			ModelAction *begin1 = *iter1,
 				*begin2 = *iter2,
 				*act1, *act2;
+			const ModelAction *rfAct1, *rfAct2;
 			commit_point_node *node1 = cpGraph->get(begin1),
 				*node2 = cpGraph->get(begin2);
 			// Iterate the commit point lists of both nodes to build edges
@@ -289,113 +294,39 @@ void SPECAnalysis::buildEdges() {
 				for (cpIter2 = node2->operations->begin(); cpIter2 !=
 					node2->operations->end(); cpIter2++) {
 					act2 = *cpIter2;
-					if (act2->get_reads_from() == act1) {
-						node1->addEdge(node2, RF);
-						//dumpNode(node1);
-					} else if (act1->get_reads_from() == act2) {
-						node2->addEdge(node1, RF);
-					} else { // Deal with HB or MO
-						if (act1->happens_before(act2)) {
-							node1->addEdge(node2, HB);
-						} else if (act2->happens_before(act1)) {
-							node2->addEdge(node1, HB);
-						} else { // Deal with MO
-							if (mo_graph->checkReachable(act1, act2)) {
-								node1->addEdge(node2, MO);
-							} else if (mo_graph->checkReachable(act2, act1)) {
-								node2->addEdge(node1, MO);
-							}
-						}
-					}
-
-				}
-			}
-			
-		}
-	}
-
-	for (iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
-		for (iter2 = iter1, iter2++; iter2 != cpActions->end(); iter2++) {
-			ModelAction *begin1 = *iter1,
-				*begin2 = *iter2,
-				*act1, *act2;
-			commit_point_node *node1 = cpGraph->get(begin1),
-				*node2 = cpGraph->get(begin2);
-			// Iterate the commit point lists of both nodes to build extra edges
-			action_list_t::iterator cpIter1, cpIter2;
-			for (cpIter1 = node1->operations->begin(); cpIter1 !=
-				node1->operations->end(); cpIter1++) {
-				act1 = *cpIter1;
-				for (cpIter2 = node2->operations->begin(); cpIter2 !=
-					node2->operations->end(); cpIter2++) {
-					act2 = *cpIter2;
-
+					rfAct1 = act1->get_reads_from();
+					rfAct2 = act2->get_reads_from();
 					if (act1->get_location() == act2->get_location()) { // Same location 
-						const ModelAction *rfAction1 = act1->get_reads_from(),
-							*rfAction2 = act2->get_reads_from();
-						if (act1 == rfAction2 || act2 == rfAction1)
-							continue;
-						if (act1->get_type() == ATOMIC_READ && act2->get_type() !=
-							ATOMIC_READ && hasAnEdge(rfAction1, act2)) {
-							node1->addEdge(node2, RBW);
-						} else if (act1->get_type() != ATOMIC_READ && act2->get_type() ==
-							ATOMIC_READ && hasAnEdge(rfAction2, act1)) {
-							node2->addEdge(node1, RBW);
-						}
-					}
-					if (act2->get_reads_from() == act1) {
-						node1->addEdge(node2, RF);
-						//dumpNode(node1);
-					} else if (act1->get_reads_from() == act2) {
-						node2->addEdge(node1, RF);
-					} else { // Deal with HB or MO
-						if (act1->happens_before(act2)) {
-							node1->addEdge(node2, HB);
-						} else if (act2->happens_before(act1)) {
-							node2->addEdge(node1, HB);
-						} else { // Deal with MO
-							if (mo_graph->checkReachable(act1, act2)) {
+						if (act1->is_read() && rfAct1 == act2) {
+							node2->addEdge(node1, RF);
+						} else if (act2->is_read() && rfAct2 == act1) {
+							node1->addEdge(node2, RF);
+						} else {
+							// Compare the two actions by the MO order
+							if (act1->is_write())
+								rfAct1 = act1;
+							if (act2->is_write())
+								rfAct2 = act2;
+
+							if (mo_graph->checkReachable(rfAct1, rfAct2)) {
 								node1->addEdge(node2, MO);
-							} else if (mo_graph->checkReachable(act2, act1)) {
+							} else if (mo_graph->checkReachable(rfAct2, rfAct1)) {
 								node2->addEdge(node1, MO);
 							}
 						}
 					}
 
-				}
-			}
-			
-		}
-	}
-	/*
-	// Add extra edges for the initial 'read' operations
-	for (action_list_t::iterator iter1 = cpActions->begin(); iter1 != cpActions->end(); iter1++) {
-		ModelAction *act1 = *iter1;
-		commit_point_node *node1 = cpGraph->get(act1);
-		action_list_t::iterator iter2 = cpActions->begin();
-		iter2 = iter1++;
-		iter1--;
-		//model_print("hey1\n");
-		for (; iter2 != cpActions->end(); iter2++) {
-			//model_print("hey2\n");
-			ModelAction *act2 = *iter2;
-			commit_point_node *node2 = cpGraph->get(act2);
-			if (act1->get_location() == act2->get_location()) { // Same location 
-				const ModelAction *rfAction1 = act1->get_reads_from(),
-					*rfAction2 = act2->get_reads_from();
-				if (act1 == rfAction2 || act2 == rfAction1)
-					continue;
-				if (act1->get_type() == ATOMIC_READ && act2->get_type() !=
-					ATOMIC_READ && hasAnEdge(rfAction1, act2)) {
-					node1->addEdge(node2, RBW);
-				} else if (act1->get_type() != ATOMIC_READ && act2->get_type() ==
-					ATOMIC_READ && hasAnEdge(rfAction2, act1)) {
-					node2->addEdge(node1, RBW);
+					if (hbEdgeMode) {
+						if (act1->happens_before(act2)) {
+							node1->addEdge(node2, HB);
+						} else if (act2->happens_before(act1)) {
+							node2->addEdge(node1, HB);
+						}
+					}
 				}
 			}
 		}
 	}
-	*/
 	//model_print("Finish building edges!\n");
 }
 
