@@ -697,8 +697,6 @@ TypeV * __wrapper__put(TypeK * key, TypeV * val) {
 
 	if (true) {
 		struct anno_cp_clear *cp_clear = (struct anno_cp_clear*) malloc(sizeof(struct anno_cp_clear));
-		cp_clear->label_num = 5;
-		cp_clear->interface_num = 0;
 		struct spec_annotation *annotation_cp_clear = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_clear->type = CP_CLEAR;
 		annotation_cp_clear->annotation = cp_clear;
