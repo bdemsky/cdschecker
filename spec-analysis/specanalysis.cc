@@ -93,7 +93,8 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	bool passed = check(sorted_commit_points);
 
 	if (!passed || verbose) {
-		model_print("Error exists!!\n");
+		if (!passed)
+			model_print("Error exists!!\n");
 		dumpGraph(sorted_commit_points);
 	}
 }
