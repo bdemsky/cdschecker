@@ -137,7 +137,14 @@ class SPECAnalysis : public TraceAnalysis {
 	hbrule_list_t *hb_rules;
 	bool isBrokenExecution;
 	
+	/** Flag that decides whether we consider the stronger HB mode (data
+	 * structures are SC, false by default) */
 	bool hbEdgeMode;
+	/** A mode that will still run the checking process even if it encounters an
+	 * inconsistency (false by default) */
+	bool nonStopMode;
+	/** Verbose mode that will output the detailed graph information (false by
+	 * default) */
 	bool verbose;
 
 	/**

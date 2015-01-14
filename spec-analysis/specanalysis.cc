@@ -18,6 +18,7 @@ SPECAnalysis::SPECAnalysis()
 	hb_rules = new hbrule_list_t();
 	isBrokenExecution = false;
 	hbEdgeMode = false;
+	nonStopMode = false;
 	verbose = false;
 }
 
@@ -45,9 +46,14 @@ bool SPECAnalysis::option(char * opt) {
 	} else if (strcmp(opt, "verbose") == 0) {
 		verbose = true;
 		return false;
+	} else if (strcmp(opt, "non-stop") == 0) {
+		nonStopMode = true;
+		return false;
 	}
 	model_print("SPEC Analysis options\n");
-	model_print("nonhb-- Don't take happens-before edges to order API methods\n");
+	model_print("non-hb-- Don't take happens-before edges to order API methods\n");
+	model_print("non-stop-- Don't stop the checking process even if it\
+encounters an inconsistency\n");
 	model_print("verbose -- Output the graph information\n");
 	return true;
 }
@@ -120,7 +126,9 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 			model_print("Interface %d failed\n", interface_num);
 			model_print("ID: %d\n", __ID__);
 			model_print("Error exists in correctness check!!\n");
-			return false;
+			// If it's not at the non-stop mode, it will stop checking 
+			if (!nonStopMode)
+				return false;
 		}
 		//model_print("%d interface call passed\n", interface_num);
 	}
