@@ -312,16 +312,39 @@ void SPECAnalysis::buildEdges() {
 						} else if (act2->is_read() && rfAct2 == act1) {
 							node1->addEdge(node2, RF);
 						} else {
-							// Compare the two actions by the MO order
+							// Compare the two actions by MO order
 							if (act1->is_write())
 								rfAct1 = act1;
 							if (act2->is_write())
 								rfAct2 = act2;
-
-							if (mo_graph->checkReachable(rfAct1, rfAct2)) {
-								node1->addEdge(node2, MO);
-							} else if (mo_graph->checkReachable(rfAct2, rfAct1)) {
-								node2->addEdge(node1, MO);
+							if (rfAct1 == rfAct2) { // Prioritize reads
+								// When both are reads, let it alone
+								if (rfAct1->is_write() || rfAct2->is_write()) {
+									if (!rfAct1->is_write()) {
+										node1->addEdge(node2, MO);
+										model_print("read1 write2:\n");
+										act1->print();
+										act2->print();
+									} else if (!rfAct2->is_write()) {
+										node2->addEdge(node1, MO);
+										model_print("write1 read2:\n");
+										act2->print();
+										act1->print();
+									}
+									model_print("MO both reads no edges.\n");
+								}
+							} else {
+								if (mo_graph->checkReachable(rfAct1, rfAct2)) {
+									node1->addEdge(node2, MO);
+									model_print("normal MO:\n");
+									act1->print();
+									act2->print();
+								} else if (mo_graph->checkReachable(rfAct2, rfAct1)) {
+									node2->addEdge(node1, MO);
+									model_print("normal MO:\n");
+									act2->print();
+									act1->print();
+								}
 							}
 						}
 					}
