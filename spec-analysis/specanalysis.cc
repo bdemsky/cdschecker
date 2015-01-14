@@ -17,7 +17,7 @@ SPECAnalysis::SPECAnalysis()
 	func_table = NULL;
 	hb_rules = new hbrule_list_t();
 	isBrokenExecution = false;
-	hbEdgeMode = true;
+	hbEdgeMode = false;
 	verbose = false;
 }
 
@@ -39,8 +39,8 @@ void SPECAnalysis::finish() {
 }
 
 bool SPECAnalysis::option(char * opt) {
-	if (strcmp(opt, "nonhb") == 0) {
-		hbEdgeMode = false;
+	if (strcmp(opt, "hb-mode") == 0) {
+		hbEdgeMode = true;
 		return false;
 	} else if (strcmp(opt, "verbose") == 0) {
 		verbose = true;
@@ -78,9 +78,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	
 	node_list_t *sorted_commit_points = sortCPGraph(actions);
 
-	if (verbose) {
-		dumpGraph(sorted_commit_points);
-	}
+	
 	if (sorted_commit_points == NULL) {
 		model_print("Wired data structure, fail to check!\n");
 		dumpGraph(sorted_commit_points);
@@ -88,13 +86,9 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	}
 	bool passed = check(sorted_commit_points);
 
-	if (!passed) {
+	if (!passed || verbose) {
 		model_print("Error exists!!\n");
 		dumpGraph(sorted_commit_points);
-	} else {
-		//model_print("Passed all the safety checks!\n");
-		//traverseActions(actions);
-		//dumpGraph(sorted_commit_points);
 	}
 }
 
@@ -309,8 +303,18 @@ void SPECAnalysis::buildEdges() {
 					if (act1->get_location() == act2->get_location()) { // Same location 
 						if (act1->is_read() && rfAct1 == act2) {
 							node2->addEdge(node1, RF);
+							if (verbose) {
+								model_print("RF:\n");
+								act2->print();
+								act1->print();
+							}
 						} else if (act2->is_read() && rfAct2 == act1) {
 							node1->addEdge(node2, RF);
+							if (verbose) {
+								model_print("RF:\n");
+								act1->print();
+								act2->print();
+							}
 						} else {
 							// Compare the two actions by MO order
 							if (act1->is_write())
@@ -322,28 +326,36 @@ void SPECAnalysis::buildEdges() {
 								if (rfAct1->is_write() || rfAct2->is_write()) {
 									if (!rfAct1->is_write()) {
 										node1->addEdge(node2, MO);
-										model_print("read1 write2:\n");
-										act1->print();
-										act2->print();
+										if (verbose) {
+											model_print("read1 write2:\n");
+											act1->print();
+											act2->print();
+										}
 									} else if (!rfAct2->is_write()) {
 										node2->addEdge(node1, MO);
-										model_print("write1 read2:\n");
-										act2->print();
-										act1->print();
+										if (verbose) {
+											model_print("write1 read2:\n");
+											act2->print();
+											act1->print();
+										}
 									}
 									model_print("MO both reads no edges.\n");
 								}
 							} else {
 								if (mo_graph->checkReachable(rfAct1, rfAct2)) {
 									node1->addEdge(node2, MO);
-									model_print("normal MO:\n");
-									act1->print();
-									act2->print();
+									if (verbose) {
+										model_print("normal MO:\n");
+										act1->print();
+										act2->print();
+									}
 								} else if (mo_graph->checkReachable(rfAct2, rfAct1)) {
 									node2->addEdge(node1, MO);
-									model_print("normal MO:\n");
-									act2->print();
-									act1->print();
+									if (verbose) {
+										model_print("normal MO:\n");
+										act2->print();
+										act1->print();
+									}
 								}
 							}
 						}
