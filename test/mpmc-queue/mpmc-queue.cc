@@ -11,8 +11,7 @@
 void threadA(struct mpmc_boundq_1_alt<int32_t, sizeof(int32_t)> *queue)
 {
 	int32_t *bin = queue->write_prepare();
-	store_32(bin, 1);
-	*bin = 1;
+		*bin = 1;
 	printf("write_bin %d, val %d\n", bin, 1);
 	queue->write_publish(bin);
 }
@@ -21,9 +20,7 @@ void threadB(struct mpmc_boundq_1_alt<int32_t, sizeof(int32_t)> *queue)
 {
 	int32_t *bin;
 	while (bin = queue->read_fetch()) {
-		printf("Read: %d\n", load_32(bin));
-		printf("read_bin %d, val %d\n", bin, load_32(bin));
-		printf("Read: %d\n", *bin);
+						printf("Read: %d\n", *bin);
 		queue->read_consume(bin);
 	}
 }
@@ -31,13 +28,11 @@ void threadB(struct mpmc_boundq_1_alt<int32_t, sizeof(int32_t)> *queue)
 void threadC(struct mpmc_boundq_1_alt<int32_t, sizeof(int32_t)> *queue)
 {
 	int32_t *bin = queue->write_prepare();
-	store_32(bin, 1);
-	*bin = 1;
+		*bin = 1;
 	queue->write_publish(bin);
 
 	while (bin = queue->read_fetch()) {
-		printf("Read: %d\n", load_32(bin));
-		printf("Read: %d\n", *bin);
+				printf("Read: %d\n", *bin);
 		queue->read_consume(bin);
 	}
 }
@@ -117,8 +112,7 @@ int user_main(int argc, char **argv)
 #ifndef CONFIG_MPMC_NO_INITIAL_ELEMENT
 	printf("Adding initial element\n");
 	int32_t *bin = queue.write_prepare();
-	store_32(bin, 17);
-	*bin, 17;
+		*bin, 17;
 	printf("init_write_bin %d, val %d\n", bin, 17);
 	queue.write_publish(bin);
 #endif

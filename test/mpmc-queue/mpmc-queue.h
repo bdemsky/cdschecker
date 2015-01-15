@@ -203,6 +203,7 @@ t_element * read_fetch() {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 0; // Fetch
+		interface_begin->interface_name = "Fetch";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -230,11 +231,13 @@ t_element * read_fetch() {
 	
 t_element * __wrapper__read_fetch() {
 				unsigned int rdwr = m_rdwr.load(mo_acquire);
-	/* Automatically generated code for potential commit point: Fetch_Potential_Point */
+	/* Automatically generated code for potential commit point: Fetch_Potential_RW_Load */
 
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
 		potential_cp_define->label_num = 0;
+		potential_cp_define->label_name = "Fetch_Potential_RW_Load";
+		potential_cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -247,13 +250,16 @@ t_element * __wrapper__read_fetch() {
 			wr = rdwr & 0xFFFF;
 
 			if ( wr == rd ) { 
-	/* Automatically generated code for commit point define: Fetch_Empty_Point */
+	/* Automatically generated code for commit point define: Fetch_RW_Load_Empty */
 
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 1;
+		cp_define->label_name = "Fetch_RW_Load_Empty";
 		cp_define->potential_cp_label_num = 0;
+		cp_define->potential_label_name = "Fetch_Potential_RW_Load";
 		cp_define->interface_num = 0;
+		cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -265,12 +271,14 @@ t_element * __wrapper__read_fetch() {
 			}
 			
 			bool succ = m_rdwr.compare_exchange_weak(rdwr,rdwr+(1<<16),mo_acq_rel);
-	/* Automatically generated code for commit point define check: Fetch_Succ_Point */
+	/* Automatically generated code for commit point define check: Fetch_RW_RMW */
 
-	if (succ == true) {
+	if (succ) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 2;
+		cp_define_check->label_name = "Fetch_RW_RMW";
 		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -284,9 +292,44 @@ t_element * __wrapper__read_fetch() {
 		}
 
 				rl::backoff bo;
-		while ( (m_written.load(mo_acquire) & 0xFFFF) != wr ) {
-			thrd_yield();
+		while (true) {
+			int written = m_written.load(mo_relaxed);
+	/* Automatically generated code for potential commit point: Fetch_Potential_W_Load */
+
+	if (true) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 3;
+		potential_cp_define->label_name = "Fetch_Potential_W_Load";
+		potential_cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
+	}
+			
+			if ((written & 0xFFFF) != wr) {
+				thrd_yield();
+			} else {
+				break;
+			}
 		}
+		
+	/* Automatically generated code for commit point define: Fetch_W_Load */
+
+	if (true) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 4;
+		cp_define->label_name = "Fetch_W_Load";
+		cp_define->potential_cp_label_num = 3;
+		cp_define->potential_label_name = "Fetch_Potential_W_Load";
+		cp_define->interface_num = 0;
+		cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+		
 
 		t_element * p = & ( m_array[ rd % t_size ] );
 		
@@ -298,6 +341,7 @@ void read_consume(t_element * bin) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 1; // Consume
+		interface_begin->interface_name = "Consume";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -325,12 +369,14 @@ void read_consume(t_element * bin) {
 void __wrapper__read_consume(t_element * bin) {
 		
 		m_read.fetch_add(1,mo_release);
-	/* Automatically generated code for commit point define check: Consume_Point */
+	/* Automatically generated code for commit point define check: Consume_R_RMW */
 
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 3;
+		cp_define_check->label_num = 5;
+		cp_define_check->label_name = "Consume_R_RMW";
 		cp_define_check->interface_num = 1;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -345,6 +391,7 @@ t_element * write_prepare() {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 2; // Prepare
+		interface_begin->interface_name = "Prepare";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -372,11 +419,13 @@ t_element * write_prepare() {
 	
 t_element * __wrapper__write_prepare() {
 				unsigned int rdwr = m_rdwr.load(mo_acquire);
-	/* Automatically generated code for potential commit point: Prepare_Potential_Point */
+	/* Automatically generated code for potential commit point: Prepare_Potential_RW_Load */
 
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 4;
+		potential_cp_define->label_num = 6;
+		potential_cp_define->label_name = "Prepare_Potential_RW_Load";
+		potential_cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -389,13 +438,16 @@ t_element * __wrapper__write_prepare() {
 			wr = rdwr & 0xFFFF;
 
 			if ( wr == ((rd + t_size)&0xFFFF) ) { 
-	/* Automatically generated code for commit point define: Prepare_Full_Point */
+	/* Automatically generated code for commit point define: Prepare_RW_Load_Full */
 
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 5;
-		cp_define->potential_cp_label_num = 4;
+		cp_define->label_num = 7;
+		cp_define->label_name = "Prepare_RW_Load_Full";
+		cp_define->potential_cp_label_num = 6;
+		cp_define->potential_label_name = "Prepare_Potential_RW_Load";
 		cp_define->interface_num = 2;
+		cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -407,12 +459,14 @@ t_element * __wrapper__write_prepare() {
 			
 			bool succ = m_rdwr.compare_exchange_weak(rdwr,(rd<<16) |
 				((wr+1)&0xFFFF),mo_acq_rel);
-	/* Automatically generated code for commit point define check: Prepare_Succ_Point */
+	/* Automatically generated code for commit point define check: Prepare_RW_RMW */
 
-	if (succ == true) {
+	if (succ) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 6;
+		cp_define_check->label_num = 8;
+		cp_define_check->label_name = "Prepare_RW_RMW";
 		cp_define_check->interface_num = 2;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -426,9 +480,43 @@ t_element * __wrapper__write_prepare() {
 		}
 
 				rl::backoff bo;
-		while ( (m_read.load(mo_acquire) & 0xFFFF) != rd ) {
-			thrd_yield();
+		while (true) {
+			int read = m_read.load(mo_acquire);
+	/* Automatically generated code for potential commit point: Prepare_Potential_R_Load */
+
+	if (true) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 9;
+		potential_cp_define->label_name = "Prepare_Potential_R_Load";
+		potential_cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
+	}
+			
+			if ((read & 0xFFFF) != rd)
+				thrd_yield();
+			else
+				break;
 		}
+
+	/* Automatically generated code for commit point define: Prepare_R_Load */
+
+	if (true) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 10;
+		cp_define->label_name = "Prepare_R_Load";
+		cp_define->potential_cp_label_num = 9;
+		cp_define->potential_label_name = "Prepare_Potential_R_Load";
+		cp_define->interface_num = 2;
+		cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
+	}
+		
 
 		t_element * p = & ( m_array[ wr % t_size ] );
 
@@ -440,6 +528,7 @@ void write_publish(t_element * bin) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 3; // Publish
+		interface_begin->interface_name = "Publish";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -468,12 +557,14 @@ void __wrapper__write_publish(t_element * bin)
 	{
 		
 		m_written.fetch_add(1,mo_release);
-	/* Automatically generated code for commit point define check: Publish_Point */
+	/* Automatically generated code for commit point define check: Publish_W_RMW */
 
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 7;
+		cp_define_check->label_num = 11;
+		cp_define_check->label_name = "Publish_W_RMW";
 		cp_define_check->interface_num = 3;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
