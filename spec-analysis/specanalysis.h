@@ -53,6 +53,17 @@ typedef struct commit_point_edge {
 
 } commit_point_edge;
 
+typedef struct ordering_operation {
+	bool is_additional_point;
+	ModelAction *operation;
+
+	SNAPSHOTALLOC
+
+} ordering_operation;
+
+
+typedef ModelList<ordering_operation*> ordering_act_list_t;
+
 
 /**
 	Modify the commit_point_node to allow multipe commit points; basically it
@@ -60,7 +71,8 @@ typedef struct commit_point_edge {
 */
 typedef struct commit_point_node {
 	ModelAction *begin; // Interface begin annotation
-	action_list_t *operations; // List of Commit point operation
+	//action_list_t *operations; // List of ordering point operations
+	ordering_act_list_t *operations; // List of ordering point operations
 	hbcond_list_t *hb_conds;
 	call_id_t __ID__;
 	int interface_num; // Interface number
@@ -164,6 +176,8 @@ class SPECAnalysis : public TraceAnalysis {
 	bool hasAnEdge(const ModelAction *act1, const ModelAction *act2);
 	ModelAction* getPrevAction(action_list_t *actions, action_list_t::iterator
 		*iter, ModelAction *anno);
+	int buildEdge(CycleGraph *mo_graph, commit_point_node *node1, commit_point_node *node2,
+    	ModelAction *act1, ModelAction *act2);
 	void buildEdges();
 	node_list_t* sortCPGraph(action_list_t *actions);
 	bool isCyclic();

@@ -22,11 +22,9 @@ static unsigned int new_node()
 	int i;
 	int t = get_thread_num();
 	for (i = 0; i < MAX_FREELIST; i++) {
-		unsigned int node = free_lists[t][i];
-		//unsigned int node = load_32(&free_lists[t][i]);
+		unsigned int node = load_32(&free_lists[t][i]);
 				if (node) {
-			//store_32(&free_lists[t][i], 0);
-			free_lists[t][i] = 0;
+			store_32(&free_lists[t][i], 0);
 						return node;
 		}
 	}
@@ -44,13 +42,11 @@ static void reclaim(unsigned int node)
 	
 	for (i = 0; i < MAX_FREELIST; i++) {
 		
-		//unsigned int idx = load_32(&free_lists[t][i]);
-		unsigned int idx = free_lists[t][i];
+		unsigned int idx = load_32(&free_lists[t][i]);
 		
 		
 		if (idx == 0) {
-			//store_32(&free_lists[t][i], node);
-			free_lists[t][i] = node;
+			store_32(&free_lists[t][i], node);
 						return;
 		}
 	}
@@ -60,6 +56,9 @@ static void reclaim(unsigned int node)
 void init_queue(queue_t *q, int num_threads)
 {
 	int i, j;
+	for (i = 0; i < MAX_NODES; i++) {
+		atomic_init(&q->nodes[i].next, MAKE_POINTER(POISON_IDX, 0));
+	}
 
 	
 	
@@ -82,6 +81,7 @@ void enqueue(queue_t * q,  unsigned int val) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 0; // Enqueue
+		interface_begin->interface_name = "Enqueue";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -116,14 +116,37 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 	pointer tmp;
 
 	node = new_node();
-	//store_32(&q->nodes[node].value, val);
-	q->nodes[node].value = val;
+	store_32(&q->nodes[node].value, val);
 		tmp = atomic_load_explicit(&q->nodes[node].next, relaxed);
 	set_ptr(&tmp, 0); 	atomic_store_explicit(&q->nodes[node].next, tmp, relaxed);
 
 	while (!success) {
+	/* Automatically generated code for commit point clear: Enqueue_Clear */
+
+	if (true) {
+		struct anno_cp_clear *cp_clear = (struct anno_cp_clear*) malloc(sizeof(struct anno_cp_clear));
+		struct spec_annotation *annotation_cp_clear = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_clear->type = CP_CLEAR;
+		annotation_cp_clear->annotation = cp_clear;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_clear);
+	}
+		
 		
 		tail = atomic_load_explicit(&q->tail, acquire);
+	/* Automatically generated code for commit point define check: Enqueue_Read_Tail */
+
+	if (true) {
+		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
+		cp_define_check->label_num = 1;
+		cp_define_check->label_name = "Enqueue_Read_Tail";
+		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = false;
+		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define_check->type = CP_DEFINE_CHECK;
+		annotation_cp_define_check->annotation = cp_define_check;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	}
+		
 		
 		next = atomic_load_explicit(&q->nodes[get_ptr(tail)].next, acquire);
 				if (tail == atomic_load_explicit(&q->tail, relaxed)) {
@@ -134,12 +157,14 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 				
 								success = atomic_compare_exchange_strong_explicit(&q->nodes[get_ptr(tail)].next,
 						&next, value, release, relaxed);
-	/* Automatically generated code for commit point define check: Enqueue_Success_Point */
+	/* Automatically generated code for commit point define check: Enqueue_UpdateNext */
 
-	if (success == true) {
+	if (success) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 0;
+		cp_define_check->label_num = 2;
+		cp_define_check->label_name = "Enqueue_UpdateNext";
 		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -163,17 +188,33 @@ void __wrapper__enqueue(queue_t * q,  unsigned int val)
 		}
 	}
 	
-		atomic_compare_exchange_strong_explicit(&q->tail,
+		bool succ = atomic_compare_exchange_strong_explicit(&q->tail,
 			&tail,
 			MAKE_POINTER(node, get_count(tail) + 1),
 			release, relaxed);
+	/* Automatically generated code for commit point define check: Enqueue_Additional_Tail_LoadOrCAS */
+
+	if (true) {
+		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
+		cp_define_check->label_num = 3;
+		cp_define_check->label_name = "Enqueue_Additional_Tail_LoadOrCAS";
+		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = true;
+		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define_check->type = CP_DEFINE_CHECK;
+		annotation_cp_define_check->annotation = cp_define_check;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	}
+	
+
 }
 
 
-bool dequeue(queue_t * q,  unsigned int * retVal) {
+bool dequeue(queue_t * q, int * retVal) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 1; // Dequeue
+		interface_begin->interface_name = "Dequeue";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -201,35 +242,92 @@ bool dequeue(queue_t * q,  unsigned int * retVal) {
 	return __RET__;
 }
 
-bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal)
+bool __wrapper__dequeue(queue_t * q, int * retVal)
 {
-	unsigned int value;
+	unsigned int value = 0;
 	int success = 0;
 	pointer head;
 	pointer tail;
 	pointer next;
 
 	while (!success) {
+	/* Automatically generated code for commit point clear: Dequeue_Clear */
+
+	if (true) {
+		struct anno_cp_clear *cp_clear = (struct anno_cp_clear*) malloc(sizeof(struct anno_cp_clear));
+		struct spec_annotation *annotation_cp_clear = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_clear->type = CP_CLEAR;
+		annotation_cp_clear->annotation = cp_clear;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_clear);
+	}
+		
 		
 		head = atomic_load_explicit(&q->head, acquire);
-		tail = atomic_load_explicit(&q->tail, acquire);
-		
-		next = atomic_load_explicit(&q->nodes[get_ptr(head)].next, acquire);
-				if (atomic_load_explicit(&q->head, relaxed) == head) {
-			if (get_ptr(head) == get_ptr(tail)) {
-
-				
-				
-	/* Automatically generated code for commit point define check: Dequeue_Empty_Point */
+	/* Automatically generated code for commit point define check: Dequeue_Read_Head */
 
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 1;
+		cp_define_check->label_num = 5;
+		cp_define_check->label_name = "Dequeue_Read_Head";
 		cp_define_check->interface_num = 1;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	}
+		
+		
+		tail = atomic_load_explicit(&q->tail, acquire);
+	/* Automatically generated code for potential commit point: Dequeue_Potential_Read_Tail */
+
+	if (true) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 6;
+		potential_cp_define->label_name = "Dequeue_Potential_Read_Tail";
+		potential_cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
+	}
+		
+
+		
+		next = atomic_load_explicit(&q->nodes[get_ptr(head)].next, acquire);
+	/* Automatically generated code for potential commit point: Dequeue_Potential_LoadNext */
+
+	if (true) {
+		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
+		potential_cp_define->label_num = 7;
+		potential_cp_define->label_name = "Dequeue_Potential_LoadNext";
+		potential_cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
+		annotation_potential_cp_define->annotation = potential_cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
+	}
+		
+		
+		if (atomic_load_explicit(&q->head, relaxed) == head) {
+			if (get_ptr(head) == get_ptr(tail)) {
+
+				
+				
+	/* Automatically generated code for commit point define: Dequeue_Read_Tail */
+
+	if (true) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 8;
+		cp_define->label_name = "Dequeue_Read_Tail";
+		cp_define->potential_cp_label_num = 6;
+		cp_define->potential_label_name = "Dequeue_Potential_Read_Tail";
+		cp_define->interface_num = 1;
+		cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
 	}
 				if (get_ptr(next) == 0) { 					
 					return false; 				}
@@ -243,23 +341,26 @@ bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal)
 									}
 								thrd_yield();
 			} else {
-				//*retVal = load_32(&q->nodes[get_ptr(next)].value);
-				*retVal = q->nodes[get_ptr(next)].value;
+				value = load_32(&q->nodes[get_ptr(next)].value);
 								
-								success = atomic_compare_exchange_strong_explicit(&q->head,
+				success = atomic_compare_exchange_strong_explicit(&q->head,
 						&head,
 						MAKE_POINTER(get_ptr(next), get_count(head) + 1),
 						release, relaxed);
-	/* Automatically generated code for commit point define check: Dequeue_Success_Point */
+	/* Automatically generated code for commit point define: Dequeue_LoadNext */
 
-	if (success == true) {
-		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 2;
-		cp_define_check->interface_num = 1;
-		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define_check->type = CP_DEFINE_CHECK;
-		annotation_cp_define_check->annotation = cp_define_check;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	if (success) {
+		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
+		cp_define->label_num = 9;
+		cp_define->label_name = "Dequeue_LoadNext";
+		cp_define->potential_cp_label_num = 7;
+		cp_define->potential_label_name = "Dequeue_Potential_LoadNext";
+		cp_define->interface_num = 1;
+		cp_define->is_additional_point = false;
+		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define->type = CP_DEFINE;
+		annotation_cp_define->annotation = cp_define;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
 	}
 				
 				if (!success)
@@ -268,6 +369,7 @@ bool __wrapper__dequeue(queue_t * q,  unsigned int * retVal)
 		}
 	}
 	reclaim(get_ptr(head));
+	*retVal = value;
 	return true;
 }
 

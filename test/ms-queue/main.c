@@ -22,17 +22,35 @@ int get_thread_num()
 		return -1;
 }
 
+bool succ1, succ2;
+
 static void main_task(void *param)
 {
+
 	unsigned int val;
 	int pid = *((int *)param);
 
-	if (!pid) {
+	if (pid % 2 == 0) {
 		input[0] = 17;
-								bool succ = dequeue(queue, &output[0]);
-			} else {
+		enqueue(queue, input[0]);
+		printf("Thrd %d Enqueue %d.\n", get_thread_num(), input[0]);
+		
+		succ1 = dequeue(queue, &output[0]);
+		if (succ1)
+			printf("Thrd %d: Dequeue %d.\n", get_thread_num(), output[0]);
+		else
+			printf("Thrd %d: Dequeue NULL.\n", get_thread_num());
+		
+	} else if (pid % 2 == 1) {
 		input[1] = 37;
-				enqueue(queue, input[0]);
+		enqueue(queue, input[1]);
+		printf("Thrd %d Enqueue %d.\n", get_thread_num(), input[1]);
+		
+		succ2 = dequeue(queue, &output[1]);
+		if (succ2)
+			printf("Thrd %d: Dequeue %d.\n", get_thread_num(), output[1]);
+		else
+			printf("Thrd %d: Dequeue NULL.\n", get_thread_num());
 	}
 }
 

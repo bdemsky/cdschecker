@@ -31,14 +31,14 @@ static void main_task(void *param)
 	int pid = *((int *)param);
 	if (pid % 3 == 0) {
 		output1 = 1;
-		bool succ1 = dequeue(queue, &output1);
+		succ1 = dequeue(queue, &output1);
 		if (succ1)
 			printf("Thrd 2: Dequeue %d.\n", output1);
 		else
 			printf("Thrd 2: Dequeue NULL.\n");
 	} else if (pid % 3 == 1) {
 		output2 = 2;
-		bool succ2 = dequeue(queue, &output2);
+		succ2 = dequeue(queue, &output2);
 		if (succ2)
 			printf("Thrd 3: Dequeue %d.\n", output2);
 		else

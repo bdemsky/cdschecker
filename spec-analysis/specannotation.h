@@ -74,12 +74,14 @@ struct anno_interface_end {
 
 typedef
 struct anno_potential_cp_define {
+	bool is_additional_point;
 	int label_num;
 	const char *label_name;
 } anno_potential_cp_define;
 
 typedef
 struct anno_cp_define {
+	bool is_additional_point;
 	int label_num;
 	const char *label_name;
 	int potential_cp_label_num;
@@ -89,6 +91,7 @@ struct anno_cp_define {
 
 typedef
 struct anno_cp_define_check {
+	bool is_additional_point;
 	int label_num;
 	const char *label_name;
 	int interface_num;

@@ -210,12 +210,13 @@ bool SPECAnalysis::isCyclic() {
 
 
 static void dumpNodeUtil(commit_point_node *node, const char *msg) {
-	action_list_t *operations = node->operations;
+	ordering_act_list_t *operations = node->operations;
 	model_print("Node: seq_%d, tid_%d, %s", node->begin->get_seq_number(),
 		node->begin->get_tid(), node->interface_name);
-	for (action_list_t::iterator opIter = operations->begin(); opIter !=
+	for (ordering_act_list_t::iterator opIter = operations->begin(); opIter !=
 		operations->end(); opIter++) {
-		ModelAction *act = *opIter;
+		ordering_operation *ordering_act = *opIter;
+		ModelAction *act = ordering_act->operation;
 		model_print("__%d", act->get_seq_number());
 	}
 	if (msg == NULL) {
@@ -285,6 +286,103 @@ node_list_t* SPECAnalysis::sortCPGraph(action_list_t *actions) {
 	return sorted_list;
 }
 
+/**
+	Build an edge between the two nodes with respect to the operations. When the
+	two operations are on the same location, if an edge has been established, it
+	returns 1; else it returns 0. When the two operations are on different
+	locations, it returns -1. If in hb-mode and the two operations are ordered
+	by hb, it returns 2.
+*/
+int SPECAnalysis::buildEdge(CycleGraph *mo_graph, commit_point_node *node1, commit_point_node *node2,
+	ModelAction *act1, ModelAction *act2) {
+	const ModelAction *rfAct1 = act1->get_reads_from(),
+		*rfAct2 = act2->get_reads_from();
+	int res = -1;
+	
+	if (hbEdgeMode) {
+		if (act1->happens_before(act2)) {
+			node1->addEdge(node2, HB);
+		} else if (act2->happens_before(act1)) {
+			node2->addEdge(node1, HB);
+		} else {
+			res = -1;
+		}
+
+		res = 2;
+	}
+
+	if (act1->get_location() == act2->get_location()) { // Same location 
+		if (act1->is_read() && rfAct1 == act2) {
+			node2->addEdge(node1, RF);
+			if (verbose) {
+				model_print("RF:\n");
+				act2->print();
+				act1->print();
+			}
+			return 1;
+		} else if (act2->is_read() && rfAct2 == act1) {
+			node1->addEdge(node2, RF);
+			if (verbose) {
+				model_print("RF:\n");
+				act1->print();
+				act2->print();
+			}
+			return 1;
+		} else {
+			// Compare the two actions by MO order
+			if (act1->is_write())
+			rfAct1 = act1;
+			if (act2->is_write())
+				rfAct2 = act2;
+
+			if (rfAct1 == rfAct2) { // Prioritize reads
+				// When both are reads, let it alone
+				if (rfAct1->is_write() || rfAct2->is_write()) {
+					if (!rfAct1->is_write()) {
+						node1->addEdge(node2, MO);
+						if (verbose) {
+							model_print("read1 write2:\n");
+							act1->print();
+							act2->print();
+						}
+						return 1;
+					} else if (!rfAct2->is_write()) {
+						node2->addEdge(node1, MO);
+						if (verbose) {
+							model_print("write1 read2:\n");
+							act2->print();
+							act1->print();
+						}
+						return 1;
+					}
+					if (verbose)
+						model_print("MO both reads no edges.\n");
+					return 0;
+				}
+			} else {
+				if (mo_graph->checkReachable(rfAct1, rfAct2)) {
+					node1->addEdge(node2, MO);
+					if (verbose) {
+						model_print("normal MO:\n");
+						act1->print();
+						act2->print();
+					}
+					return 1;
+				} else if (mo_graph->checkReachable(rfAct2, rfAct1)) {
+					node2->addEdge(node1, MO);
+					if (verbose) {
+						model_print("normal MO:\n");
+						act2->print();
+						act1->print();
+					}
+					return 1;
+				}
+			}
+		}
+	}
+	
+	return res;
+}
 
 /**
 	This method iterates the pair of commit points between two nodes to build
@@ -300,87 +398,50 @@ void SPECAnalysis::buildEdges() {
 			ModelAction *begin1 = *iter1,
 				*begin2 = *iter2,
 				*act1, *act2;
-			const ModelAction *rfAct1, *rfAct2;
+			ordering_operation *ordering_act1, *ordering_act2;
 			commit_point_node *node1 = cpGraph->get(begin1),
 				*node2 = cpGraph->get(begin2);
 			// Iterate the commit point lists of both nodes to build edges
-			action_list_t::iterator cpIter1, cpIter2;
+			ordering_act_list_t::iterator cpIter1, cpIter2;
+			int res = -1;
+			bool sameLoc = false;
+			bool hasEdge = false;
+			// Omit additional ordering points at first 
 			for (cpIter1 = node1->operations->begin(); cpIter1 !=
 				node1->operations->end(); cpIter1++) {
-				act1 = *cpIter1;
+				ordering_act1 = *cpIter1;
+				if (ordering_act1->is_additional_point)
+					continue;
+				act1 = ordering_act1->operation;
 				for (cpIter2 = node2->operations->begin(); cpIter2 !=
 					node2->operations->end(); cpIter2++) {
-					act2 = *cpIter2;
-					rfAct1 = act1->get_reads_from();
-					rfAct2 = act2->get_reads_from();
-					if (act1->get_location() == act2->get_location()) { // Same location 
-						if (act1->is_read() && rfAct1 == act2) {
-							node2->addEdge(node1, RF);
-							if (verbose) {
-								model_print("RF:\n");
-								act2->print();
-								act1->print();
-							}
-						} else if (act2->is_read() && rfAct2 == act1) {
-							node1->addEdge(node2, RF);
-							if (verbose) {
-								model_print("RF:\n");
-								act1->print();
-								act2->print();
-							}
-						} else {
-							// Compare the two actions by MO order
-							if (act1->is_write())
-								rfAct1 = act1;
-							if (act2->is_write())
-								rfAct2 = act2;
-							if (rfAct1 == rfAct2) { // Prioritize reads
-								// When both are reads, let it alone
-								if (rfAct1->is_write() || rfAct2->is_write()) {
-									if (!rfAct1->is_write()) {
-										node1->addEdge(node2, MO);
-										if (verbose) {
-											model_print("read1 write2:\n");
-											act1->print();
-											act2->print();
-										}
-									} else if (!rfAct2->is_write()) {
-										node2->addEdge(node1, MO);
-										if (verbose) {
-											model_print("write1 read2:\n");
-											act2->print();
-											act1->print();
-										}
-									}
-									if (verbose)
-										model_print("MO both reads no edges.\n");
-								}
-							} else {
-								if (mo_graph->checkReachable(rfAct1, rfAct2)) {
-									node1->addEdge(node2, MO);
-									if (verbose) {
-										model_print("normal MO:\n");
-										act1->print();
-										act2->print();
-									}
-								} else if (mo_graph->checkReachable(rfAct2, rfAct1)) {
-									node2->addEdge(node1, MO);
-									if (verbose) {
-										model_print("normal MO:\n");
-										act2->print();
-										act1->print();
-									}
-								}
-							}
-						}
-					}
+					ordering_act2 = *cpIter2;
+					if (ordering_act2->is_additional_point)
+						continue;
+					act2 = ordering_act2->operation;
+					res = buildEdge(mo_graph, node1, node2, act1, act2);
+					if (res > 0)
+						hasEdge = true;
+					if (res == 0 || res == 1)
+						sameLoc = true;
+				}
+			}
 
-					if (hbEdgeMode) {
-						if (act1->happens_before(act2)) {
-							node1->addEdge(node2, HB);
-						} else if (act2->happens_before(act1)) {
-							node2->addEdge(node1, HB);
-						}
+			// This time we count on additional ordering points to add edges 
+			if (sameLoc && !hasEdge) {
+				for (cpIter1 = node1->operations->begin(); cpIter1 !=
+					node1->operations->end(); cpIter1++) {
+					ordering_act1 = *cpIter1;
+					act1 = ordering_act1->operation;
+					for (cpIter2 = node2->operations->begin(); cpIter2 !=
+						node2->operations->end(); cpIter2++) {
+						ordering_act2 = *cpIter2;
+						act2 = ordering_act2->operation;
+						res = buildEdge(mo_graph, node1, node2, act1, act2);
+						if (res > 0)
+							hasEdge = true;
+						if (res == 0 || res == 1)
+							sameLoc = true;
 					}
 				}
 			}
@@ -458,7 +519,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 	ModelAction *operation = NULL;
 	bool hasCommitPoint = false, pcp_defined = false;
 	bool hasCorrespondingPCP = false;
-	node->operations = new action_list_t();
+	node->operations = new ordering_act_list_t();
 	for (it++; it != actions->end(); it++) {
 		act = *it;
 		if (act->get_type() != ATOMIC_ANNOTATION || act->get_tid() != tid
@@ -466,6 +527,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 			continue;
 		spec_annotation *anno = (spec_annotation*) act->get_location();
 		anno_hb_condition *hb_cond;
+		ordering_operation *order_op;
 		switch (anno->type) {
 			case POTENTIAL_CP_DEFINE:
 				//model_print("POTENTIAL_CP_DEFINE\n");
@@ -498,7 +560,10 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 						}
 					}
 					if (hasCorrespondingPCP) {
-						node->operations->push_back(operation);
+						order_op = new ordering_operation;
+						order_op->is_additional_point = cp_define->is_additional_point;
+						order_op->operation = operation;
+						node->operations->push_back(order_op);
 						// Destroy the previous list of potential commit points
 						deletePcpList(pcp_list);
 						// Get a new list of potential commit points
@@ -513,7 +578,10 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 					continue;
 				operation = getPrevAction(actions, &it, act);
 				// Add the commit_point_define_check operation
-				node->operations->push_back(operation);
+				order_op = new ordering_operation;
+				order_op->is_additional_point = cp_define_check->is_additional_point;
+				order_op->operation = operation;
+				node->operations->push_back(order_op);
 				hasCommitPoint = true;
 				break;
 			
@@ -530,7 +598,7 @@ commit_point_node* SPECAnalysis::getCPNode(action_list_t *actions, action_list_t
 				//pcp_list = new pcp_list_t();
 				// Also destroy the previous list of commit points
 				delete node->operations;
-				node->operations = new action_list_t();
+				node->operations = new ordering_act_list_t();
 				break;
 
 			case HB_CONDITION:
