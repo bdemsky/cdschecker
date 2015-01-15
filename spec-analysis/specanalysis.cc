@@ -348,7 +348,8 @@ void SPECAnalysis::buildEdges() {
 											act1->print();
 										}
 									}
-									model_print("MO both reads no edges.\n");
+									if (verbose)
+										model_print("MO both reads no edges.\n");
 								}
 							} else {
 								if (mo_graph->checkReachable(rfAct1, rfAct2)) {
