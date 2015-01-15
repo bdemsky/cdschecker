@@ -109,6 +109,7 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		commit_point_node *node = *iter;
 		//dumpNode(node);
 		int interface_num = node->interface_num;
+		const char *interface_name = node->interface_name;
 		id_func_t id_func = (id_func_t) func_table[2 * interface_num];
 		check_action_func_t check_action = (check_action_func_t) func_table[2 * interface_num + 1];
 		void *info = node->info;
@@ -124,7 +125,7 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		//model_print("hey_check2\n");
 		//model_print("hey!\n");
 		if (!passed) {
-			model_print("Interface %d failed\n", interface_num);
+			model_print("Interface %s failed\n", interface_name);
 			model_print("ID: %d\n", __ID__);
 			model_print("Error exists in correctness check!!\n");
 			// If it's not at the non-stop mode, it will stop checking 
