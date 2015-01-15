@@ -7,7 +7,9 @@
 #include <sys/time.h>
 #include <assert.h>
 #include "modeltypes.h"
+#include "model.h"
 
+extern ModelChecker *model;
 
 /** Add ordering points **/
 
@@ -96,6 +98,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		if (!passed)
 			model_print("Error exists!!\n");
 		dumpGraph(sorted_commit_points);
+		model->print_execution(true);
 	}
 }
 

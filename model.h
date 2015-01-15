@@ -70,6 +70,10 @@ public:
 		trace_analyses.push_back(a);
 	}
 
+	/** Make this function pulbic so that analyses can use it to print the
+	 * execution summary */
+	void print_execution(bool printbugs) const;
+
 	MEMALLOC
 private:
 	/** The scheduler to use: tracks the running/ready Threads */
@@ -102,7 +106,7 @@ private:
 	void record_stats();
 	void run_trace_analyses();
 	void print_bugs() const;
-	void print_execution(bool printbugs) const;
+	//void print_execution(bool printbugs) const;
 	void print_stats() const;
 
 	friend void user_main_wrapper();
