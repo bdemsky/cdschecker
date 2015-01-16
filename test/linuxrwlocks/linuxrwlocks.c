@@ -325,6 +325,7 @@ void read_lock(rwlock_t * rw) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 0; // Read_Lock
+		interface_begin->interface_name = "Read_Lock";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -357,7 +358,9 @@ void __wrapper__read_lock(rwlock_t * rw)
 	if (priorvalue > 0) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 0;
+		cp_define_check->label_name = "Read_Lock_Success_1";
 		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -375,7 +378,9 @@ void __wrapper__read_lock(rwlock_t * rw)
 	if (priorvalue > 0) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 1;
+		cp_define_check->label_name = "Read_Lock_Success_2";
 		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -392,6 +397,7 @@ void write_lock(rwlock_t * rw) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 1; // Write_Lock
+		interface_begin->interface_name = "Write_Lock";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -424,7 +430,9 @@ void __wrapper__write_lock(rwlock_t * rw)
 	if (priorvalue == RW_LOCK_BIAS) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 2;
+		cp_define_check->label_name = "Write_Lock_Success_1";
 		cp_define_check->interface_num = 1;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -442,7 +450,9 @@ void __wrapper__write_lock(rwlock_t * rw)
 	if (priorvalue == RW_LOCK_BIAS) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 3;
+		cp_define_check->label_name = "Write_Lock_Success_2";
 		cp_define_check->interface_num = 1;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -458,6 +468,7 @@ int read_trylock(rwlock_t * rw) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 2; // Read_Trylock
+		interface_begin->interface_name = "Read_Trylock";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -494,6 +505,8 @@ int __wrapper__read_trylock(rwlock_t * rw)
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
 		potential_cp_define->label_num = 4;
+		potential_cp_define->label_name = "Potential_Read_Trylock_Point";
+		potential_cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -506,8 +519,11 @@ int __wrapper__read_trylock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 5;
+		cp_define->label_name = "Read_Trylock_Succ_Point";
 		cp_define->potential_cp_label_num = 4;
+		cp_define->potential_label_name = "Potential_Read_Trylock_Point";
 		cp_define->interface_num = 2;
+		cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -521,8 +537,11 @@ int __wrapper__read_trylock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 6;
+		cp_define->label_name = "Read_Trylock_Fail_Point";
 		cp_define->potential_cp_label_num = 4;
+		cp_define->potential_label_name = "Potential_Read_Trylock_Point";
 		cp_define->interface_num = 2;
+		cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -539,6 +558,7 @@ int write_trylock(rwlock_t * rw) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 3; // Write_Trylock
+		interface_begin->interface_name = "Write_Trylock";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -575,6 +595,8 @@ int __wrapper__write_trylock(rwlock_t * rw)
 	if (true) {
 		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
 		potential_cp_define->label_num = 7;
+		potential_cp_define->label_name = "Potential_Write_Trylock_Point";
+		potential_cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
 		annotation_potential_cp_define->annotation = potential_cp_define;
@@ -587,8 +609,11 @@ int __wrapper__write_trylock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 8;
+		cp_define->label_name = "Write_Trylock_Succ_Point";
 		cp_define->potential_cp_label_num = 7;
+		cp_define->potential_label_name = "Potential_Write_Trylock_Point";
 		cp_define->interface_num = 3;
+		cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -602,8 +627,11 @@ int __wrapper__write_trylock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
 		cp_define->label_num = 9;
+		cp_define->label_name = "Write_Trylock_Fail_Point";
 		cp_define->potential_cp_label_num = 7;
+		cp_define->potential_label_name = "Potential_Write_Trylock_Point";
 		cp_define->interface_num = 3;
+		cp_define->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define->type = CP_DEFINE;
 		annotation_cp_define->annotation = cp_define;
@@ -620,6 +648,7 @@ void read_unlock(rwlock_t * rw) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 4; // Read_Unlock
+		interface_begin->interface_name = "Read_Unlock";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -652,7 +681,9 @@ void __wrapper__read_unlock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 10;
+		cp_define_check->label_name = "Read_Unlock_Point";
 		cp_define_check->interface_num = 4;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -667,6 +698,7 @@ void write_unlock(rwlock_t * rw) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 5; // Write_Unlock
+		interface_begin->interface_name = "Write_Unlock";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -699,7 +731,9 @@ void __wrapper__write_unlock(rwlock_t * rw)
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 11;
+		cp_define_check->label_name = "Write_Unlock_Point";
 		cp_define_check->interface_num = 5;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
