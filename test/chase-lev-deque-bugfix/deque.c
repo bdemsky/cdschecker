@@ -20,6 +20,7 @@ int take(Deque * q) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 0; // Take
+		interface_begin->interface_name = "Take";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -48,50 +49,47 @@ int take(Deque * q) {
 
 int __wrapper__take(Deque * q) {
 	size_t b = atomic_load_explicit(&q->bottom, memory_order_relaxed) - 1;
-	Array *a = (Array *) atomic_load_explicit(&q->array, memory_order_relaxed);
-	atomic_store_explicit(&q->bottom, b, memory_order_relaxed);
-	
-	atomic_thread_fence(memory_order_seq_cst);
-	size_t t = atomic_load_explicit(&q->top, memory_order_relaxed);
-	/* Automatically generated code for commit point define check: Take_Point1 */
+	/* Automatically generated code for commit point define check: Take_Read_Bottom */
 
-	if (t > b) {
+	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
 		cp_define_check->label_num = 0;
+		cp_define_check->label_name = "Take_Read_Bottom";
 		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
 	}
+	
+	Array *a = (Array *) atomic_load_explicit(&q->array, memory_order_relaxed);
+	
+	atomic_store_explicit(&q->bottom, b, memory_order_relaxed);
+	
+	atomic_thread_fence(memory_order_seq_cst);
+	size_t t = atomic_load_explicit(&q->top, memory_order_relaxed);
 	
 	int x;
 	if (t <= b) {
 		
 		int size = atomic_load_explicit(&a->size,memory_order_relaxed);
 		x = atomic_load_explicit(&a->buffer[b % size], memory_order_relaxed);
-	/* Automatically generated code for commit point define check: Take_Point2 */
-
-	if (t != b) {
-		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 1;
-		cp_define_check->interface_num = 0;
-		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define_check->type = CP_DEFINE_CHECK;
-		annotation_cp_define_check->annotation = cp_define_check;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
-	}
 		
 		if (t == b) {
 			
 						bool succ = atomic_compare_exchange_strong_explicit(&q->top, &t, t +
 				1, memory_order_seq_cst, memory_order_relaxed);
-	/* Automatically generated code for commit point define check: Take_Point3 */
+			
+
+	/* Automatically generated code for commit point define check: Take_Additional_Point */
 
 	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 2;
+		cp_define_check->label_num = 1;
+		cp_define_check->label_name = "Take_Additional_Point";
 		cp_define_check->interface_num = 0;
+		cp_define_check->is_additional_point = true;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -132,6 +130,7 @@ void push(Deque * q, int x) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 1; // Push
+		interface_begin->interface_name = "Push";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -165,25 +164,29 @@ void __wrapper__push(Deque * q, int x) {
 	if (b - t > atomic_load_explicit(&a->size, memory_order_relaxed) - 1)  {
 		resize(q);
 				a = (Array *) atomic_load_explicit(&q->array, memory_order_relaxed);
+		
 	}
 	int size = atomic_load_explicit(&a->size, memory_order_relaxed);
-	atomic_store_explicit(&a->buffer[b % size], x, memory_order_relaxed);
-	/* Automatically generated code for commit point define check: Push_Point */
 
-	if (true) {
-		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 3;
-		cp_define_check->interface_num = 1;
-		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define_check->type = CP_DEFINE_CHECK;
-		annotation_cp_define_check->annotation = cp_define_check;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
-	}
+	atomic_store_explicit(&a->buffer[b % size], x, memory_order_relaxed);
 	
 	
 	atomic_thread_fence(memory_order_release);
 	
 	atomic_store_explicit(&q->bottom, b + 1, memory_order_relaxed);
+	/* Automatically generated code for commit point define check: Push_Update_Bottom */
+
+	if (true) {
+		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
+		cp_define_check->label_num = 2;
+		cp_define_check->label_name = "Push_Update_Bottom";
+		cp_define_check->interface_num = 1;
+		cp_define_check->is_additional_point = false;
+		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
+		annotation_cp_define_check->type = CP_DEFINE_CHECK;
+		annotation_cp_define_check->annotation = cp_define_check;
+		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
+	}
 	
 }
 
@@ -192,6 +195,7 @@ int steal(Deque * q) {
 	/* Interface begins */
 	struct anno_interface_begin *interface_begin = (struct anno_interface_begin*) malloc(sizeof(struct anno_interface_begin));
 	interface_begin->interface_num = 2; // Steal
+		interface_begin->interface_name = "Steal";
 	struct spec_annotation *annotation_interface_begin = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 	annotation_interface_begin->type = INTERFACE_BEGIN;
 	annotation_interface_begin->annotation = interface_begin;
@@ -220,48 +224,48 @@ int steal(Deque * q) {
 
 int __wrapper__steal(Deque * q) {
 		size_t t = atomic_load_explicit(&q->top, memory_order_acquire);
+	
 		atomic_thread_fence(memory_order_seq_cst);
 	
 	size_t b = atomic_load_explicit(&q->bottom, memory_order_acquire);
-	/* Automatically generated code for commit point define check: Steal_Point1 */
+	/* Automatically generated code for commit point define check: Steal_Read_Bottom */
 
-	if (t >= b) {
+	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 4;
+		cp_define_check->label_num = 3;
+		cp_define_check->label_name = "Steal_Read_Bottom";
 		cp_define_check->interface_num = 2;
+		cp_define_check->is_additional_point = false;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
 		cdsannotate(SPEC_ANALYSIS, annotation_cp_define_check);
 	}
+	
+
 	
 	int x = EMPTY;
 	if (t < b) {
 		
 		
 		Array *a = (Array *) atomic_load_explicit(&q->array, memory_order_acquire);
+		
 		int size = atomic_load_explicit(&a->size, memory_order_relaxed);
 		x = atomic_load_explicit(&a->buffer[t % size], memory_order_relaxed);
-	/* Automatically generated code for potential commit point: Potential_Steal */
-
-	if (true) {
-		struct anno_potential_cp_define *potential_cp_define = (struct anno_potential_cp_define*) malloc(sizeof(struct anno_potential_cp_define));
-		potential_cp_define->label_num = 5;
-		struct spec_annotation *annotation_potential_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_potential_cp_define->type = POTENTIAL_CP_DEFINE;
-		annotation_potential_cp_define->annotation = potential_cp_define;
-		cdsannotate(SPEC_ANALYSIS, annotation_potential_cp_define);
-	}
 		
 		 
 		bool succ = atomic_compare_exchange_strong_explicit(&q->top, &t, t + 1,
 			memory_order_seq_cst, memory_order_relaxed);
-	/* Automatically generated code for commit point define check: Steal_Point2 */
+		
 
-	if (! succ) {
+	/* Automatically generated code for commit point define check: Steal_Additional_Point */
+
+	if (true) {
 		struct anno_cp_define_check *cp_define_check = (struct anno_cp_define_check*) malloc(sizeof(struct anno_cp_define_check));
-		cp_define_check->label_num = 6;
+		cp_define_check->label_num = 4;
+		cp_define_check->label_name = "Steal_Additional_Point";
 		cp_define_check->interface_num = 2;
+		cp_define_check->is_additional_point = true;
 		struct spec_annotation *annotation_cp_define_check = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
 		annotation_cp_define_check->type = CP_DEFINE_CHECK;
 		annotation_cp_define_check->annotation = cp_define_check;
@@ -269,18 +273,6 @@ int __wrapper__steal(Deque * q) {
 	}
 		
 
-	/* Automatically generated code for commit point define: Steal_Point3 */
-
-	if (succ) {
-		struct anno_cp_define *cp_define = (struct anno_cp_define*) malloc(sizeof(struct anno_cp_define));
-		cp_define->label_num = 7;
-		cp_define->potential_cp_label_num = 5;
-		cp_define->interface_num = 2;
-		struct spec_annotation *annotation_cp_define = (struct spec_annotation*) malloc(sizeof(struct spec_annotation));
-		annotation_cp_define->type = CP_DEFINE;
-		annotation_cp_define->annotation = cp_define;
-		cdsannotate(SPEC_ANALYSIS, annotation_cp_define);
-	}
 		
 		if (!succ) {
 			
