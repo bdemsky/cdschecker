@@ -22,6 +22,8 @@ SPECAnalysis::SPECAnalysis()
 	hbEdgeMode = false;
 	nonStopMode = false;
 	verbose = false;
+
+	cyclicGraph = false;
 }
 
 SPECAnalysis::~SPECAnalysis() {
@@ -90,6 +92,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 	if (sorted_commit_points == NULL) {
 		model_print("Wired data structure, fail to check!\n");
 		dumpGraph(sorted_commit_points);
+		model->print_execution(true);
 		return;
 	}
 	bool passed = check(sorted_commit_points);
@@ -265,6 +268,7 @@ node_list_t* SPECAnalysis::sortCPGraph(action_list_t *actions) {
 							dumpNodeUtil(next_node, "cycle");
 							traverseActions(actions);
 							model_print("There exists cycles in this graph!\n");
+							cyclicGraph = true;
 							return NULL;
 						}
 						if (next_node->color == 0) {

@@ -149,6 +149,8 @@ class SPECAnalysis : public TraceAnalysis {
 	hbrule_list_t *hb_rules;
 	bool isBrokenExecution;
 	
+	bool cyclicGraph;
+	
 	/** Flag that decides whether we consider the stronger HB mode (data
 	 * structures are SC, false by default) */
 	bool hbEdgeMode;
