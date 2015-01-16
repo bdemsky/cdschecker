@@ -22,8 +22,9 @@ SPECAnalysis::SPECAnalysis()
 	hbEdgeMode = false;
 	nonStopMode = false;
 	verbose = false;
-
 	cyclicGraph = false;
+	// The default mode
+	searchingMode = 1;
 }
 
 SPECAnalysis::~SPECAnalysis() {
@@ -53,12 +54,23 @@ bool SPECAnalysis::option(char * opt) {
 	} else if (strcmp(opt, "non-stop") == 0) {
 		nonStopMode = true;
 		return false;
+	} else if (strcmp(opt, "all-histories-one-correct") == 0) {
+		searchingMode = 2;
+		return false;
+	} else if (strcmp(opt, "all-histories-all-correct") == 0) {
+		searchingMode = 3;
+		return false;
 	}
 	model_print("SPEC Analysis options\n");
-	model_print("non-hb-- Don't take happens-before edges to order API methods\n");
+	model_print("hb-mode-- Use happens-before edges to order API methods (data\
+structures should be SC at the API level\n");
 	model_print("non-stop-- Don't stop the checking process even if it\
 encounters an inconsistency\n");
 	model_print("verbose -- Output the graph information\n");
+	model_print("all-histories-one-correct -- Search all possible histories\
+but only require one of them to be correct\n");
+	model_print("all-histories-all-correct -- Search all possible histories\
+and require all of them to be correct\n");
 	return true;
 }
 
@@ -75,6 +87,7 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 
 	//traverseActions(actions);
 	
+	/* Next build the graph for different checking routines */
 	buildCPGraph(actions);
 	if (isBrokenExecution)
 		return;
@@ -85,17 +98,37 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 
 	if (cpActions->size() == 0) return;
 	buildEdges();
-	
-	node_list_t *sorted_commit_points = sortCPGraph(actions);
 
+	bool passed = false;
+	if (searchingMode == 1) { // By default
+		passed = checkOneCorrect(actions);
+	} else if (searchingMode == 2) {
+		passed = checkWholeSpaceOneCorrect(actions);
+	} else if (searchingMode == 3) {
+		passed = checkWholeSpaceAllCorrect(actions);
+	}
+	if (!passed) {
+		model_print("Oh, specification error!!\n");
+	}
+}
+
+bool SPECAnalysis::checkOneCorrect(action_list_t *actions) {
+	node_list_t *sorted_commit_points = sortCPGraph(actions);
 	
 	if (sorted_commit_points == NULL) {
 		model_print("Wired data structure, fail to check!\n");
 		dumpGraph(sorted_commit_points);
 		model->print_execution(true);
-		return;
+		return false;
 	}
-	bool passed = check(sorted_commit_points);
+
+	// Call the __SPEC_INIT_ function first to initialize stuff
+	(*init_func)();
+
+	bool passed = checkingRoutine(sorted_commit_points);
+
+	// Call the __SPEC_CLEANUP_ function to clean up stuff 
+	(*cleanup_func)();
 
 	if (!passed || verbose) {
 		if (!passed)
@@ -103,13 +136,47 @@ void SPECAnalysis::analyze(action_list_t *actions) {
 		dumpGraph(sorted_commit_points);
 		model->print_execution(true);
 	}
+
+	return passed;
 }
 
-bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
+bool SPECAnalysis::checkWholeSpaceOneCorrect(action_list_t *actions) {
+	node_list_t *sorted_commit_points = sortCPGraph(actions);
+	bool anyPassed = false;
+
+	// Call the __SPEC_INIT_ function first to initialize stuff
+	(*init_func)();
+
+	bool passed = checkingRoutine(sorted_commit_points);
+
+	// Call the __SPEC_CLEANUP_ function to clean up stuff 
+	(*cleanup_func)();
+}
+
+
+bool SPECAnalysis::checkWholeSpaceAllCorrect(action_list_t *actions) {
+	node_list_t *sorted_commit_points = sortCPGraph(actions);
+
+	// Call the __SPEC_INIT_ function first to initialize stuff
+	(*init_func)();
+
+	bool passed = checkingRoutine(sorted_commit_points);
+
+	// Call the __SPEC_CLEANUP_ function to clean up stuff 
+	(*cleanup_func)();
+}
+
+/**
+	The checking routine of one history. As long as it is provided a sorted list
+	of nodes, this method can check whether it's against the specification.
+	Shared by different searching modes.
+*/
+bool SPECAnalysis::checkingRoutine(node_list_t *sorted_commit_points) {
 	bool passed = true;
 	// Actions and simple checks first
 	node_list_t::iterator iter;
 	//model_print("Sorted nodes:\n");
+
 	for (iter = sorted_commit_points->begin(); iter !=
 		sorted_commit_points->end(); iter++) {
 		commit_point_node *node = *iter;
@@ -119,17 +186,11 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		id_func_t id_func = (id_func_t) func_table[2 * interface_num];
 		check_action_func_t check_action = (check_action_func_t) func_table[2 * interface_num + 1];
 		void *info = node->info;
-		///model_print("Here1, inter_name: %d\n", interface_num);
 		thread_id_t __TID__ = node->begin->get_tid();
 		
-		//model_print("hey_id1\n");
 		call_id_t __ID__ = id_func(info, __TID__);
-		//model_print("hey_id2\n");
 		node->__ID__ = __ID__;
-		//model_print("hey_check1\n");
 		passed = check_action(info, __ID__, __TID__);
-		//model_print("hey_check2\n");
-		//model_print("hey!\n");
 		if (!passed) {
 			model_print("Interface %s failed\n", interface_name);
 			model_print("ID: %d\n", __ID__);
@@ -673,6 +734,8 @@ void SPECAnalysis::buildCPGraph(action_list_t *actions) {
 		switch (anno->type) {
 			case INIT:
 				init = (anno_init*) anno->annotation;
+				init_func = (void_func_t) init->init_func;
+				cleanup_func = (void_func_t) init->cleanup_func;
 				//model_print("INIT. func_table: %d, size: %d\n",
 					//init->func_table, init->func_table_size);
 				if (func_table != NULL) {

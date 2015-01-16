@@ -148,8 +148,21 @@ class SPECAnalysis : public TraceAnalysis {
 	void **func_table;
 	hbrule_list_t *hb_rules;
 	bool isBrokenExecution;
+
+	void_func_t init_func;
+	void_func_t cleanup_func;
 	
 	bool cyclicGraph;
+
+	/** We provide three mode for searching:
+	 *  1. Just produce one random topological sorting, and then check and
+	 *  report for that history only (the default way).
+	 *  2. Produce all possible history, and the data structure is correct as
+	 *  long as there exists some history that is correct.
+	 *  3. Produce all possible history, and the data structure is correct only
+	 *  when all histories are correct.
+	*/
+	int searchingMode;
 	
 	/** Flag that decides whether we consider the stronger HB mode (data
 	 * structures are SC, false by default) */
@@ -183,13 +196,17 @@ class SPECAnalysis : public TraceAnalysis {
 	void buildEdges();
 	node_list_t* sortCPGraph(action_list_t *actions);
 	bool isCyclic();
-	bool check(node_list_t *sorted_commit_points);
+	bool checkingRoutine(node_list_t *sorted_commit_points);
 	void freeCPNodes();
 	void test();
 	void dumpGraph(node_list_t *sorted_commit_points);
 	void dumpDotGraph();
 	void dumpNode(commit_point_node *node);
 	void traverseActions(action_list_t *actions);
+
+	bool checkOneCorrect(action_list_t *actions);
+	bool checkWholeSpaceOneCorrect(action_list_t *actions);
+	bool checkWholeSpaceAllCorrect(action_list_t *actions);
 
 	void deletePcpList(pcp_list_t *pcp_list);
 };

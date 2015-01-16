@@ -8,6 +8,7 @@
 
 typedef call_id_t (*id_func_t)(void *info, thread_id_t tid);
 typedef bool (*check_action_func_t)(void *info, call_id_t id, thread_id_t tid);
+typedef void (*void_func_t)(void);
 //typedef bool (*check_action_func_t)(void *info, call_id_t id);
 
 typedef enum spec_anno_type {
@@ -36,6 +37,8 @@ struct anno_hb_init {
 
 typedef
 struct anno_init {
+	void *init_func;
+	void *cleanup_func;
 	void **func_table;
 	int func_table_size;
 	anno_hb_init **hb_init_table;
