@@ -140,30 +140,161 @@ bool SPECAnalysis::checkOneCorrect(action_list_t *actions) {
 	return passed;
 }
 
+/**
+	Check if "node" is a valid choice to inserted to the list. It basically
+	checks whether there exists an edge from node to the nodes in the list.
+*/
+bool SPECAnalysis::isValidChoice(node_list_t *list, commit_point_node *node) {
+	edge_list_t *edges = node->edges;
+	if (!edges)
+		return true;
+	for (node_list_t::iterator it = list->begin(); it != list->end(); it++) {
+		commit_point_node *prevNode = *it;
+		for (edge_list_t::iterator edgeIt = edges->begin(); edgeIt !=
+			edges->end(); edgeIt++) {
+			commit_point_edge *e = *edgeIt;
+			if (e->next_node == prevNode)
+				return false;
+		}
+	}
+	return true;
+}
+
+/**
+	This is very similar to a brute-force permutation except that it checks
+	possibility of sorting in every step such that it can reduce overhead to
+	some degree. However, this is theoretically NP-hard problem and we are
+	really just providing some options here.
+*/
+bool SPECAnalysis::checkWholeSpaceOneCorrectHelper(action_list_t *actions,
+	commit_point_node **nodes, bool *chosenArray, int nodeSize,
+	node_list_t *sortedList, int sortedListSize) {
+	
+	if (sortedListSize == nodeSize) { 
+		// Ready to check this possible result
+
+		// Call the __SPEC_INIT_ function first to initialize stuff
+		(*init_func)();
+
+		bool passed = checkingRoutine(sortedList);
+
+		// Call the __SPEC_CLEANUP_ function to clean up stuff 
+		(*cleanup_func)();
+
+		if (!passed || verbose) {
+			if (!passed)
+				model_print("Error exists!!\n");
+			dumpGraph(sortedList);
+			model->print_execution(true);
+		}
+
+		return passed;
+	}
+
+	for (int i = 0; i < nodeSize; i++) {
+		commit_point_node *node = nodes[i];
+		bool chosen = chosenArray[i];
+		if (!chosen && isValidChoice(sortedList, node)) {
+			chosenArray[i] = true;
+			sortedList->push_back(node);
+			bool passed = checkWholeSpaceOneCorrectHelper(actions, nodes, chosenArray,
+				nodeSize, sortedList, sortedListSize + 1);
+			if (passed)
+				return true;
+			// Reset the chosen bit of this node
+			chosenArray[i] = false;
+		}
+	}
+
+	return false;
+}
+
+/**
+	Similiar to the checkWholeSpaceOneCorrectHelper.
+*/
+bool SPECAnalysis::checkWholeSpaceAllCorrectHelper(action_list_t *actions,
+	commit_point_node **nodes, bool *chosenArray, int nodeSize,
+	node_list_t *sortedList, int sortedListSize) {
+	if (sortedListSize == nodeSize) { 
+		// Ready to check this possible result
+
+		// Call the __SPEC_INIT_ function first to initialize stuff
+		(*init_func)();
+
+		bool passed = checkingRoutine(sortedList);
+
+		// Call the __SPEC_CLEANUP_ function to clean up stuff 
+		(*cleanup_func)();
+
+		if (!passed || verbose) {
+			if (!passed)
+				model_print("Error exists!!\n");
+			dumpGraph(sortedList);
+			model->print_execution(true);
+		}
+
+		return passed;
+	}
+
+	for (int i = 0; i < nodeSize; i++) {
+		commit_point_node *node = nodes[i];
+		bool chosen = chosenArray[i];
+		if (!chosen && isValidChoice(sortedList, node)) {
+			chosenArray[i] = true;
+			sortedList->push_back(node);
+			bool passed = checkWholeSpaceOneCorrectHelper(actions, nodes, chosenArray,
+				nodeSize, sortedList, sortedListSize + 1);
+			if (!passed)
+				return false;
+			// Reset the chosen bit of this node
+			chosenArray[i] = false;
+		}
+	}
+
+	return true;
+}
+
 bool SPECAnalysis::checkWholeSpaceOneCorrect(action_list_t *actions) {
-	node_list_t *sorted_commit_points = sortCPGraph(actions);
-	bool anyPassed = false;
-
-	// Call the __SPEC_INIT_ function first to initialize stuff
-	(*init_func)();
-
-	bool passed = checkingRoutine(sorted_commit_points);
-
-	// Call the __SPEC_CLEANUP_ function to clean up stuff 
-	(*cleanup_func)();
+	// First initialize necessary stuff
+	int nodeSize = cpActions->size();
+	commit_point_node **nodes = (commit_point_node **) model_malloc(sizeof(commit_point_node*) * nodeSize);
+	bool *chosenArray = (bool*) model_calloc(1, sizeof(bool) * nodeSize);
+	int i = 0;
+	for (action_list_t::iterator it = cpActions->begin(); it !=
+		cpActions->end(); it++) {
+		ModelAction *beginAct = *it;
+		commit_point_node *node = cpGraph->get(beginAct);
+		nodes[i++] = node;
+	}
+	node_list_t *sortedList = new node_list_t;
+	
+	// Then run the helper function
+	bool passed = checkWholeSpaceOneCorrectHelper(actions, nodes, chosenArray, nodeSize, sortedList, 0);
+	model_free(nodes);
+	model_free(chosenArray);
+	return passed;
 }
 
 
 bool SPECAnalysis::checkWholeSpaceAllCorrect(action_list_t *actions) {
-	node_list_t *sorted_commit_points = sortCPGraph(actions);
+	// First initialize necessary stuff
+	int nodeSize = cpActions->size();
+	commit_point_node **nodes = (commit_point_node **) malloc(sizeof(commit_point_node*) * nodeSize);
+	bool *chosenArray = (bool*) calloc(1, sizeof(bool) * nodeSize);
+	int i = 0;
+	for (action_list_t::iterator it = cpActions->begin(); it !=
+		cpActions->end(); it++) {
+		ModelAction *beginAct = *it;
+		commit_point_node *node = cpGraph->get(beginAct);
+		nodes[i++] = node;
+	}
+	node_list_t *sortedList = new node_list_t;
 
-	// Call the __SPEC_INIT_ function first to initialize stuff
-	(*init_func)();
-
-	bool passed = checkingRoutine(sorted_commit_points);
-
-	// Call the __SPEC_CLEANUP_ function to clean up stuff 
-	(*cleanup_func)();
+	// Then run the helper function
+	bool passed = checkWholeSpaceOneCorrectHelper(actions, nodes, chosenArray, nodeSize, sortedList, 0);
+	model_free(nodes);
+	model_free(chosenArray);
+	return passed;
 }
 
 /**

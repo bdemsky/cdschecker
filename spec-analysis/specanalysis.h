@@ -208,6 +208,14 @@ class SPECAnalysis : public TraceAnalysis {
 	bool checkWholeSpaceOneCorrect(action_list_t *actions);
 	bool checkWholeSpaceAllCorrect(action_list_t *actions);
 
+	bool checkWholeSpaceOneCorrectHelper(action_list_t *actions,
+	commit_point_node **nodes,
+		bool *chosenArray, int nodeSize, node_list_t *sortedList, int sortedListSize);
+
+	bool checkWholeSpaceAllCorrectHelper(action_list_t *actions, commit_point_node **nodes,
+		bool *chosen, int nodeSize, node_list_t *sortedList, int sortedListSize);
+	bool isValidChoice(node_list_t *list, commit_point_node *node);
+
 	void deletePcpList(pcp_list_t *pcp_list);
 };
 
