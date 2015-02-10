@@ -648,7 +648,12 @@ class SCFence : public TraceAnalysis {
 	bool updateConstraints(ModelAction *act);
 	void computeCV(action_list_t *);
 	action_list_t * generateSC(action_list_t *);
-	bool processRead(ModelAction *read, ClockVector *cv);
+
+	bool fastVersion;
+	bool allowNonSC;
+
+	bool processReadFast(ModelAction *read, ClockVector *cv);
+	bool processReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture);
 	int getNextActions(ModelAction **array);
 	bool merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2);
 	void check_rf(action_list_t *list);
@@ -659,6 +664,7 @@ class SCFence : public TraceAnalysis {
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
 	bool cyclic;
 	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > badrfset;
+	int badrfsetSize;
 	HashTable<void *, const ModelAction *, uintptr_t, 4 > lastwrmap;
 	SnapVector<action_list_t> threadlists;
 	SnapVector<action_list_t> dup_threadlists;
@@ -669,13 +675,16 @@ class SCFence : public TraceAnalysis {
 	bool time;
 	struct sc_statistics *stats;
 
-	/********************** SCF-related stuff (beginning) **********************/
+	/********************** SC-related stuff (end) **********************/
 
 	
-
 
 	/********************** SCFence-related stuff (beginning) **********************/
-	
+
+	/** A set of actions that should be ignored in the partially SC analysis */
+	HashTable<const ModelAction*, const ModelAction*, uintptr_t, 4> ignoredActions;
+	int ignoredActionSize;
+
 	/** The non-snapshotting private compound data structure that has the
 	 * necessary stuff for the scfence analysis */
 	static scfence_priv *priv;
@@ -685,6 +694,10 @@ class SCFence : public TraceAnalysis {
 
 	/** Helper function for option parsing */
 	char* parseOptionHelper(char *opt, int *optIdx);
+
+	/** A pass through the original actions to extract the ignored actions
+	 * (partially SC); it must be called after the threadlist has been built */
+	void extractIgnoredActions();
 
 	/** Functions that work for infering the parameters by impsing
 	 * synchronization */

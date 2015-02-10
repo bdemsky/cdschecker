@@ -8,6 +8,7 @@
 
 #include "model.h"
 #include "wildcard.h"
+#include "sc_annotation.h"
 #include <stdio.h>
 #include <algorithm>
 
@@ -1007,8 +1008,14 @@ void SCFence::analyze(action_list_t *actions) {
 		setBuggy(true);
 	}
 
-
+	fastVersion = true;
 	action_list_t *list = generateSC(actions);
+	if (cyclic) {
+		reset(actions);
+		delete list;
+		fastVersion = false;
+		list = generateSC(actions);
+	}
 	check_rf(list);
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
 		print_list(list);
@@ -1022,6 +1029,7 @@ void SCFence::analyze(action_list_t *actions) {
 	if (cyclic) {
 		/******** The Non-SC case (beginning) ********/
 		print_list(list);
+
 		bool added = addFixes(list, NON_SC);
 		if (added) {
 			routineAfterAddFixes();
@@ -1072,6 +1080,55 @@ void SCFence::check_rf(action_list_t *list) {
 			lastwrmap.put(act->get_location(), act);
 	}
 }
+
+
+/** Extract the actions that should be ignored in the partially SC analysis; it
+ * is based on the already built threadlists */
+void SCFence::extractIgnoredActions() {
+	for (int i = 1; i < threadlists.size(); i++) {
+		action_list_t *threadList = &threadlists[i];
+		for (action_list_t::iterator it = threadList->begin(); it !=
+			threadList->end(); it++) {
+			ModelAction *act = *it;
+			if (IS_SC_ANNO(act)) {
+				// SC anatation, should deal with the SC_BEGIN
+				if (!IS_ANNO_BEGIN(act)) {
+					model_print("Erroneous usage of the SC annotation!\n");
+					model_print("You should have a leading BEGIN annotation.\n");
+					return;
+				}
+				ModelAction *lastAct = NULL;
+				do {
+					it++;
+					act = *it;
+					if (IS_SC_ANNO(act)) {
+						if (IS_ANNO_END(act)) // Find the corresponding anno end
+							break;
+						if (IS_ANNO_KEEP(act) && lastAct) {
+							// should keep lastAct
+							// So simply do nothing
+							lastAct = NULL;
+						} else { // This is an anno error
+							model_print("Erroneous usage of the SC annotation!\n");
+							model_print("You should have an END annotation\
+							after\
+							the BEGIN or have an action to for the KEEP.\n");
+							return;
+						}
+					} else { // Ignore the last action, put it in the ignoredActions
+						if (lastAct) {
+							lastAct->print();
+							ignoredActions.put(lastAct, lastAct);
+							ignoredActionSize++;
+						}
+						lastAct = act;
+					}
+				} while (true);
+			}
+		}
+	}
+}
+
 
 /** This function finds all the paths that is a union of reads-from &
  * sequence-before relationship between act1 & act2. */
@@ -1201,11 +1258,27 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 
 	if (cv2->getClock(act->get_tid()) >= act->get_seq_number() && act->get_seq_number() != 0) {
 		cyclic = true;
-
 		//refuse to introduce cycles into clock vectors
 		return false;
 	}
-	return cv->merge(cv2);
+	if (fastVersion) {
+		return cv->merge(cv2);
+	} else {
+		bool merged;
+		if (allowNonSC) {
+			merged = cv->merge(cv2);
+			if (merged)
+				allowNonSC = false;
+			return merged;
+		} else {
+			if (act2->happens_before(act) ||
+				(act->is_seqcst() && act2->is_seqcst() && *act2 < *act)) {
+				return cv->merge(cv2);
+			} else {
+				return false;
+			}
+		}
+	}
 
 }
 
@@ -1318,6 +1391,9 @@ ModelAction * SCFence::pruneArray(ModelAction **array,int count) {
 action_list_t * SCFence::generateSC(action_list_t *list) {
  	int numactions=buildVectors(&threadlists, &maxthreads, list);
 	stats->actions+=numactions;
+
+	// Analyze which actions we should ignore in the partially SC analysis
+	extractIgnoredActions();
 
 	computeCV(list);
 
@@ -1437,7 +1513,7 @@ bool SCFence::updateConstraints(ModelAction *act) {
 	return changed;
 }
 
-bool SCFence::processRead(ModelAction *read, ClockVector *cv) {
+bool SCFence::processReadFast(ModelAction *read, ClockVector *cv) {
 	bool changed = false;
 	/*
 	model_print("processRead:\n");
@@ -1488,50 +1564,74 @@ bool SCFence::processRead(ModelAction *read, ClockVector *cv) {
 	return changed;
 }
 
+bool SCFence::processReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture) {
+	bool changed = false;
+	
+	/* Merge in the clock vector from the write */
+	const ModelAction *write = read->get_reads_from();
+	ClockVector *writecv = cvmap.get(write);
+	if ((*write < *read) || ! *updateFuture) {
+		bool status = merge(cv, read, write) && (*read < *write);
+		changed |= status;
+		*updateFuture = status;
+	}
+
+	for (int i = 0; i <= maxthreads; i++) {
+		thread_id_t tid = int_to_id(i);
+		if (tid == read->get_tid())
+			continue;
+		if (tid == write->get_tid())
+			continue;
+		action_list_t *list = execution->get_actions_on_obj(read->get_location(), tid);
+		if (list == NULL)
+			continue;
+		for (action_list_t::reverse_iterator rit = list->rbegin(); rit != list->rend(); rit++) {
+			ModelAction *write2 = *rit;
+			if (!write2->is_write())
+				continue;
+
+			ClockVector *write2cv = cvmap.get(write2);
+			if (write2cv == NULL)
+				continue;
+
+			/* write -sc-> write2 &&
+				 write -rf-> R =>
+				 R -sc-> write2 */
+			if (write2cv->synchronized_since(write)) {
+				if ((*read < *write2) || ! *updateFuture) {
+					bool status = merge(write2cv, write2, read);
+					changed |= status;
+					*updateFuture |= status && (*write2 < *read);
+				}
+			}
+
+			//looking for earliest write2 in iteration to satisfy this
+			/* write2 -sc-> R &&
+				 write -rf-> R =>
+				 write2 -sc-> write */
+			if (cv->synchronized_since(write2)) {
+				if ((*write2 < *write) || ! *updateFuture) {
+					bool status = writecv == NULL || merge(writecv, write, write2);
+					changed |= status;
+					*updateFuture |= status && (*write < *write2);
+				}
+				break;
+			}
+		}
+	}
+	return changed;
+}
+
 
 void SCFence::computeCV(action_list_t *list) {
 	bool changed = true;
 	bool firsttime = true;
 	ModelAction **last_act = (ModelAction **)model_calloc(1, (maxthreads + 1) * sizeof(ModelAction *));
 
-	/* We should honor the SC & HB in order to propogate the fixes to other
-	 * problematic spots by adding the sc&hb edges before the implied SC edges
-	 */
-	for (action_list_t::iterator it1 = list->begin(); it1 != list->end(); it1++) {
-		ModelAction *act1 = *it1, *act2;
-		action_list_t::iterator it2 = it1;
-		it2++;
-		for (; it2 != list->end(); it2++) {
-			act2 = *it2;
-			if (act1->happens_before(act2)) {
-				ClockVector *cv = cvmap.get(act2);
-				if (cv == NULL) {
-					cv = new ClockVector(NULL, act2);
-					cvmap.put(act2, cv);
-				}
-				// Add the hb edge to the clock vector
-				merge(cv, act2, act1);
-				continue;
-			}
-			// How to get the SC edges? only adding edges for those
-			// non-conflicting operations
-			if (!isSCEdge(act1, act2) || !isConflicting(act1, act2))
-				continue;
-			// This is an SC edge
-			ClockVector *cv = cvmap.get(act2);
-			if (cv == NULL) {
-				cv = new ClockVector(NULL, act2);
-				cvmap.put(act2, cv);
-			}
-			// Add the SC edge to the clock vector
-			merge(cv, act2, act1);
-		}
-
-	}
-
 	while (changed) {
 		changed = changed&firsttime;
 		firsttime = false;
+		bool updateFuture = false;
 
 		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 			ModelAction *act = *it;
@@ -1541,7 +1641,7 @@ void SCFence::computeCV(action_list_t *list) {
 			last_act[id_to_int(act->get_tid())] = act;
 			ClockVector *cv = cvmap.get(act);
 			if (cv == NULL) {
-				cv = new ClockVector(NULL, act);
+				cv = new ClockVector(act->get_cv(), act);
 				cvmap.put(act, cv);
 			}
 			
@@ -1554,12 +1654,24 @@ void SCFence::computeCV(action_list_t *list) {
 				changed |= merge(cv, act, finish);
 			}
 			if (act->is_read()) {
-				changed |= processRead(act, cv);
+				if (fastVersion)
+					changed |= processReadFast(act, cv);
+				else
+					changed |= processReadSlow(act, cv, &updateFuture);
 			}
 		}
 		/* Reset the last action array */
 		if (changed) {
 			bzero(last_act, (maxthreads + 1) * sizeof(ModelAction *));
+		} else {
+			if (!fastVersion) {
+				if (!allowNonSC) {
+					allowNonSC = true;
+					changed = true;
+				} else {
+					break;
+				}
+			}
 		}
 	}
 	model_free(last_act);
