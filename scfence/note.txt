@@ -1,0 +1,12 @@
+The intuition behind the SC development may be able to be weakened as SC for the
+key actions. This comes from the observation that the correctness of data
+structure designs based on SC rely on the fact that the key memory operations of
+the data structure have a total ordering. For others that violate the SC, there
+are usually a later fixup routine, making that part less important and necessary
+to be SC.
+
+Also, when we expose C/C++ implementations to users, we need to
+establish proper synchronization, e.g., enqueue() and dequeu() for concurrent
+queues. Plus, this guarantees the correctness of a single object of the data
+structure, and it has nothing to do with stronger properties such as
+composability.
