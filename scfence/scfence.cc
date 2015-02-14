@@ -831,7 +831,12 @@ bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 	return added;
 }
 
-/** Return false to indicate there's no implied mo for this execution */
+/** Return false to indicate there's no implied mo for this execution. The idea
+ * is that it counts the number of reads in the middle of write1 and write2, if
+ * that number exceeds a specific number, then the analysis thinks that the
+ * program is stuck in an infinite loop because write1 does not establish proper
+ * synchronization with write2 such that the reads can read from write1 for
+ * ever. */
 bool SCFence::addFixesImplicitMO(action_list_t *list) {
 	bool added = false;
 	ModelList<Inference*> *candidates = NULL;
@@ -1015,6 +1020,8 @@ void SCFence::analyze(action_list_t *actions) {
 		delete list;
 		fastVersion = false;
 		list = generateSC(actions);
+	} else if (execution->have_bug_reports()) {
+		model_print("Be careful. This execution has bugs and still SC\n");
 	}
 	check_rf(list);
 	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))

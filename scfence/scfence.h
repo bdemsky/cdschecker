@@ -19,7 +19,7 @@
 using std::memory_order;
 #endif
 
-#define DEFAULT_REPETITIVE_READ_BOUND 10 
+#define DEFAULT_REPETITIVE_READ_BOUND 20
 
 #define FENCE_OUTPUT
 
