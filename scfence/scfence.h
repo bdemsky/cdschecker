@@ -654,6 +654,7 @@ class SCFence : public TraceAnalysis {
 
 	bool processReadFast(ModelAction *read, ClockVector *cv);
 	bool processReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture);
+	bool processAnnotatedReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture);
 	int getNextActions(ModelAction **array);
 	bool merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2);
 	void check_rf(action_list_t *list);
@@ -674,6 +675,15 @@ class SCFence : public TraceAnalysis {
 	bool print_nonsc;
 	bool time;
 	struct sc_statistics *stats;
+
+	/** The set of read actions that are annotated to be special and will
+	 *  receive special treatment */
+	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > annotatedReadSet;
+	int annotatedReadSetSize;
+	bool annotationMode;
+	bool annotationError;
+	/** This routine is operated based on the built threadlists */
+	void collectAnnotatedReads();
 
 	/********************** SC-related stuff (end) **********************/
 

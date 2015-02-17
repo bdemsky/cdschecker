@@ -248,7 +248,15 @@ bool SCFence::parseOption(char *opt) {
 				//model_print("m value: %s\n", val);
 				setInferImplicitMO(true);
 				if (strcmp(val, "") != 0) {
-					model_print("option doesn't take any arguments!\n");
+					model_print("option m doesn't take any arguments!\n");
+					return true;
+				}
+				break;
+			case 'a': // Turn on the annotation mode 
+				//model_print("Parsing a option!\n");
+				annotationMode = true;
+				if (strcmp(val, "") != 0) {
+					model_print("option a doesn't take any arguments!\n");
 					return true;
 				}
 				break;
@@ -762,7 +770,7 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 		// Save the iterator of the read and the write
 		action_list_t::iterator readIter = it, writeIter;
 		if (act->get_seq_number() > 0) {
-			if (badrfset.contains(act)) {
+			if (badrfset.contains(act) && !annotatedReadSet.contains(act)) {
 				const ModelAction *write = act->get_reads_from();
 				// Check reading old or future value
 				writeIter = std::find(list->begin(),
@@ -1400,7 +1408,14 @@ action_list_t * SCFence::generateSC(action_list_t *list) {
 	stats->actions+=numactions;
 
 	// Analyze which actions we should ignore in the partially SC analysis
-	extractIgnoredActions();
+	//extractIgnoredActions();
+	if (annotationMode) {
+		collectAnnotatedReads();
+		if (annotationError) {
+			model_print("Annotation error!\n");
+			return NULL;
+		}
+	}
 
 	computeCV(list);
 
@@ -1629,6 +1644,56 @@ bool SCFence::processReadSlow(ModelAction *read, ClockVector *cv, bool *updateFu
 	return changed;
 }
 
+bool SCFence::processAnnotatedReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture) {
+	bool changed = false;
+	
+	/* Merge in the clock vector from the write */
+	const ModelAction *write = read->get_reads_from();
+	ClockVector *writecv = cvmap.get(write);
+	if ((*write < *read) || ! *updateFuture) {
+		bool status = merge(cv, read, write) && (*read < *write);
+		changed |= status;
+		*updateFuture = status;
+	}
+	return changed;
+}
+
+/** When we call this function, we should first have built the threadlists */
+void SCFence::collectAnnotatedReads() {
+	for (int i = 1; i < threadlists.size(); i++) {
+		action_list_t *list = &threadlists.at(i);
+		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
+			ModelAction *act = *it;
+			if (!IS_SC_ANNO(act))
+				continue;
+			if (!IS_ANNO_BEGIN(act)) {
+				model_print("SC annotation should begin with a BEGIN annotation\n");
+				annotationError = true;
+				return;
+			}
+			act = *++it;
+			while (!IS_ANNO_END(act) && it != list->end()) {
+				// Look for the actions to keep in this loop
+				ModelAction *nextAct = *++it;
+				//model_print("in the loop\n");
+				//act->print();
+				//nextAct->print();
+				if (!IS_ANNO_KEEP(nextAct)) { // Annotated reads
+					act->print();
+					annotatedReadSet.put(act, act);
+					annotatedReadSetSize++;
+					if (IS_ANNO_END(nextAct))
+						break;
+				}
+			}
+			if (it == list->end()) {
+				model_print("SC annotation should end with a END annotation\n");
+				annotationError = true;
+				return;
+			}
+		}
+	}
+}
 
 void SCFence::computeCV(action_list_t *list) {
 	bool changed = true;
@@ -1661,10 +1726,13 @@ void SCFence::computeCV(action_list_t *list) {
 				changed |= merge(cv, act, finish);
 			}
 			if (act->is_read()) {
-				if (fastVersion)
+				if (fastVersion) {
 					changed |= processReadFast(act, cv);
-				else
+				} else if (annotatedReadSet.contains(act)) {
+					changed |= processAnnotatedReadSlow(act, cv, &updateFuture);
+				} else {
 					changed |= processReadSlow(act, cv, &updateFuture);
+				}
 			}
 		}
 		/* Reset the last action array */
