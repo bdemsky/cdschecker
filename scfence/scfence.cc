@@ -368,6 +368,13 @@ bool SCFence::isReleaseSequence(path_t *path) {
 	return true;
 }
 
+void SCFence::getAcqRelFences(path_t *path, const ModelAction *read, const
+	ModelAction *readBound,const ModelAction *write, const ModelAction *writeBound,
+	const ModelAction *&acqFence, const ModelAction *&relFence) {
+	// Look for the acq fence after the read action
+	//path_t::iterator it = std::find(path->begin(), read);
+}
+
 /** Impose synchronization to one inference (infer) according to path.  If infer
  * is NULL, we first create a new Inference by copying the current inference;
  * otherwise we copy a new inference by infer. We then try to impose path to the
@@ -396,7 +403,34 @@ Inference* SCFence::imposeSyncToInference(Inference *infer, path_t *path) {
 	} else {
 		for (path_t::iterator it = path->begin(); it != path->end(); it++) {
 			const ModelAction *read = *it,
-				*write = read->get_reads_from();
+				*write = read->get_reads_from(),
+				*prevRead, *nextRead;
+			const ModelAction *acqFence = NULL,
+				*relFence = NULL;
+			const ModelAction *readBound = NULL,
+				*writeBound = NULL;
+			if (it == path->begin()) {
+				prevRead = NULL;
+			}
+			nextRead = *++it;
+			if (it == path->end()) {
+				nextRead = NULL;
+			}
+			it--;
+			if (prevRead) {
+				readBound = prevRead->get_reads_from();
+			} else {
+				readBound = read;
+			}
+			if (nextRead) {
+				writeBound = nextRead;
+			} else {
+				writeBound = NULL;
+			}
+			/* Extend to support rel/acq fences synchronization here */
+			getAcqRelFences(path, read, readBound, write, writeBound, acqFence, relFence);
+
+
 			//FENCE_PRINT("path size:%d\n", path->size());
 			//ACT_PRINT(write);
 			//ACT_PRINT(read);

@@ -777,6 +777,12 @@ class SCFence : public TraceAnalysis {
 	//Inference* imposeSyncToInference(Inference *infer, path_t *path, bool &canUpdate, bool &hasUpdated);
 	Inference* imposeSyncToInference(Inference *infer, path_t *path);
 
+	/** For a specific path, try to see if there is a possible pair of acq/rel
+	 * fences that can impose hb */
+	void getAcqRelFences(path_t *path, const ModelAction *read, const
+		ModelAction *readBound, const ModelAction *write, const ModelAction
+		*writeBound, const ModelAction *&acqFence, const ModelAction *&relFence);
+
 	/** Impose SC to one inference (infer) by action1 & action2.  If infer is
 	 * NULL, we first create a new Inference by copying the current inference;
 	 * otherwise we copy a new inference by infer. We then try to impose SC to
