@@ -623,6 +623,171 @@ typedef enum fix_type {
 	NON_SC
 } fix_type_t;
 
+struct PatchUnit {
+	int wildcard;
+	memory_order mo;
+
+	PatchUnit(int w, memory_order mo) {
+		this->wildcard = w;
+		this->mo = mo;
+	}
+};
+
+struct Patch {
+	SnapVector<PatchUnit*> *units;
+
+	Patch(int wildcard, memory_order mo) {
+		PatchUnit *unit = new PatchUnit(wildcard, mo);
+		units = new SnapVector<PatchUnit*>;
+		units->push_back(unit);
+	}
+
+	Patch(int wildcard1, memory_order mo1, int wildcard2, memory_order mo2) {
+		units = new SnapVector<PatchUnit*>;
+		PatchUnit *unit = new PatchUnit(wildcard1, mo1);
+		units->push_back(unit);
+		unit = new PatchUnit(wildcard2, mo2);
+		units->push_back(unit);
+	}
+
+	Patch() {
+		unit = new PatchUnit(wildcard2, mo2);
+	}
+
+	void addPatchUnit(int wildcard, memory_order mo) {
+		PatchUnit *unit = new PatchUnit(wildcard, mo);
+		units->push_back(unit);
+	}
+
+	getSize() {
+		return units->size();
+	}
+
+	get(int i) {
+		return (*units)[i];
+	}
+};
+
+
+/** This struct represents that the list of inferences that can fix the problem
+ * */
+struct InferenceList {
+	ModelList<Inference*> *list;
+	Inference *curInfer;
+
+	void addFixes(SnapVector<Patch*> pathers) {
+
+	}
+
+	bool applyPatch(Inference *newInfer, Patch *patch) {
+		bool updateState = false,
+			canUpdate = true,
+			hasUpdated = false;
+		for (int i = 0; i < patch->getSize(); i++) {
+			canUpdate = true;
+			hasUpdated = false;
+			PatchUnit *unit = patch->get(i);
+			newInfer->strengthen(unit->wildcard, unit->mo, canUpdate, hasUpdated);
+			if (!canUpdate) {
+				// This is not a feasible patch, bail
+				break;
+			} else if (hasUpdated) {
+				updateState = true;
+			}
+		}
+		if (canUpdate && hasUpdated) {
+			list->push_back(newInfer);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	void addFixes(Patch* patch) {
+		if (list->empty()) {
+			bool updateState = false,
+				canUpdate = true,
+				hasUpdated = false;
+			Inference *newInfer = new Inference(curInfer);
+			if (!applyPatch(newInfer, patch)) {
+				delete newInfer;
+			}
+		} else {
+			ModelList<Inference*> *newList = new ModelList<Inference*>;
+			for (ModelList<Inference*>::iterator it = list->begin(); it !=
+				list->end(); it++) {
+				Inference *oldInfer = *it;
+				Inference *newInfer = new Inference(oldInfer);
+				if (!applyPatch(newInfer, patch)) {
+					delete newInfer;
+				}
+			}
+			// Clean the old list
+			for (int i = 0; i < list->size(); i++) {
+				delete list[i];
+			}
+			delete list;
+			list = newList;
+		}	
+	}
+
+	void addFixes(SnapVector<Patch*> patches) {
+		if (list->empty()) {
+			bool updateState = false,
+				canUpdate = true,
+				hasUpdated = false;
+			Inference *newInfer = new Inference(curInfer);
+			for (int i = 0; i < patches->size(); i++) {
+				canUpdate = true;
+				hasUpdated = false;
+				Patch *p = patches[i];
+				newInfer->strengthen(p->wildcard, p->mo, canUpdate, hasUpdated);
+				if (!canUpdate) {
+					// This is not a feasible patch
+					delete newInfer;
+					continue;
+				} else if (hasUpdated) {
+					list->push_back(newInfer);
+				}
+			}
+			
+		} else {
+			ModelList<Inference*> *newList = new ModelList<Inference*>;
+			for (ModelList<Inference*>::iterator it = list->begin(); it !=
+				list->end(); it++) {
+				Inference *oldInfer = *it;
+				Inference *newInfer = new Inference(oldInfer);
+				bool updateState = false,
+					canUpdate = true,
+					hasUpdated = false;
+				for (int i = 0; i < patches->size(); i++) {
+					canUpdate = true;
+					hasUpdated = false;
+					Patch *p = patches[i];
+					newInfer->strengthen(p->wildcard, p->mo, canUpdate, hasUpdated);
+					if (!canUpdate) {
+						// This is not a feasible patch, bail
+						break;
+					} else if (hasUpdated) {
+						updateState = true;
+					}
+				}
+				if (canUpdate && hasUpdated) {
+					newList->push_back(newInfer);
+				} else {
+					delete newInfer;
+				}
+			}
+			// Clean the old list
+			for (int i = 0; i < list->size(); i++) {
+				delete list[i];
+			}
+			delete list;
+			list = newList;
+		}
+	}
+};
+
 class SCFence : public TraceAnalysis {
  public:
 	SCFence();
@@ -768,14 +933,20 @@ class SCFence : public TraceAnalysis {
 	/** Check whether a chosen reads-from path is a release sequence */
 	bool isReleaseSequence(path_t *path);
 
-	/** Impose synchronization to one inference (infer) according to path.  If
-	 * infer is NULL, we first create a new Inference by copying the current
-	 * inference; otherwise we copy a new inference by infer. We then try to
-	 * impose path to the newly created inference or the passed-in infer. If we
-	 * cannot strengthen the inference by the path, we return NULL, otherwise we
-	 * return the newly created inference */
+	/** Impose synchronization to one inference (infer) according to path, begin
+	 *  is the beginning operation, and end is the ending operation.  If infer
+	 *  is NULL, we first create a new Inference by copying the current
+	 *  inference; otherwise we copy a new inference by infer. We then try to
+	 *  impose path to the newly created inference or the passed-in infer. If we
+	 *  cannot strengthen the inference by the path, we return NULL, otherwise
+	 *  we return the newly created inference */
 	//Inference* imposeSyncToInference(Inference *infer, path_t *path, bool &canUpdate, bool &hasUpdated);
-	Inference* imposeSyncToInference(Inference *infer, path_t *path);
+	ModelList<Inference*>* imposeSyncToInference(Inference *infer, path_t *path, const
+		ModelAction *begin, const ModelAction *end);
+
+	ModelList<Inference*>* imposeSyncToInferenceAtReadsFrom(ModelList<Inference*>* inferList, path_t
+		*path, const ModelAction *read, const ModelAction *readBound, const
+		ModelAction *write, const ModelAction *writeBound);
 
 	/** For a specific path, try to see if there is a possible pair of acq/rel
 	 * fences that can impose hb */
@@ -795,7 +966,8 @@ class SCFence : public TraceAnalysis {
 	 * of inferences; if partialCandidates is NULL, it imposes the paths to the
 	 * current inference. It returns the newly strengthened list of inferences
 	 * */
-	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates, paths_t *paths);
+	ModelList<Inference*>* imposeSync(ModelList<Inference*> *partialCandidates,
+		paths_t *paths, const ModelAction *begin, const ModelAction *end);
 
 	/** Recycle the allcated memory to the list of inferences */
 	void clearCandidates(ModelList<Inference*> *candidates);
