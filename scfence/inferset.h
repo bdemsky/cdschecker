@@ -6,45 +6,68 @@
 
 typedef struct inference_stat {
 	int notAddedAtFirstPlace;
-	int getNextNotAdded;
 
 	inference_stat() :
 		notAddedAtFirstPlace(0),
-		getNextNotAdded(0) {}
+	{
+	
+	}
 
 	void print() {
 		model_print("Inference process statistics output:...\n");
 		model_print("The number of inference not added at the first place: %d\n",
 			notAddedAtFirstPlace);
-		model_print("The number of inference not added when getting next: %d\n",
-			getNextNotAdded);
 	}
 } inference_stat_t;
 
 
-/** This is a set of the inferences. We are exploring possible
- *  inferences in a DFS-like way. Also, we can do an state-based like
- *  optimization to reduce the explored space by recording the explored
- *  inferences.
+/** Essentially, we have to explore a big lattice of inferences, the bottom of
+ *  which is the inference that has all relaxed orderings, and the top of which
+ *  is the one that has all SC orderings. We define the partial ordering between
+ *  inferences as in compareTo() function in the Infereence class. In another
+ *  word, we compare ordering parameters one by one as a vector. Theoretically,
+ *  we need to explore up to the number of 5^N inferences, where N denotes the
+ *  number of wildcards (since we have 5 possible options for each memory order).
+
+ *  We try to reduce the searching space by recording whether an inference has
+ *  been discovered or not, and if so, we only need to explore from that
+ *  inference for just once. We can use a set to record the inferences to be be
+ *  explored, and insert new undiscovered fixes to that set iteratively until it
+ *  gets empty.
+
+ *  In detail, we use the InferenceList to represent that set, and use a
+ *  LIFO-like actions in pushing and popping inferences. When we add an
+ *  inference to the stack, we will set it to leaf or non-leaf node. For the
+ *  current inference to be added, it is non-leaf node because it generates
+ *  stronger inferences. On the other hands, for those generated inferences, we
+ *  set them to be leaf node. So when we pop a leaf node, we know that it is
+ *  not just discovered but thoroughly explored. Therefore, when we dicide
+ *  whether an inference is discovered, we can first try to look up the
+ *  discovered set and also derive those inferences that are stronger the
+ *  explored ones to be discovered.
 
  ********** The main algorithm **********
  Initial:
  	InferenceSet set; // Store the candiates to explore in a set
-	Set exploredSet; // Store the explored candidates (feasible or infeasible)
+	Set discoveredSet; // Store the discovered candidates. For each discovered
+		// candidate, if it's explored (feasible or infeasible, meaning that
+		// they are already known to work or not work), we set it to be
+		// explored. With that, we can reduce the searching space by ignoring
+		// those candidates that are stronger than the explored ones.
 	Inference curInfer = RELAX; // Initialize the current inference to be all relaxed (RELAX)
 
- Methods:
- 	bool addInference(infer) {
-		// Push back infer to the set when it's neither discvoerd nor
-		// explored, and return whether it's added or not
+ API Methods:
+ 	bool addInference(infer, bool isLeaf) {
+		// Push back infer to the discovered when it's not discvoerd, and return
+		// whether it's added or not
 	}
-
-	void commitExplored(infer) {
-		// Add infer to the exploredSet
+	
+	void commitInference(infer, isFeasible) {
+		// Set the infer to be explored and add it to the result set if feasible 
 	}
 
 	Inference* getNextInference() {
-		
+		// Get the next unexplored inference so that we can contine searching
 	}
 */
 
@@ -56,61 +79,34 @@ class Inference;
 
 class InferenceSet {
 	private:
-	/** The set of already explored nodes in the tree */
-	ModelList<Inference*> *exploredSet;
-
 	/** The set of already discovered nodes in the tree */
-	ModelList<Inference*> *discoveredSet;
+	InferenceList *discoveredSet;
 
 	/** The list of feasible inferences */
-	ModelList<Inference*> *results;
+	InferenceList *results;
 
 	/** The set of candidates */
-	ModelList<Inference*> *candidates;
+	InferenceList *candidates;
 
 	/** The staticstics of inference process */
 	inference_stat_t stat;
 	
 	public:
 	InferenceSet() {
-		exploredSet = new ModelList<Inference*>;
-		discoveredSet = new ModelList<Inference*>;
-		results = new ModelList<Inference*>;
-		candidates = new ModelList<Inference*>;
+		discoveredSet = new InferenceList;
+		results = new InferenceList;
+		candidates = new InferenceList;
 	}
 
-
-	int exploredSetSize() {
-		return exploredSet->size();
-	}
-	
 	/** Print the result of inferences  */
 	void printResults() {
-		for (ModelList<Inference*>::iterator it = results->begin(); it !=
-			results->end(); it++) {
-			Inference *infer = *it;
-			int idx = distance(results->begin(), it);
-			model_print("Result %d:\n", idx);
-			infer->print();
-		}
-
+		results->print("Result");
 		stat.print();
 	}
 
 	/** Print candidates of inferences */
 	void printCandidates() {
-		printCandidates(candidates);
-	}
-
-	/** Print the candidates of inferences  */
-	void printCandidates(ModelList<Inference*> *cands) {
-		for (ModelList<Inference*>::iterator it = cands->begin(); it !=
-			cands->end(); it++) {
-			Inference *infer = *it;
-			int idx = distance(cands->begin(), it);
-			model_print("Candidate %d:\n", idx);
-			infer->print();
-		}
+		candidates->print("Candidate");
 	}
 
 	/** When we finish model checking or cannot further strenghen with the

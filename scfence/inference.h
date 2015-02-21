@@ -34,12 +34,10 @@ class Inference {
 	/** Whether this inference has been explored */
 	bool explored;
 
-	/** Whether this inference has been discovered */
-	bool discovered;
+	/** Whether this inference is the leaf node in the inference lattice, see
+	 * inferset.h for more details */
+	bool leaf;
 
-	/** Whether this inference is a leaf of the search tree */
-	bool isLeaf;
-	
 	/** When this inference will have buggy executions, this indicates whether
 	 * it has any fixes. */
 	bool hasFixes;
@@ -211,14 +209,6 @@ class Inference {
 		return hasFixes;
 	}
 
-	void setLeaf(bool val) {
-		isLeaf = val;
-	}
-
-	bool getIsLeaf() {
-		return isLeaf;
-	}
-
 	void setBuggy(bool val) {
 		buggy = val;
 	}
@@ -235,12 +225,12 @@ class Inference {
 		return explored;
 	}
 
-	void setDiscovered(bool val) {
-		discovered = val;
+	void setLeaf(bool val) {
+		leaf = val;
 	}
 
-	bool isDiscovered() {
-		return discovered;
+	bool isLeaf() {
+		return leaf;
 	}
 
 	unsigned long getHash() {
@@ -391,12 +381,16 @@ class InferenceList {
 		list = new ModelList<Inference*>;
 	}
 
-	int size() {
+	int getSize() {
 		return list->size();
 	}
 
-	ModelList<Inference*>* getList() {
-		return list;
+	Inference* back() {
+		return list->back();
+	}
+
+	void push_back(Inference *infer) {
+		list->push_back(infer);
 	}
 
 	bool applyPatch(Inference *curInfer, Inference *newInfer, Patch *patch) {
@@ -551,19 +545,23 @@ class InferenceList {
 		clearAll(inferList->list);
 	}
 	
-	void print(ModelList<Inference*> *inferList) {
+	void print(ModelList<Inference*> *inferList, const char *msg) {
 		for (ModelList<Inference*>::iterator it = inferList->begin(); it !=
 			inferList->end(); it++) {
 			int idx = distance(inferList->begin(), it);
 			Inference *infer = *it;
-			model_print("Inference #%d:\n", idx);
+			model_print("%s %d:\n", msg, idx);
 			infer->print();
 			model_print("\n");
 		}
 	}
 
 	void print() {
-		print(list);
+		print(list, "Inference");
+	}
+
+	void print(const char *msg) {
+		print(list, msg);
 	}
 };
 
