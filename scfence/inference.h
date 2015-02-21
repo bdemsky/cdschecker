@@ -325,7 +325,7 @@ class Patch {
 	  * 2 -> mo1 & mo2 are uncomparable.
 	 */
 	static bool compareMemoryOrder(memory_order mo1, memory_order mo2) {
-		if (mo1 === mo2)
+		if (mo1 == mo2)
 			return 0;
 		if (mo1 == memory_order_relaxed)
 			return -1;
@@ -349,16 +349,14 @@ class Patch {
 			else
 				return 1;
 		}
-		if (mo1 == memory_order_seq_cst)
-			return 1;
+		// mo1 now must be SC and mo2 can't be SC
+		return 1;
 	}
 
 	bool isApplicable() {
-		bool res = true;
-		for (int i = 0; i < units->size(); i++) {
+		for (unsigned i = 0; i < units->size(); i++) {
 			PatchUnit *u = (*units)[i];
 			memory_order wildcard = u->getAct()->get_original_mo();
-			int wildcardID = get_wildcard_id_zero(wildcard);
 			if (is_wildcard(wildcard))
 				continue;
 			int compVal = compareMemoryOrder(wildcard, u->getMO());
@@ -550,7 +548,7 @@ class InferenceList {
 	}
 
 	static void clearAll(InferenceList *inferList) {
-		clear(inferList->list);
+		clearAll(inferList->list);
 	}
 	
 	void print(ModelList<Inference*> *inferList) {

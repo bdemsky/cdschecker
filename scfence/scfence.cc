@@ -62,7 +62,6 @@ void SCFence::inspectModelAction(ModelAction *act) {
 		return;
 	} else { // For wildcards
 		Inference *curInfer = getCurInference();
-		memory_order wildcard = act->get_mo();
 		int wildcardID = get_wildcard_id(act->get_mo());
 		memory_order order = (*curInfer)[wildcardID];
 		if (order == WILDCARD_NONEXIST) {
@@ -129,7 +128,7 @@ void SCFence::actionAtModelCheckingFinish() {
 	model_print("SC count: %u\n", stats->sccount);
 	model_print("Non-SC count: %u\n", stats->nonsccount);
 	model_print("Total actions: %llu\n", stats->actions);
-	unsigned long long actionperexec=(stats->actions)/(stats->sccount+stats->nonsccount);
+	//unsigned long long actionperexec=(stats->actions)/(stats->sccount+stats->nonsccount);
 }
 
 void SCFence::initializeByFile() {
@@ -139,8 +138,7 @@ void SCFence::initializeByFile() {
 		return;
 	}
 	Inference *infer = NULL;
-	int size = 0,
-		curNum = 0;
+	int curNum = 0;
 	memory_order mo;
 	char *str = (char *) malloc(sizeof(char) * (30 + 1));
 	bool isProcessing = false;
@@ -380,16 +378,19 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 
 	action_list_t *acqFences = new action_list_t,
 		*relFences = new action_list_t;
-	ModelAction *act;
-	while ((act = *readIter++) != readThrd->end() && act != readBound) {
+	ModelAction *act = *readIter;
+	while (readIter++ != readThrd->end() && act != readBound) {
 		if (act->is_fence()) {
 			acqFences->push_back(act);
 		}
+		act = *readIter;
 	}
-	while ((act = *writeIter++) != writeThrd->rend() && act != writeBound) {
+	act = *writeIter;
+	while (writeIter++ != writeThrd->rend() && act != writeBound) {
 		if (act->is_fence()) {
 			relFences->push_back(act);
 		}
+		act = *writeIter;
 	}
 	// Now we have a list of rel/acq fences at hand
 	int acqFenceSize = acqFences->size(),
@@ -400,7 +401,7 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 		for (action_list_t::iterator it = acqFences->begin(); it !=
 			acqFences->end(); it++) {
 			ModelAction *fence = *it;
-			p = new Patch(fence, memory_orde_acquire, write, memory_order_release);
+			p = new Patch(fence, memory_order_acquire, write, memory_order_release);
 			if (p->isApplicable())
 				patches->push_back(p);
 		}
@@ -408,7 +409,7 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 		for (action_list_t::iterator it = relFences->begin(); it !=
 			relFences->end(); it++) {
 			ModelAction *fence = *it;
-			p = new Patch(fence, memory_orde_release, read, memory_order_acquire);
+			p = new Patch(fence, memory_order_release, read, memory_order_acquire);
 			if (p->isApplicable())
 				patches->push_back(p);
 		}
@@ -417,7 +418,7 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 		for (action_list_t::iterator it = acqFences->begin(); it !=
 			acqFences->end(); it++) {
 			ModelAction *fence = *it;
-			p = new Patch(fence, memory_orde_acquire, write, memory_order_release);
+			p = new Patch(fence, memory_order_acquire, write, memory_order_release);
 			if (p->isApplicable())
 				patches->push_back(p);
 		}
@@ -425,17 +426,21 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 		for (action_list_t::iterator it = relFences->begin(); it !=
 			relFences->end(); it++) {
 			ModelAction *fence = *it;
-			p = new Patch(fence, memory_orde_release, read, memory_order_acquire);
+			p = new Patch(fence, memory_order_release, read, memory_order_acquire);
 			if (p->isApplicable())
 				patches->push_back(p);
 		}
 		/* Impose on both relFences and acqFences */
 		for (action_list_t::iterator it1 = relFences->begin(); it1 !=
 			relFences->end(); it1++) {
-			ModelAction *fence = *it1;
-			p = new Patch(fence, memory_orde_release, read, memory_order_acquire);
-			if (p->isApplicable())
-				patches->push_back(p);
+			ModelAction *relFence = *it1;
+			for (action_list_t::iterator it2 = acqFences->begin(); it2 !=
+				acqFences->end(); it2++) {
+				ModelAction *acqFence = *it2;
+				p = new Patch(relFence, memory_order_release, acqFence, memory_order_acquire);
+				if (p->isApplicable())
+					patches->push_back(p);
+			}
 		}
 	}
 	return patches;
@@ -445,18 +450,21 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
  *  are a list of paths that each represent the union of rfUsb. We then
  *  strengthen the current inference by necessity.
  */
-void SCFence::imposeSync(InferenceList *inferList,
+bool SCFence::imposeSync(InferenceList *inferList,
 	paths_t *paths, const ModelAction *begin, const ModelAction *end) {
 	if (!inferList)
-		return;
+		return false;
+	bool res = false;
 	for (paths_t::iterator i_paths = paths->begin(); i_paths != paths->end(); i_paths++) {
 		// Iterator over all the possible paths
 		path_t *path = *i_paths;
 		InferenceList *cands = new InferenceList;
 		// Impose synchronization by path
-		imposeSync(cands, path, begin, end);
+		if (imposeSync(cands, path, begin, end))
+			res = true;
 		inferList->append(cands);
 	}
+	return res;
 }
 
 /** Impose the synchronization between the begin and end action, and the path
@@ -480,7 +488,6 @@ bool SCFence::imposeSync(InferenceList *inferList,
 		return true;
 	}
 
-	ModelList<Inference*> *partialResults;
 	for (path_t::iterator it = path->begin(); it != path->end(); it++) {
 		const ModelAction *read = *it,
 			*write = read->get_reads_from(),
@@ -529,9 +536,9 @@ bool SCFence::imposeSync(InferenceList *inferList,
  *  value*/
 bool SCFence::imposeSC(InferenceList *inferList, const ModelAction *act1, const ModelAction *act2) {
 	if (!inferList) {
-		return;
+		return false;
 	}
-	Patch *p = new Patch(act1, memory_orde_seq_cst, act2, memory_order_seq_cst);
+	Patch *p = new Patch(act1, memory_order_seq_cst, act2, memory_order_seq_cst);
 	if (!p->isApplicable())
 		return false;
 	inferList->applyPatch(getCurInference(), p);
@@ -653,7 +660,6 @@ InferenceList* SCFence::getFixesFromPatternB(action_list_t *list, action_list_t:
 bool SCFence::addFixesNonSC(action_list_t *list) {
 	bool added = false;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
-		paths_t *paths1 = NULL, *paths2 = NULL;
 		InferenceList *candidates = NULL;
 		ModelAction	*act = *it;
 
@@ -850,8 +856,8 @@ bool SCFence::routineBacktrack(bool feasible) {
 		// Finish exploring the whole process
 		model_print("We are done with the whole process!\n");
 		model_print("The results are as the following:\n");
-		printResults();
-		printCandidates();
+		getSet()->printResults();
+		getSet()->printCandidates();
 				
 		/******** exitModelChecker ********/
 		exitModelChecker();
@@ -991,7 +997,7 @@ void SCFence::check_rf(action_list_t *list) {
 /** Extract the actions that should be ignored in the partially SC analysis; it
  * is based on the already built threadlists */
 void SCFence::extractIgnoredActions() {
-	for (int i = 1; i < threadlists.size(); i++) {
+	for (unsigned i = 1; i < threadlists.size(); i++) {
 		action_list_t *threadList = &threadlists[i];
 		for (action_list_t::iterator it = threadList->begin(); it !=
 			threadList->end(); it++) {
@@ -1100,7 +1106,7 @@ paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *a
 			continue;
 		}
 
-		int write_seqnum = write->get_seq_number();
+		unsigned write_seqnum = write->get_seq_number();
 		// We then check if we got a valid path 
 		if (id_to_int(write->get_tid()) == idx1 &&
 			write_seqnum >= act1->get_seq_number()) {
@@ -1540,7 +1546,6 @@ bool SCFence::processAnnotatedReadSlow(ModelAction *read, ClockVector *cv, bool 
 	
 	/* Merge in the clock vector from the write */
 	const ModelAction *write = read->get_reads_from();
-	ClockVector *writecv = cvmap.get(write);
 	if ((*write < *read) || ! *updateFuture) {
 		bool status = merge(cv, read, write) && (*read < *write);
 		changed |= status;
@@ -1551,7 +1556,7 @@ bool SCFence::processAnnotatedReadSlow(ModelAction *read, ClockVector *cv, bool 
 
 /** When we call this function, we should first have built the threadlists */
 void SCFence::collectAnnotatedReads() {
-	for (int i = 1; i < threadlists.size(); i++) {
+	for (unsigned i = 1; i < threadlists.size(); i++) {
 		action_list_t *list = &threadlists.at(i);
 		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 			ModelAction *act = *it;

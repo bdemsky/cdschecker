@@ -266,7 +266,7 @@ class SCFence : public TraceAnalysis {
 
 	/** For a specific pair of write and read actions, figure out the possible
 	 *  acq/rel fences that can impose hb plus the read & write sync pair */
-	SnapVector<Patch*>* getAcqRelSync(const ModelAction *read,
+	SnapVector<Patch*>* getAcqRel(const ModelAction *read,
 		const ModelAction *readBound, const ModelAction *write,
 		const ModelAction *writeBound);
 
@@ -312,7 +312,7 @@ class SCFence : public TraceAnalysis {
 	/** The number of nodes in the set (including those parent nodes (set as
 	 * explored) */
 	 int setSize() {
-		return getSet()->candidates->size();
+		return getSet()->getCandidatesSize();
 	 }
 
 	/** Set the restart flag of the model checker in order to restart the

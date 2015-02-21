@@ -54,14 +54,8 @@ class Patch;
 class Inference;
 
 
-typedef struct InferenceSet {
-	InferenceSet() {
-		exploredSet = new ModelList<Inference*>;
-		discoveredSet = new ModelList<Inference*>;
-		results = new ModelList<Inference*>;
-		candidates = new ModelList<Inference*>;
-	}
-
+class InferenceSet {
+	private:
 	/** The set of already explored nodes in the tree */
 	ModelList<Inference*> *exploredSet;
 
@@ -76,6 +70,15 @@ typedef struct InferenceSet {
 
 	/** The staticstics of inference process */
 	inference_stat_t stat;
+	
+	public:
+	InferenceSet() {
+		exploredSet = new ModelList<Inference*>;
+		discoveredSet = new ModelList<Inference*>;
+		results = new ModelList<Inference*>;
+		candidates = new ModelList<Inference*>;
+	}
+
 
 	int exploredSetSize() {
 		return exploredSet->size();
@@ -123,8 +126,12 @@ typedef struct InferenceSet {
 		}
 	}
 
-	int size() {
+	int getCandidatesSize() {
 		return candidates->size();
+	}
+
+	int getResultsSize() {
+		return results->size();
 	}
 
 	/** Be careful that if the candidate is not added, it will be deleted in this
@@ -141,7 +148,7 @@ typedef struct InferenceSet {
 		// For the purpose of debugging, record all those inferences added here
 		ModelList<Inference*> *addedCandidates = new ModelList<Inference*>();
 		FENCE_PRINT("Explored size: %d.\n", exploredSetSize());
-		FENCE_PRINT("List size: %u.\n", cands->size());
+		FENCE_PRINT("List size: %d.\n", cands->size());
 		bool added = false;
 
 		/******** addCurInference ********/
@@ -173,8 +180,8 @@ typedef struct InferenceSet {
 		FENCE_PRINT("\n");
 		
 		// Clean up the candidates
-		inferList->clear();
-		FENCE_PRINT("potential results size: %d.\n", size());
+		inferList->clearList();
+		FENCE_PRINT("potential results size: %d.\n", candidates->size());
 		return added;
 	}
 
