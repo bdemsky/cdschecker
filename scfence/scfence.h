@@ -260,12 +260,15 @@ class SCFence : public TraceAnalysis {
 	//Inference* imposeSyncToInference(Inference *infer, path_t *path, bool &canUpdate, bool &hasUpdated);
 	bool imposeSync(InferenceList* inferList, paths_t *paths, const
 		ModelAction *begin, const ModelAction *end);
+	
+	bool imposeSync(InferenceList* inferList, path_t *path, const
+		ModelAction *begin, const ModelAction *end);
 
-	/** For a specific path, try to see if there is a possible pair of acq/rel
-	 * fences that can impose hb */
-	void getAcqRelFences(path_t *path, const ModelAction *read, const
-		ModelAction *readBound, const ModelAction *write, const ModelAction
-		*writeBound, const ModelAction *&acqFence, const ModelAction *&relFence);
+	/** For a specific pair of write and read actions, figure out the possible
+	 *  acq/rel fences that can impose hb plus the read & write sync pair */
+	SnapVector<Patch*>* getAcqRelSync(const ModelAction *read,
+		const ModelAction *readBound, const ModelAction *write,
+		const ModelAction *writeBound);
 
 	/** Impose SC to the existing list of inferences (inferList) by action1 &
 	 *  action2. */

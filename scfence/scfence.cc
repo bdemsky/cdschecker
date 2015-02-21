@@ -357,9 +357,17 @@ bool SCFence::isReleaseSequence(path_t *path) {
 	return true;
 }
 
-void SCFence::getAcqRelFences(path_t *path, const ModelAction *read, const
-	ModelAction *readBound,const ModelAction *write, const ModelAction *writeBound,
-	const ModelAction *&acqFence, const ModelAction *&relFence) {
+/** Only return those applicable patches in a vector */
+SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
+	ModelAction *readBound,const ModelAction *write, const ModelAction *writeBound) {
+	
+	SnapVector<Patch*> *patches = new SnapVector<Patch*>;
+	Patch *p = new Patch(read, memory_order_acquire, write,
+		memory_order_release);
+	if (p->isApplicable())
+		patches->push_back(p);
+
+	/* Also support rel/acq fences synchronization here */
 	// Look for the acq fence after the read action
 	int readThrdID = read->get_tid(),
 		writeThrdID = write->get_tid();
@@ -369,88 +377,165 @@ void SCFence::getAcqRelFences(path_t *path, const ModelAction *read, const
 		readThrd->end(), read);
 	action_list_t::reverse_iterator writeIter = std::find(writeThrd->rbegin(),
 		writeThrd->rend(), write);
+
+	action_list_t *acqFences = new action_list_t,
+		*relFences = new action_list_t;
 	ModelAction *act;
-	/*
 	while ((act = *readIter++) != readThrd->end() && act != readBound) {
 		if (act->is_fence()) {
-			acqFence = act;
-			break;
+			acqFences->push_back(act);
 		}
 	}
 	while ((act = *writeIter++) != writeThrd->rend() && act != writeBound) {
 		if (act->is_fence()) {
-			relFence = act;
-			break;
+			relFences->push_back(act);
 		}
 	}
-	*/
+	// Now we have a list of rel/acq fences at hand
+	int acqFenceSize = acqFences->size(),
+		relFenceSize = relFences->size();
+	if (acqFenceSize == 0 && relFenceSize == 0)
+		return patches;
+	else if (acqFenceSize > 0 && relFenceSize == 0) {
+		for (action_list_t::iterator it = acqFences->begin(); it !=
+			acqFences->end(); it++) {
+			ModelAction *fence = *it;
+			p = new Patch(fence, memory_orde_acquire, write, memory_order_release);
+			if (p->isApplicable())
+				patches->push_back(p);
+		}
+	} else if (acqFenceSize == 0 && relFenceSize > 0) {
+		for (action_list_t::iterator it = relFences->begin(); it !=
+			relFences->end(); it++) {
+			ModelAction *fence = *it;
+			p = new Patch(fence, memory_orde_release, read, memory_order_acquire);
+			if (p->isApplicable())
+				patches->push_back(p);
+		}
+	} else {
+		/* Only impose on the acqFences */
+		for (action_list_t::iterator it = acqFences->begin(); it !=
+			acqFences->end(); it++) {
+			ModelAction *fence = *it;
+			p = new Patch(fence, memory_orde_acquire, write, memory_order_release);
+			if (p->isApplicable())
+				patches->push_back(p);
+		}
+		/* Only impose on the relFences */
+		for (action_list_t::iterator it = relFences->begin(); it !=
+			relFences->end(); it++) {
+			ModelAction *fence = *it;
+			p = new Patch(fence, memory_orde_release, read, memory_order_acquire);
+			if (p->isApplicable())
+				patches->push_back(p);
+		}
+		/* Impose on both relFences and acqFences */
+		for (action_list_t::iterator it1 = relFences->begin(); it1 !=
+			relFences->end(); it1++) {
+			ModelAction *fence = *it1;
+			p = new Patch(fence, memory_orde_release, read, memory_order_acquire);
+			if (p->isApplicable())
+				patches->push_back(p);
+		}
+	}
+	return patches;
 }
 
-/** Impose the current inference or the partialCandidates the caller passes in.
- *  It will clean up the partialCandidates and everything new goes to the return
- *  value*/
-bool SCFence::imposeSync(InferenceList *inferList,
+/** Impose the synchronization between the begin and end action, and the paths
+ *  are a list of paths that each represent the union of rfUsb. We then
+ *  strengthen the current inference by necessity.
+ */
+void SCFence::imposeSync(InferenceList *inferList,
 	paths_t *paths, const ModelAction *begin, const ModelAction *end) {
-
+	if (!inferList)
+		return;
 	for (paths_t::iterator i_paths = paths->begin(); i_paths != paths->end(); i_paths++) {
 		// Iterator over all the possible paths
 		path_t *path = *i_paths;
-		// The new inference imposed synchronization by path
-		if (!partialCandidates) {
-			infer = imposeSyncToInference(NULL, path, begin, end);
-			if (infer) {
-				newCandidates->push_back(infer);
-			}
-		} else { // We have a partial list of candidates
-			for (ModelList<Inference*>::iterator i_cand =
-				partialCandidates->begin(); i_cand != partialCandidates->end();
-				i_cand++) {
-				// For a specific inference that already exists 
-				infer = *i_cand;
-				infer = imposeSyncToInference(infer, path, begin, end);
-				if (infer) {
-					// Add this new infer to the newCandidates
-					newCandidates->push_back(infer);
-				}
-			}
-		}
+		InferenceList *cands = new InferenceList;
+		// Impose synchronization by path
+		imposeSync(cands, path, begin, end);
+		inferList->append(cands);
 	}
+}
+
+/** Impose the synchronization between the begin and end action, and the path
+ *  is the union of rfUsb. We then strengthen the current inference by
+ *  necessity.
+ */
+bool SCFence::imposeSync(InferenceList *inferList,
+	path_t *path, const ModelAction *begin, const ModelAction *end) {
 	
-	if (partialCandidates) {
-		clearCandidates(partialCandidates);
+	bool release_seq = isReleaseSequence(path);
+	SnapVector<Patch*> *patches;
+	if (release_seq) {
+		const ModelAction *relHead = path->front()->get_reads_from(),
+			*lastRead = path->back();
+		patches = getAcqRel(lastRead, end, relHead, begin);
+		if (patches->size() == 0)
+			return false;
+		inferList->applyPatch(getCurInference(), patches);
+		delete patches;
+		// Bail now for the release sequence because 
+		return true;
 	}
-	return newCandidates;
+
+	ModelList<Inference*> *partialResults;
+	for (path_t::iterator it = path->begin(); it != path->end(); it++) {
+		const ModelAction *read = *it,
+			*write = read->get_reads_from(),
+			*prevRead, *nextRead;
+		
+		const ModelAction *readBound = NULL,
+			*writeBound = NULL;
+		if (it == path->begin()) {
+			prevRead = NULL;
+		}
+		nextRead = *++it;
+		if (it == path->end()) {
+			nextRead = NULL;
+		}
+		it--;
+		if (prevRead) {
+			readBound = prevRead->get_reads_from();
+		} else {
+			readBound = end;
+		}
+		if (nextRead) {
+			writeBound = nextRead;
+		} else {
+			writeBound = begin;
+		}
+
+		/* Extend to support rel/acq fences synchronization here */
+		patches = getAcqRel(read, readBound, write, writeBound);
+
+		//FENCE_PRINT("path size:%d\n", path->size());
+		//ACT_PRINT(write);
+		//ACT_PRINT(read);
+		if (patches->size() == 0) {
+			// We cannot strengthen the inference
+			return false;
+		}
+
+		inferList->applyPatch(getCurInference(), patches);
+		delete patches;
+	}
+	return true;
 }
 
 /** Impose the current inference or the partialCandidates the caller passes in.
  *  It will clean up the partialCandidates and everything new goes to the return
  *  value*/
 bool SCFence::imposeSC(InferenceList *inferList, const ModelAction *act1, const ModelAction *act2) {
-	ModelList<Inference*> *newCandidates = new ModelList<Inference*>();
-	Inference *infer = NULL;
-
-	if (!partialCandidates) {
-		infer = imposeSCToInference(NULL, act1, act2);
-		if (infer) {
-			newCandidates->push_back(infer);
-		}
-	} else { // We have a partial list of candidates
-		for (ModelList<Inference*>::iterator i_cand =
-			partialCandidates->begin(); i_cand != partialCandidates->end();
-			i_cand++) {
-			Inference *infer = *i_cand;
-			infer = imposeSCToInference(infer, act1, act2);
-			if (infer) {
-				newCandidates->push_back(infer);
-			}
-		}
+	if (!inferList) {
+		return;
 	}
-	
-	if (partialCandidates) {
-		clearCandidates(partialCandidates);
-	}
-
-	return newCandidates;
+	Patch *p = new Patch(act1, memory_orde_seq_cst, act2, memory_order_seq_cst);
+	if (!p->isApplicable())
+		return false;
+	inferList->applyPatch(getCurInference(), p);
+	return true;
 }
 
 /** A subroutine that calculates the potential fixes for the non-sc pattern (a),

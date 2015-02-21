@@ -318,6 +318,56 @@ class Patch {
 		units = new SnapVector<PatchUnit*>;
 	}
 
+	/** return value:
+	  * 0 -> mo1 == mo2;
+	  * 1 -> mo1 stronger than mo2;
+	  * -1 -> mo1 weaker than mo2;
+	  * 2 -> mo1 & mo2 are uncomparable.
+	 */
+	static bool compareMemoryOrder(memory_order mo1, memory_order mo2) {
+		if (mo1 === mo2)
+			return 0;
+		if (mo1 == memory_order_relaxed)
+			return -1;
+		if (mo1 == memory_order_acquire) {
+			if (mo2 == memory_order_relaxed)
+				return 1;
+			if (mo2 == memory_order_release)
+				return 2;
+			return -1;
+		}
+		if (mo1 == memory_order_release) {
+			if (mo2 == memory_order_relaxed)
+				return 1;
+			if (mo2 == memory_order_acquire)
+				return 2;
+			return -1;
+		}
+		if (mo1 == memory_order_acq_rel) {
+			if (mo2 == memory_order_seq_cst)
+				return -1;
+			else
+				return 1;
+		}
+		if (mo1 == memory_order_seq_cst)
+			return 1;
+	}
+
+	bool isApplicable() {
+		bool res = true;
+		for (int i = 0; i < units->size(); i++) {
+			PatchUnit *u = (*units)[i];
+			memory_order wildcard = u->getAct()->get_original_mo();
+			int wildcardID = get_wildcard_id_zero(wildcard);
+			if (is_wildcard(wildcard))
+				continue;
+			int compVal = compareMemoryOrder(wildcard, u->getMO());
+			if (compVal == 2 || compVal == -1)
+				return false;
+		}
+		return true;
+	}
+
 	void addPatchUnit(const ModelAction *act, memory_order mo) {
 		PatchUnit *unit = new PatchUnit(act, mo);
 		units->push_back(unit);
