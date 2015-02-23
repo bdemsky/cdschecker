@@ -2,6 +2,7 @@
 #define _INFERENCE_H
 
 #include "fence_common.h"
+#include "wildcard.h"
 
 /** Forward declaration */
 class Inference;
@@ -371,6 +372,15 @@ class Patch {
 		return (*units)[i];
 	}
 
+	void print() {
+		for (int i = 0; i < units->size(); i++) {
+			PatchUnit *u = (*units)[i];
+			model_print("wildcard %d -> %s\n",
+				get_wildcard_id_zero(u->getAct()->get_original_mo()),
+				get_mo_str(u->getMO()));
+		}
+	}
+
 	SNAPSHOTALLOC
 };
 
@@ -424,7 +434,9 @@ class InferenceList {
 				updateState = true;
 			}
 		}
-		if (canUpdate && updateState) {
+		if (updateState) {
+			model_print("New infer:\n");
+			newInfer->print();
 			return true;
 		} else {
 			return false;
@@ -463,8 +475,8 @@ class InferenceList {
 
 	void applyPatch(Inference *curInfer, SnapVector<Patch*> *patches) {
 		if (list->empty()) {
-			Inference *newInfer = new Inference(curInfer);
 			for (unsigned i = 0; i < patches->size(); i++) {
+				Inference *newInfer = new Inference(curInfer);
 				Patch *patch = (*patches)[i];
 				if (!applyPatch(curInfer, newInfer, patch)) {
 					delete newInfer;
