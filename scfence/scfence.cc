@@ -30,7 +30,6 @@ SCFence::SCFence() :
 	time(false),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
 {
-	mo_graph = execution->get_mo_graph();
 	priv = new scfence_priv();
 }
 
@@ -579,12 +578,11 @@ InferenceList* SCFence::getFixesFromPatternA(action_list_t *list, action_list_t:
 	for (action_list_t::iterator itWrite2 = write2s->begin();
 		itWrite2 != write2s->end(); itWrite2++) {
 		write2 = *itWrite2;
-		candidates = NULL;
 		FENCE_PRINT("write2:\n");
 		ACT_PRINT(write2);
 		// write1->write2 (write->write2)
 		// Whether write -mo-> write2
-		if (mo_graph->checkReachable(write, write2)) {
+		if (!mo_graph->checkReachable(write, write2)) {
 			paths1 = get_rf_sb_paths(write, write2);
 			if (paths1->size() > 0) {
 				FENCE_PRINT("From write1 to write2: \n");
@@ -821,6 +819,7 @@ bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
 		// falg
 		setHasFixes(true);
 	}
+	model_print("Added = %d\n", added);
 	return added;
 }
 
@@ -1299,6 +1298,7 @@ ModelAction * SCFence::pruneArray(ModelAction **array,int count) {
 }
 
 action_list_t * SCFence::generateSC(action_list_t *list) {
+	mo_graph = execution->get_mo_graph();
  	int numactions=buildVectors(&threadlists, &maxthreads, list);
 	stats->actions+=numactions;
 

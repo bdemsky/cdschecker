@@ -283,6 +283,8 @@ class PatchUnit {
 	memory_order getMO() {
 		return mo;
 	}
+
+	SNAPSHOTALLOC
 };
 
 class Patch {
@@ -368,6 +370,8 @@ class Patch {
 	PatchUnit* get(int i) {
 		return (*units)[i];
 	}
+
+	SNAPSHOTALLOC
 };
 
 /** This class represents that the list of inferences that can fix the problem
@@ -574,6 +578,9 @@ class InferenceList {
 	void print(const char *msg) {
 		print(list, msg);
 	}
+
+	MEMALLOC
+
 };
 
 
