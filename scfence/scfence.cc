@@ -681,13 +681,13 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 					candidates = getFixesFromPatternA(list, readIter, writeIter);
 					// Add candidates pattern (a)
 					
-					added = getSet()->addCandidates(getCurInference(), candidates);
+					added = addCandidates(candidates);
 				} else { // Pattern (b) read future value
 					// act->read, write->futureWrite
 					FENCE_PRINT("Running through pattern (b)!\n");
 					candidates = getFixesFromPatternB(list, readIter, writeIter);
 					// Add candidates pattern (b)
-					added = getSet()->addCandidates(getCurInference(), candidates);
+					added = addCandidates(candidates);
 				}
 				// Just eliminate the first cycle we see in the execution
 				break;
@@ -721,8 +721,7 @@ bool SCFence::addFixesBuggyExecution(action_list_t *list) {
 						FENCE_PRINT("Running through pattern (b') (unint read)!\n");
 						print_rf_sb_paths(paths1, write, uninitRead);
 						imposeSync(candidates, paths1, write, uninitRead);
-						added = getSet()->addCandidates(getCurInference(),
-							candidates);
+						added = addCandidates(candidates);
 						if (added) {
 							foundFix = true;
 							break;
@@ -787,8 +786,7 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 					print_rf_sb_paths(paths1, write1, write2);
 					imposeSync(candidates, paths1, write1, write2);
 					// Add the candidates as potential results
-					added = getSet()->addCandidates(getCurInference(),
-						candidates);
+					added = addCandidates(candidates);
 					if (added)
 						return true;
 				} else {
@@ -856,8 +854,8 @@ bool SCFence::routineBacktrack(bool feasible) {
 		// Finish exploring the whole process
 		model_print("We are done with the whole process!\n");
 		model_print("The results are as the following:\n");
-		getSet()->printResults();
-		getSet()->printCandidates();
+		printResults();
+		printCandidates();
 				
 		/******** exitModelChecker ********/
 		exitModelChecker();

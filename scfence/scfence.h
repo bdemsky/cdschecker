@@ -296,17 +296,26 @@ class SCFence : public TraceAnalysis {
 		return getSet()->addInference(infer);
 	}
 
-	void addCurInference() {
-		getSet()->addCurInference(getCurInference());
+	/** Add the list of fixes to the inference set. We will have to pass in the
+	 *  current inference.;
+	 * @Return true if the node to add has not been explored yet
+	 */
+	bool addCandidates(InferenceList *candidates) {
+		return getSet()->addCandidates(getCurInference(), candidates);
 	}
 
-	int exploredSetSize() {
-		return getSet()->exploredSetSize();
+	void addCurInference() {
+		getSet()->addCurInference(getCurInference());
 	}
 
 	/** Print the result of inferences  */
 	void printResults() {
 		getSet()->printResults();
+	}
+
+	/** Print the candidates of inferences  */
+	void printCandidates() {
+		getSet()->printCandidates();
 	}
 
 	/** The number of nodes in the set (including those parent nodes (set as

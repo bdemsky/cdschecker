@@ -119,7 +119,7 @@ class Inference {
 			orders[i] = WILDCARD_NONEXIST;
 		buggy = false;
 		hasFixes = false;
-		isLeaf = false;
+		leaf = false;
 		explored = false;
 	}
 
@@ -131,7 +131,7 @@ class Inference {
 			orders[i] = infer->orders[i];
 		buggy = false;
 		hasFixes = false;
-		isLeaf = false;
+		leaf = false;
 		explored = false;
 	}
 
@@ -384,11 +384,22 @@ class InferenceList {
 	int getSize() {
 		return list->size();
 	}
+	
+	void pop_back() {
+		list->pop_back();
+	}
 
 	Inference* back() {
 		return list->back();
 	}
 
+	/** We should not call this function too often because we want a nicer
+	 *  abstraction of the list of inferences. So far, it will only be called in
+	 *  the functions in InferenceSet */
+	ModelList<Inference*>* getList() {
+		return list;
+	}
+	
 	void push_back(Inference *infer) {
 		list->push_back(infer);
 	}
