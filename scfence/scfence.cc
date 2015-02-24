@@ -530,18 +530,88 @@ bool SCFence::imposeSync(InferenceList *inferList,
 	return true;
 }
 
-/** Impose the current inference or the partialCandidates the caller passes in.
- *  It will clean up the partialCandidates and everything new goes to the return
- *  value*/
-bool SCFence::imposeSC(InferenceList *inferList, const ModelAction *act1, const ModelAction *act2) {
+/** Impose SC orderings to related actions (including fences) such that we
+ *  either want to establish mo between act1 & act2 (act1 -mo-> act2) when they
+ *  can't establish hb; or that act2 can't read from any actions that are
+ *  modification ordered before act1. All these requirements are consistent with
+ *  the following strengthening strategy:
+ *  1. make both act1 and act2 SC
+ *  2. if there are fences in between act1 & act2, and the fences are either in
+ *  the threads of either act1 or act2, we can impose SC on the fences or
+ *  corresponding actions. 
+ */
+bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const ModelAction *act1, const ModelAction *act2) {
 	if (!inferList) {
 		return false;
 	}
-	Patch *p = new Patch(act1, memory_order_seq_cst, act2, memory_order_seq_cst);
-	if (!p->isApplicable())
-		return false;
-	inferList->applyPatch(getCurInference(), p);
-	return true;
+	int act1ThrdID = act1->get_tid(),
+		act2ThrdID = act2->get_tid();
+	action_list_t::iterator act1Iter = std::find(actions->begin(),
+		actions->end(), act1);
+	action_list_t::iterator act2Iter = std::find(act1Iter,
+		actions->end(), act2);
+
+	action_list_t::iterator it = act1Iter;
+	it++;
+	action_list_t *fences = new action_list_t;
+	int size = 0;
+	while (it != act2Iter) {
+		ModelAction *fence = *it;
+		it++;
+		if (!fence->is_fence())
+			continue;
+		if (!is_wildcard(fence->get_original_mo()))
+			continue;
+		fences->push_back(fence);
+		size++;
+	}
+
+	Patch *p;
+	SnapVector<Patch*> *patches = new SnapVector<Patch*>;
+	model_print("fences size %d\n", size);
+	// Just impose SC on one fence
+	for (action_list_t::iterator fit = fences->begin(); fit != fences->end();
+		fit++) {
+		ModelAction *fence = *fit;
+		p = new Patch(act1, memory_order_seq_cst, fence, memory_order_seq_cst);
+		if (p->isApplicable()) {
+			p->print();
+			patches->push_back(p);
+		}
+		p = new Patch(act2, memory_order_seq_cst, fence, memory_order_seq_cst);
+		if (p->isApplicable()) {
+			p->print();
+			patches->push_back(p);
+		}
+	}
+	
+	// Mmpose SC on two fences
+	for (action_list_t::iterator fit1 = fences->begin(); fit1 != fences->end();
+		fit1++) {
+		ModelAction *fence1 = *fit1;
+		action_list_t::iterator fit2 = fit1;
+		fit2++;
+		for (; fit2 != fences->end(); fit2++) {
+			ModelAction *fence2 = *fit2;
+			p = new Patch(fence1, memory_order_seq_cst, fence2, memory_order_seq_cst);
+			if (p->isApplicable()) {
+				p->print();
+				patches->push_back(p);
+			}
+		}
+	}
+
+	p = new Patch(act1, memory_order_seq_cst, act2, memory_order_seq_cst);
+	if (p->isApplicable()) {
+		p->print();
+		patches->push_back(p);
+	}
+	
+	if (patches->size() > 0) {
+		inferList->applyPatch(getCurInference(), patches);
+		return true;
+	}
+	return false;
 }
 
 /** A subroutine that calculates the potential fixes for the non-sc pattern (a),
@@ -577,6 +647,7 @@ InferenceList* SCFence::getFixesFromPatternA(action_list_t *list, action_list_t:
 	FENCE_PRINT("write2s set size: %d\n", write2s->size());
 	for (action_list_t::iterator itWrite2 = write2s->begin();
 		itWrite2 != write2s->end(); itWrite2++) {
+		InferenceList *tmpCandidates = new InferenceList;
 		write2 = *itWrite2;
 		FENCE_PRINT("write2:\n");
 		ACT_PRINT(write2);
@@ -590,12 +661,12 @@ InferenceList* SCFence::getFixesFromPatternA(action_list_t *list, action_list_t:
 				// FIXME: Need to make sure at least one path is feasible; what
 				// if we got empty candidates here, maybe should then impose SC,
 				// same in the write2->read
-				imposeSync(candidates, paths1, write, write2);
+				imposeSync(tmpCandidates, paths1, write, write2);
 			} else {
 				FENCE_PRINT("Have to impose sc on write1 & write2: \n");
 				ACT_PRINT(write);
 				ACT_PRINT(write2);
-				imposeSC(candidates, write, write2);
+				imposeSC(list, tmpCandidates, write, write2);
 			}
 		} else {
 			FENCE_PRINT("write1 mo before write2. \n");
@@ -609,16 +680,17 @@ InferenceList* SCFence::getFixesFromPatternA(action_list_t *list, action_list_t:
 				FENCE_PRINT("From write2 to read: \n");
 				print_rf_sb_paths(paths2, write2, read);
 				//FENCE_PRINT("paths2 size: %d\n", paths2->size());
-				imposeSync(candidates, paths2, write2, read);
+				imposeSync(tmpCandidates, paths2, write2, read);
 			} else {
 				FENCE_PRINT("Have to impose sc on write2 & read: \n");
 				ACT_PRINT(write2);
 				ACT_PRINT(read);
-				imposeSC(candidates, write2, read);
+				imposeSC(list, tmpCandidates, write2, read);
 			}
 		} else {
 			FENCE_PRINT("write2 hb before read. \n");
 		}
+		candidates->append(tmpCandidates);
 	}
 	// Return the complete list of candidates
 	return candidates;
@@ -917,6 +989,7 @@ void SCFence::analyze(action_list_t *actions) {
 
 	fastVersion = true;
 	action_list_t *list = generateSC(actions);
+	printCV(actions);
 	if (cyclic) {
 		reset(actions);
 		delete list;
@@ -1171,7 +1244,8 @@ bool SCFence::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 		return false;
 	}
 	if (fastVersion) {
-		return cv->merge(cv2);
+		bool status = cv->merge(cv2);
+		return status;
 	} else {
 		bool merged;
 		if (allowNonSC) {
@@ -1586,6 +1660,16 @@ void SCFence::collectAnnotatedReads() {
 				return;
 			}
 		}
+	}
+}
+
+
+void SCFence::printCV(action_list_t *list) {
+	model_print("Printing CVs:\n");
+	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
+		ModelAction *act = *it;
+		act->print();
+		cvmap.get(act)->print();
 	}
 }
 

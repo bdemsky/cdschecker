@@ -138,6 +138,7 @@ class SCFence : public TraceAnalysis {
 	int buildVectors(SnapVector<action_list_t> *threadlist, int *maxthread, action_list_t *);
 	bool updateConstraints(ModelAction *act);
 	void computeCV(action_list_t *);
+	void printCV(action_list_t *);
 	action_list_t * generateSC(action_list_t *);
 
 	bool fastVersion;
@@ -272,7 +273,7 @@ class SCFence : public TraceAnalysis {
 
 	/** Impose SC to the existing list of inferences (inferList) by action1 &
 	 *  action2. */
-	bool imposeSC(InferenceList *inferList, const ModelAction *act1,
+	bool imposeSC(action_list_t * actions, InferenceList *inferList, const ModelAction *act1,
 		const ModelAction *act2);
 
 	/** When we finish model checking or cannot further strenghen with the

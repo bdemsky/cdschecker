@@ -435,8 +435,6 @@ class InferenceList {
 			}
 		}
 		if (updateState) {
-			model_print("New infer:\n");
-			newInfer->print();
 			return true;
 		} else {
 			return false;
