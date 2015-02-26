@@ -555,7 +555,7 @@ const char * ModelAction::get_type_str() const
 		case ATOMIC_WAIT: return "wait";
 		case ATOMIC_NOTIFY_ONE: return "notify one";
 	  case ATOMIC_NOTIFY_ALL: return "notify all";
-	  case ATOMIC_ANNOTATION: return "atomic annotation";
+	  case ATOMIC_ANNOTATION: return "annotation";
 		default: return "unknown type";
 	};
 }

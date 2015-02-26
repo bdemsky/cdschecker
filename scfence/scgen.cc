@@ -12,6 +12,7 @@
 
 SCGenerator::SCGenerator() :
 	cvmap(),
+	actions(actions),
 	cyclic(false),
 	badrfset(),
 	lastwrmap(),
@@ -20,15 +21,12 @@ SCGenerator::SCGenerator() :
 	execution(NULL),
 	print_always(false),
 	print_buggy(false),
-	print_nonsc(false),
-	time(false),
-	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
+	print_nonsc(false)
 {
-	
+	stats = new struct sc_statistics;
 }
 
 SCGenerator::~SCGenerator() {
-	delete(stats);
 }
 
 void SCGenerator::print_list(action_list_t *list) {
@@ -55,15 +53,6 @@ void SCGenerator::print_list(action_list_t *list) {
 }
 
 /******************** SCFence-related Functions (End) ********************/
-
-void SCGenerator::update_stats() {
-	if (cyclic) {
-		stats->nonsccount++;
-	} else {
-		stats->sccount++;
-	}
-}
-
 void SCGenerator::check_rf(action_list_t *list) {
 	bool hasBadRF = false;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
@@ -219,8 +208,39 @@ ModelAction * SCGenerator::pruneArray(ModelAction **array,int count) {
 	return nonconflict;
 }
 
+action_list_t* SCGenerator::getSCList() {
+	struct timeval start;
+	struct timeval finish;
+	gettimeofday(&start, NULL);
+	
+	/* Build up the thread lists for general purpose */
+	int thrdNum;
+	buildVectors(&dup_threadlists, &thrdNum, actions);
+	
+	fastVersion = true;
+	action_list_t *list = generateSC(actions);
+	if (cyclic) {
+		reset(actions);
+		delete list;
+		fastVersion = false;
+		list = generateSC(actions);
+	}
+	check_rf(list);
+	gettimeofday(&finish, NULL);
+	stats->elapsedtime+=((finish.tv_sec*1000000+finish.tv_usec)-(start.tv_sec*1000000+start.tv_usec));
+	update_stats();
+	return list;
+}
+
+void SCGenerator::update_stats() {
+	if (cyclic) {
+		stats->nonsccount++;
+	} else {
+		stats->sccount++;
+	}
+}
+
 action_list_t * SCGenerator::generateSC(action_list_t *list) {
-	mo_graph = execution->get_mo_graph();
  	int numactions=buildVectors(&threadlists, &maxthreads, list);
 	stats->actions+=numactions;
 

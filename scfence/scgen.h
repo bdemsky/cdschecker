@@ -3,6 +3,7 @@
 #include "hashtable.h"
 #include "memoryorder.h"
 #include "action.h"
+#include "scanalysis.h"
 #include "model.h"
 
 #include <sys/time.h>
@@ -11,36 +12,75 @@ typedef struct SCGeneratorOption {
 	bool print_always;
 	bool print_buggy;
 	bool print_nonsc;
-	bool time;
 	bool annotationMode;
 } SCGeneratorOption;
 
 
 class SCGenerator {
- public:
-	SCGenerator(action_list_t *actions);
+public:
+	SCGenerator();
 	~SCGenerator();
 
-	action_list_t * generateSC(action_list_t *);
+	bool getCyclic() {
+		return cyclic;
+	}
+
+	struct sc_statistics* getStats() {
+		return stats;
+	}
+
+	void setActions(action_list_t *actions) {
+		this->actions = actions;
+	}
+
+	void setPrintAlways(bool val) {
+		this->print_always = val;
+	}
+
+	void setPrintBuggy(bool val) {
+		this->print_buggy = val;
+	}
+
+	void setPrintNonSC(bool val) {
+		this->print_nonsc = val;
+	}
+
+	void setAnnotationMode(bool val) {
+		this->annotationMode = val;
+	}
+
+	action_list_t * getSCList();
+	
+	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4> *getBadrfset() {
+		return &badrfset;
+	}
+
+	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > *getAnnotatedReadSet() {
+		return &annotatedReadSet;
+	}
+
 	void print_list(action_list_t *list);
 	void printCV(action_list_t *);
 
 	SCGeneratorOption* getOption();
 	
 	SNAPSHOTALLOC
- private:
+private:
 	/********************** SC-related stuff (beginning) **********************/
 	SCGeneratorOption *option;
 	ModelExecution *execution;
 
+	action_list_t *actions;
+
 	bool fastVersion;
 	bool allowNonSC;
 
+	action_list_t * generateSC(action_list_t *list);
 	void update_stats();
+
 	int buildVectors(SnapVector<action_list_t> *threadlist, int *maxthread, action_list_t *);
 	bool updateConstraints(ModelAction *act);
 	void computeCV(action_list_t *);
-
 
 	bool processReadFast(ModelAction *read, ClockVector *cv);
 	bool processReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture);
@@ -62,7 +102,7 @@ class SCGenerator {
 	bool print_always;
 	bool print_buggy;
 	bool print_nonsc;
-	bool time;
+
 	struct sc_statistics *stats;
 
 	/** The set of read actions that are annotated to be special and will
@@ -77,5 +117,6 @@ class SCGenerator {
 	/** A set of actions that should be ignored in the partially SC analysis */
 	HashTable<const ModelAction*, const ModelAction*, uintptr_t, 4> ignoredActions;
 	int ignoredActionSize;
+
 };
 #endif

@@ -136,11 +136,15 @@ class SCFence : public TraceAnalysis {
 	/** The SC list generator */
 	SCGenerator *scgen;
 
+	struct sc_statistics *stats;
+
+	bool time;
+
 	/** Modification order graph */
 	const CycleGraph *mo_graph;
 
 	/** A duplica of the thread lists */
-	SnapVector<action_list_t> dup_threadlists;
+	SnapVector<action_list_t> *dup_threadlists;
 	ModelExecution *execution;
 
 	/** A set of actions that should be ignored in the partially SC analysis */
@@ -150,6 +154,9 @@ class SCFence : public TraceAnalysis {
 	/** The non-snapshotting private compound data structure that has the
 	 * necessary stuff for the scfence analysis */
 	static scfence_priv *priv;
+
+	/** For the SC analysis */
+	void update_stats();
 
 	/** The function to parse the SCFence plugin options */
 	bool parseOption(char *opt);

@@ -17,18 +17,9 @@
 scfence_priv *SCFence::priv;
 
 SCFence::SCFence() :
-	cvmap(),
-	cyclic(false),
-	badrfset(),
-	lastwrmap(),
-	threadlists(1),
-	dup_threadlists(1),
+	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
 	execution(NULL),
-	print_always(false),
-	print_buggy(false),
-	print_nonsc(false),
-	time(false),
-	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics)))
+	scgen(new SCGenerator)
 {
 	priv = new scfence_priv();
 }
@@ -79,63 +70,37 @@ void SCFence::actionAtInstallation() {
 }
 
 void SCFence::analyze(action_list_t *actions) {
+	scgen->setActions(actions);
 	if (getTimeout() > 0 && isTimeout()) {
 		model_print("Backtrack because we reached the timeout bound.\n");
 		routineBacktrack(false);
 		return;
 	}
 
-	struct timeval start;
-	struct timeval finish;
-	if (time)
-		gettimeofday(&start, NULL);
-	
 	/* Build up the thread lists for general purpose */
-	int thrdNum;
-	buildVectors(&dup_threadlists, &thrdNum, actions);
-	
+	mo_graph = execution->get_mo_graph();
+
 	// First of all check if there's any uninitialzed read bugs
 	if (execution->have_bug_reports()) {
-		/*
-		bool added = addFixes(actions, BUGGY_EXECUTION);
-		if (added) {
-			model_print("Found a solution for buggy execution!\n");
-			routineAfterAddFixes();
-			return;
-		} else {
-			// We can't fix the problem in this execution, but we may not be an
-			// SC execution
-			model_print("Buggy...\n");
-			setBuggy(true);
-		}
-		*/
 		setBuggy(true);
 	}
 
-	fastVersion = true;
-	action_list_t *list = generateSC(actions);
-	if (cyclic) {
-		reset(actions);
-		delete list;
-		fastVersion = false;
-		list = generateSC(actions);
-	} else if (execution->have_bug_reports()) {
+	action_list_t *list = scgen->getSCList();
+	bool cyclic = scgen->getCyclic();
+	
+	struct sc_statistics *s = scgen->getStats();
+	stats->nonsccount += s->nonsccount;
+	stats->sccount += s->sccount;
+	stats->elapsedtime += s->elapsedtime;
+	stats->actions += s->actions;
+
+	if (cyclic && execution->have_bug_reports()) {
 		model_print("Be careful. This execution has bugs and still SC\n");
 	}
-	check_rf(list);
-	if (print_always || (print_buggy && execution->have_bug_reports())|| (print_nonsc && cyclic))
-		print_list(list);
-	if (time) {
-		gettimeofday(&finish, NULL);
-		stats->elapsedtime+=((finish.tv_sec*1000000+finish.tv_usec)-(start.tv_sec*1000000+start.tv_usec));
-	}
-	update_stats();
 
 	// Now we find a non-SC execution
 	if (cyclic) {
 		/******** The Non-SC case (beginning) ********/
-		print_list(list);
-
 		bool added = addFixes(list, NON_SC);
 		if (added) {
 			routineAfterAddFixes();
@@ -149,7 +114,7 @@ void SCFence::analyze(action_list_t *actions) {
 		/******** The implicit MO case (beginning) ********/
 		if (getInferImplicitMO() && execution->too_many_steps() &&
 			!execution->is_complete_execution()) {
-			print_list(list);
+			scgen->print_list(list);
 			bool added = addFixes(list, IMPLICIT_MO);
 			if (added) {
 				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
@@ -157,10 +122,6 @@ void SCFence::analyze(action_list_t *actions) {
 				return;
 			} else {
 				// This can be a good execution, so we can't do anything,
-				// backtrack
-				//model_print("Weird!! We cannot infer the mo for infinite reads!\n");
-				//model_print("Maybe you should have more wildcards parameters for us to infer!\n");
-				//routineBacktrack(false);
 				return;
 			}
 		}
@@ -329,7 +290,7 @@ bool SCFence::parseOption(char *opt) {
 				break;
 			case 'a': // Turn on the annotation mode 
 				//model_print("Parsing a option!\n");
-				annotationMode = true;
+				scgen->setAnnotationMode(true);
 				if (strcmp(val, "") != 0) {
 					model_print("option a doesn't take any arguments!\n");
 					return true;
@@ -357,15 +318,15 @@ bool SCFence::parseOption(char *opt) {
 
 bool SCFence::option(char * opt) {
 	if (strcmp(opt, "verbose")==0) {
-		print_always=true;
+		scgen->setPrintAlways(true);
 		return false;
 	} else if (strcmp(opt, "buggy")==0) {
 		return false;
 	} else if (strcmp(opt, "quiet")==0) {
-		print_buggy=false;
+		scgen->setPrintBuggy(false);
 		return false;
 	} else if (strcmp(opt, "nonsc")==0) {
-		print_nonsc=true;
+		scgen->setPrintNonSC(true);
 		return false;
 	} else if (strcmp(opt, "time")==0) {
 		time=true;
@@ -390,29 +351,6 @@ bool SCFence::option(char * opt) {
 		return true;
 	}
 	
-}
-
-void SCFence::print_list(action_list_t *list) {
-	model_print("---------------------------------------------------------------------\n");
-	if (cyclic)
-		model_print("Not SC\n");
-	unsigned int hash = 0;
-
-	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
-		const ModelAction *act = *it;
-		if (act->get_seq_number() > 0) {
-			if (badrfset.contains(act))
-				model_print("BRF ");
-			act->print();
-			if (badrfset.contains(act)) {
-				model_print("Desired Rf: %u \n", badrfset.get(act)->get_seq_number());
-			}
-			cvmap.get(act)->print();
-		}
-		hash = hash ^ (hash << 3) ^ ((*it)->hash());
-	}
-	model_print("HASH %u\n", hash);
-	model_print("---------------------------------------------------------------------\n");
 }
 
 
@@ -453,8 +391,8 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 	// Look for the acq fence after the read action
 	int readThrdID = read->get_tid(),
 		writeThrdID = write->get_tid();
-	action_list_t *readThrd = &dup_threadlists[readThrdID],
-		*writeThrd = &dup_threadlists[writeThrdID];
+	action_list_t *readThrd = &(*dup_threadlists)[readThrdID],
+		*writeThrd = &(*dup_threadlists)[writeThrdID];
 	action_list_t::iterator readIter = std::find(readThrd->begin(),
 		readThrd->end(), read);
 	action_list_t::reverse_iterator writeIter = std::find(writeThrd->rbegin(),
@@ -820,7 +758,8 @@ bool SCFence::addFixesNonSC(action_list_t *list) {
 		action_list_t::iterator readIter = it, writeIter;
 		if (act->get_seq_number() > 0) {
 			// Annotated reads will be ignored
-			if (badrfset.contains(act) && !annotatedReadSet.contains(act)) {
+			if (scgen->getBadrfset()->contains(act) &&
+				!scgen->getAnnotatedReadSet()->contains(act)) {
 				const ModelAction *write = act->get_reads_from();
 				// Check reading old or future value
 				writeIter = std::find(list->begin(),
@@ -1044,8 +983,8 @@ paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *a
 	int idx1 = id_to_int(act1->get_tid()),
 		idx2 = id_to_int(act2->get_tid());
 	// Retrieves the two lists of actions of thread1 & thread2
-	action_list_t *list1 = &dup_threadlists[idx1],
-		*list2 = &dup_threadlists[idx2];
+	action_list_t *list1 = &(*dup_threadlists)[idx1],
+		*list2 = &(*dup_threadlists)[idx2];
 	if (list1->size() == 0 || list2->size() == 0) {
 		return new paths_t();
 	}
@@ -1112,7 +1051,7 @@ paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *a
 		}
 		// Extend the path with the latest read
 		int idx = id_to_int(write->get_tid());
-		action_list_t *list = &dup_threadlists[idx];
+		action_list_t *list = &(*dup_threadlists)[idx];
 		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 			ModelAction *act = *it;
 			if (act->get_seq_number() > write_seqnum) // Could be RMW
