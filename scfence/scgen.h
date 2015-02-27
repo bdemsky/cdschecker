@@ -46,8 +46,16 @@ public:
 		return cyclic;
 	}
 
+	SnapVector<action_list_t>* getDupThreadLists() {
+		return &dup_threadlists;
+	}
+
 	struct sc_statistics* getStats() {
 		return stats;
+	}
+
+	void setExecution(ModelExecution *execution) {
+		this->execution = execution;
 	}
 
 	void setActions(action_list_t *actions) {
@@ -117,7 +125,6 @@ public:
 				if (badrfset.contains(act)) {
 					model_print("Desired Rf: %u \n", badrfset.get(act)->get_seq_number());
 				}
-				cvmap.get(act)->print();
 			}
 			hash = hash ^ (hash << 3) ^ ((*it)->hash());
 		}
@@ -279,18 +286,9 @@ private:
 					lastact = execution->get_thread(act)->get_creation();
 				last_act[id_to_int(act->get_tid())] = act;
 				ClockVector *cv = cvmap.get(act);
-				if (act->get_seq_number() == 13) {
-					model_print("CV: %d\n", cv);
-				}
 				if (cv == NULL) {
 					cv = new ClockVector(act->get_cv(), act);
-					model_print("New CV\n");
-					act->print();
 					cvmap.put(act, cv);
-				}
-				if (act->get_seq_number() == 13) {
-					act->print();
-					cv->print();
 				}
 				
 				if (lastact != NULL) {
@@ -359,16 +357,6 @@ private:
 					 write -rf-> R =>
 					 R -sc-> write2 */
 				if (write2cv->synchronized_since(write)) {
-
-				model_print("infer1:\n");
-				write->print();
-				cvmap.get(write)->print();
-				write2->print();
-				cvmap.get(write2)->print();
-				read->print();
-				cvmap.get(read)->print();
-
-
 					changed |= merge(write2cv, write2, read);
 				}
 
