@@ -402,16 +402,6 @@ bool SCGenerator::processReadFast(ModelAction *read, ClockVector *cv) {
 				 write -rf-> R =>
 				 R -sc-> write2 */
 			if (write2cv->synchronized_since(write)) {
-
-			model_print("infer1:\n");
-			write->print();
-			cvmap.get(write)->print();
-			write2->print();
-			cvmap.get(write2)->print();
-			read->print();
-			cvmap.get(read)->print();
-
-
 				changed |= merge(write2cv, write2, read);
 			}
 
