@@ -96,13 +96,14 @@ void SCFence::analyze(action_list_t *actions) {
 	stats->elapsedtime += s->elapsedtime;
 	stats->actions += s->actions;
 
-	if (cyclic && execution->have_bug_reports()) {
+	if (!cyclic && execution->have_bug_reports()) {
 		model_print("Be careful. This execution has bugs and still SC\n");
 	}
 
 	// Now we find a non-SC execution
 	if (cyclic) {
 		/******** The Non-SC case (beginning) ********/
+		scgen->print_list(list);
 		bool added = addFixes(list, NON_SC);
 		if (added) {
 			routineAfterAddFixes();
