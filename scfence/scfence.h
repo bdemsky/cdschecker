@@ -210,6 +210,11 @@ class SCFence : public TraceAnalysis {
 	/** Check if there exists data races, if so, generate the fixes */
 	bool addFixesDataRace(action_list_t *list);
 
+	/** The previous action in sb */
+	ModelAction* sbPrevAction(ModelAction *act);
+	/** The next action in sb */
+	ModelAction* sbNextAction(ModelAction *act);
+
 	/** When getting a non-SC execution, find potential fixes and add it to the
 	 *  set */
 	bool addFixesNonSC(action_list_t *list);

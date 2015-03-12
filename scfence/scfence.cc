@@ -961,6 +961,24 @@ bool SCFence::checkDataRace(action_list_t *list, ModelAction **act1,
 	return false;
 }
 
+ModelAction* SCFence::sbPrevAction(ModelAction *act) {
+	int idx = id_to_int(act->get_tid());
+	// Retrieves the thread list of the action
+	action_list_t *list = &(*scgen->getDupThreadLists())[idx];
+	action_list_t::iterator iter = std::find(list->begin(),
+		list->end(), act);
+	return *--iter;
+}
+
+ModelAction* SCFence::sbNextAction(ModelAction *act) {
+	int idx = id_to_int(act->get_tid());
+	// Retrieves the thread list of the action
+	action_list_t *list = &(*scgen->getDupThreadLists())[idx];
+	action_list_t::iterator iter = std::find(list->begin(),
+		list->end(), act);
+	return *++iter;
+}
+
 bool SCFence::addFixesDataRace(action_list_t *list) {
 	ModelAction *act1, *act2;
 	bool hasRace = checkDataRace(list, &act1, &act2);
@@ -968,10 +986,10 @@ bool SCFence::addFixesDataRace(action_list_t *list) {
 		InferenceList *candidates1 = new InferenceList,
 			*candidates2 = new InferenceList;
 		paths_t *paths1, *paths2;
-		paths1 = get_rf_sb_paths(act1, act2);
-		paths2 = get_rf_sb_paths(act2, act1);
-		bool added = false;
 		model_print("Fixing data race: \n");
+		paths1 = get_rf_sb_paths(sbNextAction(act1), sbPrevAction(act2));
+		paths2 = get_rf_sb_paths(sbNextAction(act2), sbPrevAction(act1));
+		bool added = false;
 		if (paths1->size() > 0) {
 			model_print("paths1: \n");
 			print_rf_sb_paths(paths1, act1, act2);
