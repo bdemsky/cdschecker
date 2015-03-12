@@ -50,6 +50,9 @@ void SCFence::inspectModelAction(ModelAction *act) {
 	if (act->get_mo() >= memory_order_relaxed && act->get_mo() <=
 		memory_order_seq_cst) {
 		return;
+	} else if (act->get_mo() == memory_order_normal) {
+		// For the purpose of eliminating data races
+		act->set_mo(memory_order_relaxed);
 	} else { // For wildcards
 		Inference *curInfer = getCurInference();
 		int wildcardID = get_wildcard_id(act->get_mo());
@@ -127,6 +130,15 @@ void SCFence::analyze(action_list_t *actions) {
 				// This can be a good execution, so we can't do anything,
 				return;
 			}
+		}
+		/******** The implicit MO case (end) ********/
+
+		/******** The checking data races case (beginning) ********/
+		bool added = addFixes(list, DATA_RACE);
+		if (added) {
+			FENCE_PRINT("Found an data race pattern to fix!\n");
+			routineAfterAddFixes();
+			return;
 		}
 	}
 }
@@ -896,6 +908,87 @@ bool SCFence::addFixesImplicitMO(action_list_t *list) {
 	return false;
 }
 
+bool SCFence::checkDataRace(action_list_t *list, ModelAction **act1, 
+	ModelAction **act2) {
+
+	SnapList<action_list_t*> *opList = new SnapList<action_list_t*>;
+	/** Collect the operations per location */
+	for (action_list_t::iterator iter = list->begin(); iter != list->end();
+		iter++) {
+		ModelAction *act = *iter;
+		if (act->get_original_mo() != memory_order_normal)
+			continue;
+		void *loc = act->get_location();
+		bool foundIt = false;
+		for (SnapList<action_list_t*>::iterator listIter = opList->begin();
+			listIter != opList->end(); listIter++) {
+			action_list_t *list = *listIter;
+			ModelAction *listAct = *(list->begin());
+			if (listAct->get_location() != act->get_location())
+				continue;
+			foundIt = true;
+			list->push_back(act);
+		}
+		if (!foundIt) {
+			action_list_t *newList = new action_list_t;
+			newList->push_back(act);
+			opList->push_back(newList);
+		}
+	}
+
+	if (opList->size() == 0)
+		return false;
+	/** Now check if any two operations (same loc) establish hb */
+	for (SnapList<action_list_t*>::iterator listIter = opList->begin();
+		listIter != opList->end(); listIter++) {
+		action_list_t *list = *listIter;
+		action_list_t::iterator it1, it2;
+		for (it1 = list->begin(); it1 != list->end(); it1++) {
+			ModelAction *raceAct1 = *it1;
+			it2 = it1;
+			it2++;
+			for (; it2 != list->end(); it2++) {
+				ModelAction *raceAct2 = *it2;
+				if (!raceAct1->happens_before(raceAct2) &&
+					!raceAct2->happens_before(raceAct1)) {
+					*act1 = raceAct1;
+					*act2 = raceAct2;
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool SCFence::addFixesDataRace(action_list_t *list) {
+	ModelAction *act1, *act2;
+	bool hasRace = checkDataRace(list, &act1, &act2);
+	if (hasRace) {
+		InferenceList *candidates1 = new InferenceList,
+			*candidates2 = new InferenceList;
+		paths_t *paths1, *paths2;
+		paths1 = get_rf_sb_paths(act1, act2);
+		paths2 = get_rf_sb_paths(act2, act1);
+		bool added = false;
+		model_print("Fixing data race: \n");
+		if (paths1->size() > 0) {
+			model_print("paths1: \n");
+			print_rf_sb_paths(paths1, act1, act2);
+			imposeSync(candidates1, paths1, act1, act2);
+			bool added = addCandidates(candidates1);
+			if (paths2->size() > 0) {
+				model_print("paths2: \n");
+				print_rf_sb_paths(paths2, act2, act1);
+				imposeSync(candidates2, paths2, act2, act1);
+				added |= addCandidates(candidates2);
+			}
+		}
+		return added;
+	}
+	return false;
+}
+
 bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
 	bool added = false;
 	switch(type) {
@@ -907,6 +1000,9 @@ bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
 			break;
 		case NON_SC:
 			added = addFixesNonSC(list);
+			break;
+		case DATA_RACE:
+			added = addFixesDataRace(list);
 			break;
 		default:
 			break;

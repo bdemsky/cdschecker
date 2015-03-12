@@ -4,6 +4,8 @@
 
 #define MAX_WILDCARD_NUM 50
 
+#define memory_order_normal ((memory_order) (0x2000))
+
 #define memory_order_wildcard(x) ((memory_order) (0x1000+x))
 
 #define wildcard(x) ((memory_order) (0x1000+x))
@@ -14,9 +16,9 @@
 #define WILDCARD_NONEXIST (memory_order) -1
 #define INFERENCE_INCOMPARABLE(x) (!(-1 <= (x) <= 1))
 
-#define is_wildcard(x) (!(x >= memory_order_relaxed && x <= memory_order_seq_cst))
-#define is_normal_mo_infer(x) ((x >= memory_order_relaxed && x <= memory_order_seq_cst) || x == WILDCARD_NONEXIST)
-#define is_normal_mo(x) (x >= memory_order_relaxed && x <= memory_order_seq_cst)
+#define is_wildcard(x) (!(x >= memory_order_relaxed && x <= memory_order_seq_cst) && x != memory_order_normal)
+#define is_normal_mo_infer(x) ((x >= memory_order_relaxed && x <= memory_order_seq_cst) || x == WILDCARD_NONEXIST || x == memory_order_normal)
+#define is_normal_mo(x) ((x >= memory_order_relaxed && x <= memory_order_seq_cst) || x == memory_order_normal)
 
 #define assert_infer(x) for (int i = 0; i <= wildcardNum; i++)\
 	ASSERT(is_normal_mo_infer((x[i])));

@@ -112,7 +112,8 @@ typedef struct scfence_priv {
 typedef enum fix_type {
 	BUGGY_EXECUTION,
 	IMPLICIT_MO,
-	NON_SC
+	NON_SC,
+	DATA_RACE
 } fix_type_t;
 
 
@@ -200,6 +201,14 @@ class SCFence : public TraceAnalysis {
 
 	/** A subroutine to find candidates for pattern (b) */
 	InferenceList* getFixesFromPatternB(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter);
+
+	/** Check if there exists data races, if so, overwrite act1 & act2 to be the
+	 *  two */
+	bool checkDataRace(action_list_t *list, ModelAction **act1, 
+		ModelAction **act2);
+
+	/** Check if there exists data races, if so, generate the fixes */
+	bool addFixesDataRace(action_list_t *list);
 
 	/** When getting a non-SC execution, find potential fixes and add it to the
 	 *  set */
