@@ -103,6 +103,10 @@ void SCFence::analyze(action_list_t *actions) {
 		model_print("Be careful. This execution has bugs and still SC\n");
 	}
 
+	if (!cyclic && scgen->getPrintAlways()) {
+		scgen->print_list(list);
+	}
+
 	// Now we find a non-SC execution
 	if (cyclic) {
 		/******** The Non-SC case (beginning) ********/
@@ -638,7 +642,7 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 		}
 	}
 
-	//p = new Patch(act1, memory_order_seq_cst, act2, memory_order_seq_cst);
+	p = new Patch(act1, memory_order_seq_cst, act2, memory_order_seq_cst);
 	if (p->isApplicable()) {
 		patches->push_back(p);
 	}
@@ -1030,7 +1034,6 @@ bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
 		// falg
 		setHasFixes(true);
 	}
-	model_print("Added = %d\n", added);
 	return added;
 }
 

@@ -43,7 +43,7 @@ public:
 	}
 
 	bool getCyclic() {
-		return cyclic;
+		return cyclic || hasBadRF;
 	}
 
 	SnapVector<action_list_t>* getDupThreadLists() {
@@ -66,10 +66,18 @@ public:
 		this->print_always = val;
 	}
 
+	bool getPrintAlways() {
+		return this->print_always;
+	}
+
+	bool getHasBadRF() {
+		return this->hasBadRF;
+	}
+
 	void setPrintBuggy(bool val) {
 		this->print_buggy = val;
 	}
-
+	
 	void setPrintNonSC(bool val) {
 		this->print_nonsc = val;
 	}
@@ -112,7 +120,7 @@ public:
 
 	void print_list(action_list_t *list) {
 		model_print("---------------------------------------------------------------------\n");
-		if (cyclic)
+		if (cyclic || hasBadRF)
 			model_print("Not SC\n");
 		unsigned int hash = 0;
 
@@ -126,6 +134,7 @@ public:
 					model_print("Desired Rf: %u \n", badrfset.get(act)->get_seq_number());
 				}
 			}
+			//cvmap.get(act)->print();
 			hash = hash ^ (hash << 3) ^ ((*it)->hash());
 		}
 		model_print("HASH %u\n", hash);
@@ -536,7 +545,7 @@ private:
 	}
 
 	void check_rf(action_list_t *list) {
-		bool hasBadRF = false;
+		hasBadRF = false;
 		for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 			const ModelAction *act = *it;
 			if (act->is_read()) {
@@ -660,6 +669,7 @@ private:
 	bool print_always;
 	bool print_buggy;
 	bool print_nonsc;
+	bool hasBadRF;
 
 	struct sc_statistics *stats;
 
