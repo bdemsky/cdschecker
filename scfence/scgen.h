@@ -134,7 +134,8 @@ public:
 					model_print("Desired Rf: %u \n", badrfset.get(act)->get_seq_number());
 				}
 			}
-			//cvmap.get(act)->print();
+			//if (hasBadRF)
+			//	cvmap.get(act)->print();
 			hash = hash ^ (hash << 3) ^ ((*it)->hash());
 		}
 		model_print("HASH %u\n", hash);
@@ -345,8 +346,9 @@ private:
 
 		for (int i = 0; i <= maxthreads; i++) {
 			thread_id_t tid = int_to_id(i);
-			if (tid == read->get_tid())
-				continue;
+			// Can't ignore this case 
+			//if (tid == read->get_tid())
+			//	continue;
 			// Can't ignore writes from the same thread
 			//if (tid == write->get_tid())
 			//	continue;
@@ -359,6 +361,7 @@ private:
 					continue;
 				if (write2 == write)
 					continue;
+
 				ClockVector *write2cv = cvmap.get(write2);
 				if (write2cv == NULL)
 					continue;
@@ -367,6 +370,7 @@ private:
 					 R -sc-> write2 */
 				if (write2cv->synchronized_since(write)) {
 					changed |= merge(write2cv, write2, read);
+
 				}
 
 				//looking for earliest write2 in iteration to satisfy this
@@ -398,14 +402,16 @@ private:
 			thread_id_t tid = int_to_id(i);
 			if (tid == read->get_tid())
 				continue;
-			if (tid == write->get_tid())
-				continue;
+			//if (tid == write->get_tid())
+			//	continue;
 			action_list_t *list = execution->get_actions_on_obj(read->get_location(), tid);
 			if (list == NULL)
 				continue;
 			for (action_list_t::reverse_iterator rit = list->rbegin(); rit != list->rend(); rit++) {
 				ModelAction *write2 = *rit;
 				if (!write2->is_write())
+					continue;
+				if (write2 == write)
 					continue;
 
 				ClockVector *write2cv = cvmap.get(write2);
@@ -557,7 +563,13 @@ private:
 			if (act->is_write())
 				lastwrmap.put(act->get_location(), act);
 		}
-		//ASSERT (cyclic == hasBadRF);
+		if (cyclic != hasBadRF) {
+			if (cyclic)
+				model_print("Assert failure & non-SC\n");
+			else
+				model_print("Assert failure & SC\n");
+		}
+		ASSERT (cyclic == hasBadRF);
 	}
 	
 	void reset(action_list_t *list) {
