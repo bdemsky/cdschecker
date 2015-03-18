@@ -630,18 +630,18 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 	}
 
 	// Just impose SC on one fence
-	if (!twoFences) {
-		for (action_list_t::iterator fit = fences->begin(); fit != fences->end();
-			fit++) {
-			ModelAction *fence = *fit;
-			p = new Patch(act1, memory_order_seq_cst, fence, memory_order_seq_cst);
-			if (p->isApplicable()) {
-				patches->push_back(p);
-			}
-			p = new Patch(act2, memory_order_seq_cst, fence, memory_order_seq_cst);
-			if (p->isApplicable()) {
-				patches->push_back(p);
-			}
+	for (action_list_t::iterator fit = fences->begin(); fit != fences->end();
+		fit++) {
+		ModelAction *fence = *fit;
+		model_print("one fence\n");
+		fence->print();
+		p = new Patch(act1, memory_order_seq_cst, fence, memory_order_seq_cst);
+		if (p->isApplicable()) {
+			patches->push_back(p);
+		}
+		p = new Patch(act2, memory_order_seq_cst, fence, memory_order_seq_cst);
+		if (p->isApplicable()) {
+			patches->push_back(p);
 		}
 	}
 
