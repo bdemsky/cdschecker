@@ -611,22 +611,8 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 	Patch *p;
 	SnapVector<Patch*> *patches = new SnapVector<Patch*>;
 	//model_print("fences size %d\n", size);
-	// Just impose SC on one fence
-	/*
-	for (action_list_t::iterator fit = fences->begin(); fit != fences->end();
-		fit++) {
-		ModelAction *fence = *fit;
-		p = new Patch(act1, memory_order_seq_cst, fence, memory_order_seq_cst);
-		if (p->isApplicable()) {
-			patches->push_back(p);
-		}
-		p = new Patch(act2, memory_order_seq_cst, fence, memory_order_seq_cst);
-		if (p->isApplicable()) {
-			patches->push_back(p);
-		}
-	}
-	*/
 	
+	bool twoFences = false;
 	// Impose SC on two fences
 	for (action_list_t::iterator fit1 = fences->begin(); fit1 != fences->end();
 		fit1++) {
@@ -636,6 +622,23 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 		for (; fit2 != fences->end(); fit2++) {
 			ModelAction *fence2 = *fit2;
 			p = new Patch(fence1, memory_order_seq_cst, fence2, memory_order_seq_cst);
+			if (p->isApplicable()) {
+				twoFences = true;
+				patches->push_back(p);
+			}
+		}
+	}
+
+	// Just impose SC on one fence
+	if (!twoFences) {
+		for (action_list_t::iterator fit = fences->begin(); fit != fences->end();
+			fit++) {
+			ModelAction *fence = *fit;
+			p = new Patch(act1, memory_order_seq_cst, fence, memory_order_seq_cst);
+			if (p->isApplicable()) {
+				patches->push_back(p);
+			}
+			p = new Patch(act2, memory_order_seq_cst, fence, memory_order_seq_cst);
 			if (p->isApplicable()) {
 				patches->push_back(p);
 			}

@@ -256,7 +256,7 @@ class Inference {
 				FENCE_PRINT("wildcard %d -> memory_order_%s\n", i, get_mo_str(mo));
 			}
 		}
-		FENCE_PRINT("Hash: %lu\n", getHash());
+		//FENCE_PRINT("Hash: %lu\n", getHash());
 	}
 
 	~Inference() {
