@@ -291,14 +291,6 @@ class SCFence : public TraceAnalysis {
 		return getSet()->addCandidates(getCurInference(), candidates);
 	}
 
-	void setInitialInference(Inference *infer) {
-		getSet()->setInitialInfer(infer);
-	}
-
-	Inference* getInitialInference() {
-		return getSet()->getInitialInfer();
-	}
-
 	void addCurInference() {
 		getSet()->addCurInference(getCurInference());
 	}

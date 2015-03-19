@@ -228,9 +228,6 @@ void SCFence::initializeByFile() {
 				(*infer)[curNum] = mo;
 			}
 
-			/** Record the initial inference for this run */
-			setInitialInference(infer);
-
 			/******** addInference ********/
 			if (!addInference(infer))
 				delete infer;
@@ -1043,7 +1040,7 @@ bool SCFence::routineBacktrack(bool feasible) {
 		curInfer->print();
 		// Try to weaken this inference
 		if (weaken) {
-			getSet()->addWeakerInference(getInitialInference(), curInfer);
+			getSet()->addWeakerInference(curInfer);
 		}
 		
 	} else {

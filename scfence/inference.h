@@ -17,6 +17,9 @@ class Inference {
 	memory_order *orders;
 	int size;
 
+	/** It's initial inference, if not assigned, set it as itself */
+	Inference *initialInfer;
+
 	/** Whether this inference will lead to a buggy execution */
 	bool buggy;
 
@@ -88,6 +91,14 @@ class Inference {
 		INFERENCE_INCOMPARABLE(x) -> true means incomparable
 	 */
 	int compareTo(const Inference *infer) const;
+
+	void setInitialInfer(Inference *val) {
+		initialInfer = val;
+	}
+
+	Inference* getInitialInfer() {
+		return initialInfer;
+	}
 
 	void setShouldFix(bool val) {
 		shouldFix = val;

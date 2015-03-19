@@ -72,8 +72,6 @@ typedef struct inference_stat {
 
 class InferenceSet {
 	private:
-	/** The input set of parameters of this run */
-	Inference *initialInfer;
 
 	/** The set of already discovered nodes in the tree */
 	InferenceList *discoveredSet;
@@ -89,10 +87,6 @@ class InferenceSet {
 	
 	public:
 	InferenceSet();
-
-	void setInitialInfer(Inference *initial);
-
-	Inference* getInitialInfer();
 
 	/** Print the result of inferences  */
 	void printResults();
@@ -132,7 +126,7 @@ class InferenceSet {
 	 *  we just want to know if a weaker one might also be SC).
 	 *  @Return true if the node to add has not been explored yet
 	 */
-	bool addWeakerInference(Inference *initialInfer, Inference *curInfer);
+	bool addWeakerInference(Inference *curInfer);
 
 	/** Add one possible node that represents a fix for the current inference;
 	 * @Return true if the node to add has not been explored yet

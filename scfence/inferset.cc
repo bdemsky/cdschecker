@@ -3,18 +3,9 @@
 #include "inferset.h"
 
 InferenceSet::InferenceSet() {
-	initialInfer = new Inference;
 	discoveredSet = new InferenceList;
 	results = new InferenceList;
 	candidates = new InferenceList;
-}
-
-void InferenceSet::setInitialInfer(Inference *initial) {
-	this->initialInfer = initial;
-}
-
-Inference* InferenceSet::getInitialInfer() {
-	return this->initialInfer;
 }
 
 /** Print the result of inferences  */
@@ -74,6 +65,8 @@ bool InferenceSet::addCandidates(Inference *curInfer, InferenceList *inferList) 
 	ModelList<Inference*>::iterator it;
 	for (it = cands->begin(); it != cands->end(); it++) {
 		Inference *candidate = *it;
+		// Before adding those fixes, set its initial inference
+		candidate->setInitialInfer(curInfer->getInitialInfer());
 		bool tmpAdded = false;
 		/******** addInference ********/
 		tmpAdded = addInference(candidate);
@@ -157,14 +150,15 @@ void InferenceSet::addCurInference(Inference *infer) {
  *  we just want to know if a weaker one might also be SC).
  *  @Return true if the node to add has not been explored yet
  */
-bool InferenceSet::addWeakerInference(Inference *initialInfer,
-	Inference *curInfer) {
+bool InferenceSet::addWeakerInference(Inference *curInfer) {
+	Inference *initialInfer = curInfer->getInitialInfer();
 	model_print("Before adding weaker inferece, candidates size=%d\n",
 		candidates->getSize());
 	ModelList<Inference*> *list = discoveredSet->getList();
 
 	// An array of strengthened wildcards
 	SnapVector<int> *strengthened = new SnapVector<int>;
+	bool hasImposeSC = false;
 	model_print("Strengthened wildcards\n");
 	for (int i = 1; i <= curInfer->getSize(); i++) {
 		memory_order mo1 = (*curInfer)[i],
@@ -180,6 +174,13 @@ bool InferenceSet::addWeakerInference(Inference *initialInfer,
 		model_print("wildcard %d -> %s (%s)\n", i, get_mo_str(mo1),
 			get_mo_str(mo2));
 		strengthened->push_back(i);
+		if (mo1 == memory_order_seq_cst && mo2 != memory_order_seq_cst)
+			hasImposeSC = true;
+	}
+	// Only apply weakening to the inferences that has imposed SC
+	if (!hasImposeSC) {
+		model_print("The current inference hasn't imposed SC\n");
+		return false;
 	}
 
 	for (int i = 0; i < strengthened->size(); i++) {

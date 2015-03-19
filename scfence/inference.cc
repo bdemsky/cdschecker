@@ -121,6 +121,7 @@ Inference::Inference() {
 	size = 4;
 	for (int i = 0; i <= size; i++)
 		orders[i] = WILDCARD_NONEXIST;
+	initialInfer = this;
 	buggy = false;
 	hasFixes = false;
 	leaf = false;
@@ -134,6 +135,8 @@ Inference::Inference(Inference *infer) {
 	this->size = infer->size;
 	for (int i = 0; i <= size; i++)
 		orders[i] = infer->orders[i];
+
+	initialInfer = infer->initialInfer;
 	buggy = false;
 	hasFixes = false;
 	leaf = false;
