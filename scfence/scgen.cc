@@ -107,6 +107,7 @@ void SCGenerator::print_list(action_list_t *list) {
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act))
 				model_print("BRF ");
+			/*
 			if (act->is_rmwr()) {
 				model_print("RMWR");
 			}
@@ -116,6 +117,7 @@ void SCGenerator::print_list(action_list_t *list) {
 			if (act->is_rmwc()) {
 				model_print("RMWC");
 			}
+			*/
 			act->print();
 			if (badrfset.contains(act)) {
 				model_print("Desired Rf: %u \n", badrfset.get(act)->get_seq_number());

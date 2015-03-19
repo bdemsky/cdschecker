@@ -19,6 +19,20 @@ Patch::Patch() {
 	units = new SnapVector<PatchUnit*>;
 }
 
+bool Patch::canStrengthen(Inference *curInfer) {
+	if (!isApplicable())
+		return false;
+	bool res = false;
+	for (unsigned i = 0; i < units->size(); i++) {
+		PatchUnit *u = (*units)[i];
+		memory_order wildcard = u->getAct()->get_original_mo();
+		memory_order curMO = (*curInfer)[get_wildcard_id(wildcard)];
+		if (u->getMO() != curMO)
+			res = true;
+	}
+	return res;
+}
+
 bool Patch::isApplicable() {
 	for (unsigned i = 0; i < units->size(); i++) {
 		PatchUnit *u = (*units)[i];

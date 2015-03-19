@@ -145,6 +145,9 @@ class SCFence : public TraceAnalysis {
 
 	bool time;
 
+	/** Should we weaken the inferences later */
+	bool weaken;
+
 	/** Modification order graph */
 	const CycleGraph *mo_graph;
 

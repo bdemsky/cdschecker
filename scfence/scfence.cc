@@ -110,7 +110,9 @@ void SCFence::analyze(action_list_t *actions) {
 	// Now we find a non-SC execution
 	if (cyclic) {
 		/******** The Non-SC case (beginning) ********/
-		scgen->print_list(list);
+		// Only print those that should be fixed
+		if (getCurInference()->getShouldFix())
+			scgen->print_list(list);
 		bool added = addFixes(list, NON_SC);
 		if (added) {
 			routineAfterAddFixes();
@@ -124,7 +126,9 @@ void SCFence::analyze(action_list_t *actions) {
 		/******** The implicit MO case (beginning) ********/
 		if (getInferImplicitMO() && execution->too_many_steps() &&
 			!execution->is_complete_execution()) {
-			scgen->print_list(list);
+			// Only print those that should be fixed
+			if (getCurInference()->getShouldFix())
+				scgen->print_list(list);
 			bool added = addFixes(list, IMPLICIT_MO);
 			if (added) {
 				FENCE_PRINT("Found an implicit mo pattern to fix!\n");
@@ -330,6 +334,9 @@ bool SCFence::option(char * opt) {
 		return false;
 	} else if (strcmp(opt, "time")==0) {
 		time=true;
+		return false;
+	} else if (strcmp(opt, "weaken")==0) {
+		weaken=true;
 		return false;
 	} else if (!parseOption(opt)) {
 		if (getCandidateFile() != NULL)
@@ -589,7 +596,7 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 	SnapVector<Patch*> *patches = new SnapVector<Patch*>;
 	//model_print("fences size %d\n", size);
 	
-	//bool twoFences = false;
+	bool twoFences = false;
 	// Impose SC on two fences
 	for (action_list_t::iterator fit1 = fences->begin(); fit1 != fences->end();
 		fit1++) {
@@ -600,7 +607,7 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 			ModelAction *fence2 = *fit2;
 			p = new Patch(fence1, memory_order_seq_cst, fence2, memory_order_seq_cst);
 			if (p->isApplicable()) {
-				//twoFences = true;
+				twoFences = true;
 				patches->push_back(p);
 			}
 		}
@@ -992,6 +999,9 @@ bool SCFence::addFixesDataRace(action_list_t *list) {
 }
 
 bool SCFence::addFixes(action_list_t *list, fix_type_t type) {
+	// First check whether this is a later weakened inference
+	if (!getCurInference()->getShouldFix())
+		return false;
 	bool added = false;
 	switch(type) {
 		case BUGGY_EXECUTION:
@@ -1031,11 +1041,18 @@ bool SCFence::routineBacktrack(bool feasible) {
 			model_print("Found one buggy candidate!\n");
 		}
 		curInfer->print();
-		curInfer->getWeakerInferences(getInitialInference());
-		
+		// Try to weaken this inference
+		if (weaken) {
+			getSet()->addWeakerInference(getInitialInference(), curInfer);
+		}
 		
 	} else {
-		model_print("Reach an infeasible inference!\n");
+		if (curInfer->getShouldFix()) {
+			model_print("Reach an infeasible inference!\n");
+		} else {
+			model_print("Get an unweakenable inference!\n");
+			curInfer->print(true);
+		}
 	}
 
 	/******** getNextInference ********/

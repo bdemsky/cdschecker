@@ -40,8 +40,8 @@ const char* get_mo_str(memory_order order) {
 		case std::memory_order_acq_rel: return "acq_rel";
 		case std::memory_order_seq_cst: return "seq_cst";
 		default: 
-			model_print("Weird memory order, a bug or something!\n");
-			model_print("memory_order: %d\n", order);
+			//model_print("Weird memory order, a bug or something!\n");
+			//model_print("memory_order: %d\n", order);
 			return "unknown";
 	}
 }
@@ -191,7 +191,11 @@ InferenceList* Inference::getWeakerInferences(Inference *infer) {
 		memory_order mo1 = orders[i],
 			mo2 = (*infer)[i];
 		int compVal = compareMemoryOrder(mo1, mo2);
-		ASSERT(compVal == 0 || compVal == 1);
+		if (!(compVal == 0 || compVal == 1)) {
+			model_print("assert failure\n");
+			model_print("compVal=%d\n", compVal);
+			ASSERT (false);
+		}
 		if (compVal == 0) // Same
 			continue;
 		model_print("wildcard %d -> %s (%s)\n", i, get_mo_str(mo1),
@@ -352,7 +356,8 @@ unsigned long Inference::getHash() {
 	return hash;
 }
 
-void Inference::print() {
+
+void Inference::print(bool hasHash) {
 	ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
 	for (int i = 1; i <= size; i++) {
 		memory_order mo = orders[i];
@@ -361,5 +366,10 @@ void Inference::print() {
 			FENCE_PRINT("wildcard %d -> memory_order_%s\n", i, get_mo_str(mo));
 		}
 	}
-	//FENCE_PRINT("Hash: %lu\n", getHash());
+	if (hasHash)
+		FENCE_PRINT("Hash: %lu\n", getHash());
+}
+
+void Inference::print() {
+	print(false);
 }

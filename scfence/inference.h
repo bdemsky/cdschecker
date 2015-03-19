@@ -64,7 +64,7 @@ class Inference {
 	 *  still stronger than infer */
 	InferenceList* getWeakerInferences(Inference *infer);
 
-	memory_order nextWeakOrder(memory_order mo1, memory_order mo2);
+	static memory_order nextWeakOrder(memory_order mo1, memory_order mo2);
 
 	void getWeakerInferences(InferenceList* list, Inference *tmpRes, Inference *infer1,
 		Inference *infer2, SnapVector<int> *strengthened, unsigned idx);
@@ -132,6 +132,7 @@ class Inference {
 	unsigned long getHash();
 	
 	void print();
+	void print(bool hasHash);
 
 	~Inference() {
 		model_free(orders);

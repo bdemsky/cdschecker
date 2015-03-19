@@ -131,7 +131,7 @@ Inference* InferenceSet::getNextInference() {
 			commitInference(infer, false);
 			continue;
 		}
-		if (hasBeenExplored(infer)) {
+		if (infer->getShouldFix() && hasBeenExplored(infer)) {
 			// Finish exploring this node
 			// Remove the node from the set 
 			FENCE_PRINT("Explored inference:\n");
@@ -151,6 +151,108 @@ Inference* InferenceSet::getNextInference() {
 void InferenceSet::addCurInference(Inference *infer) {
 	infer->setLeaf(false);
 	candidates->push_back(infer);
+}
+
+/** Add one weaker node (the stronger one has been explored and known to be SC,
+ *  we just want to know if a weaker one might also be SC).
+ *  @Return true if the node to add has not been explored yet
+ */
+bool InferenceSet::addWeakerInference(Inference *initialInfer,
+	Inference *curInfer) {
+	model_print("Before adding weaker inferece, candidates size=%d\n",
+		candidates->getSize());
+	ModelList<Inference*> *list = discoveredSet->getList();
+
+	// An array of strengthened wildcards
+	SnapVector<int> *strengthened = new SnapVector<int>;
+	model_print("Strengthened wildcards\n");
+	for (int i = 1; i <= curInfer->getSize(); i++) {
+		memory_order mo1 = (*curInfer)[i],
+			mo2 = (*initialInfer)[i];
+		int compVal = Inference::compareMemoryOrder(mo1, mo2);
+		if (!(compVal == 0 || compVal == 1)) {
+			model_print("assert failure\n");
+			model_print("compVal=%d\n", compVal);
+			ASSERT (false);
+		}
+		if (compVal == 0) // Same
+			continue;
+		model_print("wildcard %d -> %s (%s)\n", i, get_mo_str(mo1),
+			get_mo_str(mo2));
+		strengthened->push_back(i);
+	}
+
+	for (int i = 0; i < strengthened->size(); i++) {
+		int w = (*strengthened)[i]; // The wildcard
+		memory_order mo1 = (*curInfer)[w];
+		memory_order mo2 = (*initialInfer)[w];
+		memory_order weakerMO = Inference::nextWeakOrder(mo1, mo2);
+		Inference *weakerInfer1 = new Inference(curInfer);
+		Inference *weakerInfer2 = NULL;
+		if (mo1 == memory_order_acq_rel) {
+			if (mo2 == memory_order_acquire) {
+				(*weakerInfer1)[w] = memory_order_acquire;
+			} else if (mo2 == memory_order_release) {
+				(*weakerInfer1)[w] = memory_order_release;
+			} else { // relaxed
+				(*weakerInfer1)[w] = memory_order_acquire;
+				weakerInfer2 = new Inference(curInfer);
+				(*weakerInfer2)[w] = memory_order_release;
+			}
+		} else {
+			if (mo2 != weakerMO)
+				(*weakerInfer1)[w] = weakerMO;
+		}
+		//model_print("Weakened inference:\n");
+		//weakerInfer1->print();
+		if (weakerInfer2) {
+			//model_print("Weakened inference ###:\n");
+			//weakerInfer2->print();
+		}
+
+		weakerInfer1->setShouldFix(false);
+		weakerInfer1->setLeaf(true);
+		if (weakerInfer2) {
+			weakerInfer2->setShouldFix(false);
+			weakerInfer2->setLeaf(true);
+		}
+		
+		bool foundIt = false;
+		for (ModelList<Inference*>::iterator it = list->begin(); it !=
+			list->end(); it++) {
+			Inference *discoveredInfer = *it;
+			// When we already have an equal inferences in the candidates list
+			int compVal = discoveredInfer->compareTo(weakerInfer1);
+			if (compVal == 0 && !discoveredInfer->isLeaf()) {
+				foundIt = true;
+				break;
+			}
+		}
+		if (!foundIt) {
+			//candidates->push_back(weakerInfer1);
+			addInference(weakerInfer1);
+		}
+		if (!weakerInfer2)
+			continue;
+		foundIt = false;
+		for (ModelList<Inference*>::iterator it = list->begin(); it !=
+			list->end(); it++) {
+			Inference *discoveredInfer = *it;
+			// When we already have an equal inferences in the candidates list
+			int compVal = discoveredInfer->compareTo(weakerInfer2);
+			if (compVal == 0 && !discoveredInfer->isLeaf()) {
+				foundIt = true;
+				break;
+			}
+		}
+		if (!foundIt) {
+			//candidates->push_back(weakerInfer2);
+			addInference(weakerInfer2);
+		}
+	}
+
+	model_print("After adding weaker inferece, candidates size=%d\n",
+		candidates->getSize());
 }
 
 /** Add one possible node that represents a fix for the current inference;
@@ -187,7 +289,8 @@ bool InferenceSet::hasBeenDiscovered(Inference *infer) {
 			return true;
 		}
 		// Or the discoveredInfer is explored and infer is strong than it is
-		if (compVal == -1 && discoveredInfer->isExplored()) {
+		if (compVal == -1 && discoveredInfer->isLeaf() &&
+			discoveredInfer->isExplored()) {
 			return true;
 		}
 	}

@@ -128,6 +128,12 @@ class InferenceSet {
 	 * discovered */
 	void addCurInference(Inference *infer);
 	
+	/** Add one weaker node (the stronger one has been explored and known to be SC,
+	 *  we just want to know if a weaker one might also be SC).
+	 *  @Return true if the node to add has not been explored yet
+	 */
+	bool addWeakerInference(Inference *initialInfer, Inference *curInfer);
+
 	/** Add one possible node that represents a fix for the current inference;
 	 * @Return true if the node to add has not been explored yet
 	 */

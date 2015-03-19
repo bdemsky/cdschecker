@@ -2,6 +2,7 @@
 #define _PATCH_H
 
 #include "fence_common.h"
+#include "inference.h"
 
 class PatchUnit;
 class Patch;
@@ -39,6 +40,8 @@ class Patch {
 		memory_order mo2);
 
 	Patch();
+
+	bool canStrengthen(Inference *curInfer);
 
 	bool isApplicable();
 
