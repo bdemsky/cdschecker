@@ -246,6 +246,9 @@ void SCFence::initializeByFile() {
 				(*infer)[curNum] = mo;
 			}
 
+			/** Record the initial inference for this run */
+			setInitialInference(infer);
+
 			/******** addInference ********/
 			if (!addInference(infer))
 				delete infer;
@@ -369,9 +372,7 @@ bool SCFence::option(char * opt) {
 		model_print("\n");
 		return true;
 	}
-	
 }
-
 
 /** Check whether a chosen reads-from path is a release sequence */
 bool SCFence::isReleaseSequence(path_t *path) {
@@ -1045,14 +1046,18 @@ bool SCFence::routineBacktrack(bool feasible) {
 	model_print("Backtrack routine:\n");
 	
 	/******** commitCurInference ********/
-	commitInference(getCurInference(), feasible);
+	Inference *curInfer = getCurInference();
+	commitInference(curInfer, feasible);
 	if (feasible) {
 		if (!isBuggy()) {
 			model_print("Found one result!\n");
 		} else if (!hasFixes()) { // Buggy and have no fixes
 			model_print("Found one buggy candidate!\n");
 		}
-		getCurInference()->print();
+		curInfer->print();
+		curInfer->getWeakerInferences(getInitialInference());
+		
+		
 	} else {
 		model_print("Reach an infeasible inference!\n");
 	}

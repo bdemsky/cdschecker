@@ -1,0 +1,332 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+ACT_PRINT	fence_common.h	20;"	d
+ACT_PRINT	fence_common.h	32;"	d
+ACT_PRINT	scfence.h	38;"	d
+BEGIN	sc_annotation.h	9;"	d
+BUGGY_EXECUTION	scfence.h	/^	BUGGY_EXECUTION,$/;"	e	enum:fix_type
+CV_PRINT	fence_common.h	22;"	d
+CV_PRINT	fence_common.h	34;"	d
+CV_PRINT	scfence.h	40;"	d
+Conclusion label  sec  conclusion	notes/conclusion.tex	/^\\section{Conclusion\\label{sec:conclusion}}$/;"	s
+DATA_RACE	scfence.h	/^	DATA_RACE$/;"	e	enum:fix_type
+DEFAULT_REPETITIVE_READ_BOUND	fence_common.h	12;"	d
+DEFAULT_REPETITIVE_READ_BOUND	scfence.h	30;"	d
+DEP	Makefile	/^DEP := $(SCFENCE_DIR)\/scgen.o \\$/;"	m
+END	sc_annotation.h	10;"	d
+Evaluation	notes/evaluation.tex	/^\\section{Evaluation}\\label{sec:evaluation}$/;"	s
+FENCE_OUTPUT	fence_common.h	14;"	d
+FENCE_OUTPUT	scfence.h	32;"	d
+FENCE_PRINT	fence_common.h	18;"	d
+FENCE_PRINT	fence_common.h	30;"	d
+FENCE_PRINT	scfence.h	36;"	d
+FIGURES	notes/makefile	/^FIGURES =$/;"	m
+IMPLICIT_MO	scfence.h	/^	IMPLICIT_MO,$/;"	e	enum:fix_type
+INFERENCE_INCOMPARABLE	wildcard.h	17;"	d
+INIT_WILDCARD_NUM	wildcard.h	15;"	d
+IS_ANNO_BEGIN	sc_annotation.h	/^inline bool IS_ANNO_BEGIN(ModelAction *act) {$/;"	f
+IS_ANNO_END	sc_annotation.h	/^inline bool IS_ANNO_END(ModelAction *act) {$/;"	f
+IS_ANNO_KEEP	sc_annotation.h	/^inline bool IS_ANNO_KEEP(ModelAction *act) {$/;"	f
+IS_SC_ANNO	sc_annotation.h	/^inline bool IS_SC_ANNO(ModelAction *act) {$/;"	f
+Inference	inference.cc	/^Inference::Inference() {$/;"	f	class:Inference
+Inference	inference.cc	/^Inference::Inference(Inference *infer) {$/;"	f	class:Inference
+Inference	inference.h	/^class Inference {$/;"	c
+Inference Rules	notes/technical.tex	/^\\section{Technical}\\label{sec:technical}$/;"	u
+InferenceList	inferlist.cc	/^InferenceList::InferenceList() {$/;"	f	class:InferenceList
+InferenceList	inferlist.h	/^class InferenceList {$/;"	c
+InferenceSet	inferset.cc	/^InferenceSet::InferenceSet() {$/;"	f	class:InferenceSet
+InferenceSet	inferset.h	/^class InferenceSet {$/;"	c
+Introduction	notes/introduction.tex	/^\\section{Introduction}\\label{sec:introduction}$/;"	s
+KEEP	sc_annotation.h	11;"	d
+LATEX	notes/makefile	/^LATEX := pdflatex -halt-on-error$/;"	m
+MAX_WILDCARD_NUM	wildcard.h	5;"	d
+Motivating Example	notes/example.tex	/^\\section{Motivating Example}$/;"	s
+NON_SC	scfence.h	/^	NON_SC,$/;"	e	enum:fix_type
+Patch	patch.cc	/^Patch::Patch() {$/;"	f	class:Patch
+Patch	patch.cc	/^Patch::Patch(const ModelAction *act, memory_order mo) {$/;"	f	class:Patch
+Patch	patch.cc	/^Patch::Patch(const ModelAction *act1, memory_order mo1, const ModelAction *act2, memory_order mo2) {$/;"	f	class:Patch
+Patch	patch.h	/^	Patch() {$/;"	f	class:Patch
+Patch	patch.h	/^	Patch(const ModelAction *act, memory_order mo) {$/;"	f	class:Patch
+Patch	patch.h	/^	Patch(const ModelAction *act1, memory_order mo1, const ModelAction *act2, memory_order mo2) {$/;"	f	class:Patch
+Patch	patch.h	/^class Patch {$/;"	c
+PatchUnit	patch.h	/^	PatchUnit(const ModelAction *act, memory_order mo) {$/;"	f	class:PatchUnit
+PatchUnit	patch.h	/^class PatchUnit {$/;"	c
+SCFence	scfence.cc	/^SCFence::SCFence() :$/;"	f	class:SCFence
+SCFence	scfence.h	/^class SCFence : public TraceAnalysis {$/;"	c
+SCGenerator	scgen.cc	/^SCGenerator::SCGenerator() :$/;"	f	class:SCGenerator
+SCGenerator	scgen.h	/^class SCGenerator {$/;"	c
+SCGeneratorOption	scgen.h	/^typedef struct SCGeneratorOption {$/;"	s
+SCGeneratorOption	scgen.h	/^} SCGeneratorOption;$/;"	t	typeref:struct:SCGeneratorOption
+SC_ANNOTATION	sc_annotation.h	7;"	d
+SC_BEGIN	sc_annotation.h	/^inline void SC_BEGIN() {$/;"	f
+SC_END	sc_annotation.h	/^inline void SC_END() {$/;"	f
+SC_KEEP	sc_annotation.h	/^inline void SC_KEEP() {$/;"	f
+Technical	notes/technical.tex	/^\\section{Technical}\\label{sec:technical}$/;"	s
+WILDCARD_ACT_PRINT	fence_common.h	24;"	d
+WILDCARD_ACT_PRINT	fence_common.h	36;"	d
+WILDCARD_ACT_PRINT	scfence.h	42;"	d
+WILDCARD_NONEXIST	wildcard.h	16;"	d
+_FENCE_COMMON_	fence_common.h	2;"	d
+_INFERENCE_H	inference.h	2;"	d
+_INFERLIST_H	inferlist.h	2;"	d
+_INFERSET_H	inferset.h	2;"	d
+_PATCH_H	patch.h	2;"	d
+_SCFENCE_H	scfence.h	2;"	d
+_SCGEN_H	scgen.h	2;"	d
+_SC_ANNOTATION_H	sc_annotation.h	2;"	d
+_WILDCARD_H	wildcard.h	2;"	d
+acqrel	wildcard.h	34;"	d
+acquire	wildcard.h	32;"	d
+act	patch.h	/^	const ModelAction *act;$/;"	m	class:PatchUnit
+actionAtInstallation	scfence.cc	/^void SCFence::actionAtInstallation() {$/;"	f	class:SCFence
+actionAtModelCheckingFinish	scfence.cc	/^void SCFence::actionAtModelCheckingFinish() {$/;"	f	class:SCFence
+actions	scgen.h	/^	action_list_t *actions;$/;"	m	class:SCGenerator
+addCandidates	inferset.cc	/^bool InferenceSet::addCandidates(Inference *curInfer, InferenceList *inferList) {$/;"	f	class:InferenceSet
+addCandidates	scfence.h	/^	bool addCandidates(InferenceList *candidates) {$/;"	f	class:SCFence
+addCurInference	inferset.cc	/^void InferenceSet::addCurInference(Inference *infer) {$/;"	f	class:InferenceSet
+addCurInference	scfence.h	/^	void addCurInference() {$/;"	f	class:SCFence
+addFixes	scfence.cc	/^bool SCFence::addFixes(action_list_t *list, fix_type_t type) {$/;"	f	class:SCFence
+addFixesBuggyExecution	scfence.cc	/^bool SCFence::addFixesBuggyExecution(action_list_t *list) {$/;"	f	class:SCFence
+addFixesDataRace	scfence.cc	/^bool SCFence::addFixesDataRace(action_list_t *list) {$/;"	f	class:SCFence
+addFixesImplicitMO	scfence.cc	/^bool SCFence::addFixesImplicitMO(action_list_t *list) {$/;"	f	class:SCFence
+addFixesNonSC	scfence.cc	/^bool SCFence::addFixesNonSC(action_list_t *list) {$/;"	f	class:SCFence
+addInference	inferset.cc	/^bool InferenceSet::addInference(Inference *infer) {$/;"	f	class:InferenceSet
+addInference	scfence.h	/^	bool addInference(Inference *infer) {$/;"	f	class:SCFence
+addPatchUnit	patch.cc	/^void Patch::addPatchUnit(const ModelAction *act, memory_order mo) {$/;"	f	class:Patch
+addPatchUnit	patch.h	/^	void addPatchUnit(const ModelAction *act, memory_order mo) {$/;"	f	class:Patch
+addResult	inferset.cc	/^ void InferenceSet::addResult(Inference *infer) {$/;"	f	class:InferenceSet
+allowNonSC	scgen.h	/^	bool allowNonSC;$/;"	m	class:SCGenerator
+analyze	scfence.cc	/^void SCFence::analyze(action_list_t *actions) {$/;"	f	class:SCFence
+annotatedReadSet	scgen.h	/^	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > annotatedReadSet;$/;"	m	class:SCGenerator
+annotatedReadSetSize	scgen.h	/^	int annotatedReadSetSize;$/;"	m	class:SCGenerator
+annotationError	scgen.h	/^	bool annotationError;$/;"	m	class:SCGenerator
+annotationMode	scgen.h	/^	bool annotationMode;$/;"	m	class:SCGenerator
+annotationMode	scgen.h	/^	bool annotationMode;$/;"	m	struct:SCGeneratorOption
+append	inferlist.cc	/^bool InferenceList::append(InferenceList *inferList) {$/;"	f	class:InferenceList
+applyPatch	inferlist.cc	/^bool InferenceList::applyPatch(Inference *curInfer, Inference *newInfer, Patch *patch) {$/;"	f	class:InferenceList
+applyPatch	inferlist.cc	/^void InferenceList::applyPatch(Inference *curInfer, Patch* patch) {$/;"	f	class:InferenceList
+applyPatch	inferlist.cc	/^void InferenceList::applyPatch(Inference *curInfer, SnapVector<Patch*> *patches) {$/;"	f	class:InferenceList
+assert_infer	wildcard.h	23;"	d
+assert_infers	wildcard.h	26;"	d
+back	inferlist.cc	/^Inference* InferenceList::back() {$/;"	f	class:InferenceList
+badrfset	scgen.h	/^	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > badrfset;$/;"	m	class:SCGenerator
+badrfsetSize	scgen.h	/^	int badrfsetSize;$/;"	m	class:SCGenerator
+buggy	inference.h	/^	bool buggy;$/;"	m	class:Inference
+buildVectors	scgen.cc	/^int SCGenerator::buildVectors(SnapVector<action_list_t> *threadlist, int *maxthread,$/;"	f	class:SCGenerator
+candidateFile	scfence.h	/^	char *candidateFile;$/;"	m	struct:scfence_priv
+candidates	inferset.h	/^	InferenceList *candidates;$/;"	m	class:InferenceSet
+checkDataRace	scfence.cc	/^bool SCFence::checkDataRace(action_list_t *list, ModelAction **act1, $/;"	f	class:SCFence
+check_rf	scgen.cc	/^void SCGenerator::check_rf(action_list_t *list) {$/;"	f	class:SCGenerator
+clearAll	inferlist.cc	/^void InferenceList::clearAll() {$/;"	f	class:InferenceList
+clearAll	inferlist.cc	/^void InferenceList::clearAll(InferenceList *inferList) {$/;"	f	class:InferenceList
+clearAll	inferlist.cc	/^void InferenceList::clearAll(ModelList<Inference*> *l) {$/;"	f	class:InferenceList
+clearList	inferlist.cc	/^void InferenceList::clearList() {$/;"	f	class:InferenceList
+collectAnnotatedReads	scgen.cc	/^void SCGenerator::collectAnnotatedReads() {$/;"	f	class:SCGenerator
+commitInference	inferset.cc	/^void InferenceSet::commitInference(Inference *infer, bool feasible) {$/;"	f	class:InferenceSet
+commitInference	scfence.h	/^	void commitInference(Inference *infer, bool feasible) {$/;"	f	class:SCFence
+compareMemoryOrder	inference.cc	/^int Inference::compareMemoryOrder(memory_order mo1, memory_order mo2) {$/;"	f	class:Inference
+compareMemoryOrder	patch.cc	/^static int Patch::compareMemoryOrder(memory_order mo1, memory_order mo2) {$/;"	f	class:Patch
+compareMemoryOrder	patch.h	/^	static int compareMemoryOrder(memory_order mo1, memory_order mo2) {$/;"	f	class:Patch
+compareTo	inference.cc	/^int Inference::compareTo(const Inference *infer) const {$/;"	f	class:Inference
+computeCV	scgen.cc	/^void SCGenerator::computeCV(action_list_t *list) {$/;"	f	class:SCGenerator
+curInference	scfence.h	/^	Inference *curInference;$/;"	m	struct:scfence_priv
+cvmap	scgen.h	/^	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;$/;"	m	class:SCGenerator
+cyclic	scgen.h	/^	bool cyclic;$/;"	m	class:SCGenerator
+discoveredSet	inferset.h	/^	InferenceList *discoveredSet;$/;"	m	class:InferenceSet
+dup_threadlists	scfence.h	/^	SnapVector<action_list_t> *dup_threadlists;$/;"	m	class:SCFence
+dup_threadlists	scgen.h	/^	SnapVector<action_list_t> dup_threadlists;$/;"	m	class:SCGenerator
+execution	scfence.h	/^	ModelExecution *execution;$/;"	m	class:SCFence
+execution	scgen.h	/^	ModelExecution *execution;$/;"	m	class:SCGenerator
+exitModelChecker	scfence.cc	/^void SCFence::exitModelChecker() {$/;"	f	class:SCFence
+explored	inference.h	/^	bool explored;$/;"	m	class:Inference
+fastVersion	scgen.h	/^	bool fastVersion;$/;"	m	class:SCGenerator
+finish	scfence.cc	/^void SCFence::finish() {$/;"	f	class:SCFence
+fix_type	scfence.h	/^typedef enum fix_type {$/;"	g
+fix_type_t	scfence.h	/^} fix_type_t;$/;"	t	typeref:enum:fix_type
+generateSC	scgen.cc	/^action_list_t * SCGenerator::generateSC(action_list_t *list) {$/;"	f	class:SCGenerator
+get	patch.cc	/^Patch::PatchUnit* get(int i) {$/;"	f
+get	patch.h	/^	PatchUnit* get(int i) {$/;"	f	class:Patch
+getAcqRel	scfence.cc	/^SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const$/;"	f	class:SCFence
+getAct	patch.h	/^	const ModelAction* getAct() {$/;"	f	class:PatchUnit
+getAnnotatedReadSet	scgen.cc	/^HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > * SCGenerator::getAnnotatedReadSet() {$/;"	f	class:SCGenerator
+getBadrfset	scgen.cc	/^HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4> * SCGenerator::getBadrfset() {$/;"	f	class:SCGenerator
+getBuggy	inference.h	/^	bool getBuggy() {$/;"	f	class:Inference
+getCandidateFile	scfence.h	/^	char* getCandidateFile() {$/;"	f	class:SCFence
+getCandidatesSize	inferset.cc	/^int InferenceSet::getCandidatesSize() {$/;"	f	class:InferenceSet
+getCurInference	scfence.h	/^	Inference* getCurInference() {$/;"	f	class:SCFence
+getCyclic	scgen.cc	/^bool SCGenerator::getCyclic() {$/;"	f	class:SCGenerator
+getDupThreadLists	scgen.cc	/^SnapVector<action_list_t>* SCGenerator::getDupThreadLists() {$/;"	f	class:SCGenerator
+getFixesFromPatternA	scfence.cc	/^InferenceList* SCFence::getFixesFromPatternA(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter) {$/;"	f	class:SCFence
+getFixesFromPatternB	scfence.cc	/^InferenceList* SCFence::getFixesFromPatternB(action_list_t *list, action_list_t::iterator readIter, action_list_t::iterator writeIter) {$/;"	f	class:SCFence
+getHasBadRF	scgen.cc	/^bool SCGenerator::getHasBadRF() {$/;"	f	class:SCGenerator
+getHasFixes	inference.h	/^	bool getHasFixes() {$/;"	f	class:Inference
+getHasRestarted	scfence.h	/^	int getHasRestarted() {$/;"	f	class:SCFence
+getHash	inference.cc	/^unsigned long Inference::getHash() {$/;"	f	class:Inference
+getImplicitMOReadBound	scfence.h	/^	int getImplicitMOReadBound() {$/;"	f	class:SCFence
+getInferImplicitMO	scfence.h	/^	bool getInferImplicitMO() {$/;"	f	class:SCFence
+getInitialInfer	inferset.cc	/^Inference* InferenceSet::getInitialInfer() {$/;"	f	class:InferenceSet
+getInitialInference	scfence.h	/^	Inference* getInitialInference() {$/;"	f	class:SCFence
+getList	inferlist.cc	/^ModelList<Inference*>* InferenceList::getList() {$/;"	f	class:InferenceList
+getMO	patch.h	/^	memory_order getMO() {$/;"	f	class:PatchUnit
+getNextActions	scgen.cc	/^int SCGenerator::getNextActions(ModelAction **array) {$/;"	f	class:SCGenerator
+getNextInference	inferset.cc	/^Inference* InferenceSet::getNextInference() {$/;"	f	class:InferenceSet
+getNextInference	scfence.h	/^	Inference* getNextInference() {$/;"	f	class:SCFence
+getPrintAlways	scgen.cc	/^bool SCGenerator::getPrintAlways() {$/;"	f	class:SCGenerator
+getResultsSize	inferset.cc	/^int InferenceSet::getResultsSize() {$/;"	f	class:InferenceSet
+getSCList	scgen.cc	/^action_list_t * SCGenerator::getSCList() {$/;"	f	class:SCGenerator
+getSet	scfence.h	/^	InferenceSet* getSet() {$/;"	f	class:SCFence
+getShouldFix	inference.h	/^	bool getShouldFix() {$/;"	f	class:Inference
+getSize	inferlist.cc	/^int InferenceList::getSize() {$/;"	f	class:InferenceList
+getSize	patch.cc	/^int Patch::getSize() {$/;"	f	class:Patch
+getSize	patch.h	/^	int getSize() {$/;"	f	class:Patch
+getStats	scgen.cc	/^struct sc_statistics* SCGenerator::getStats() {$/;"	f	class:SCGenerator
+getTimeout	scfence.h	/^	int getTimeout() {$/;"	f	class:SCFence
+getWeakerInferences	inference.cc	/^InferenceList* Inference::getWeakerInferences(Inference *infer) {$/;"	f	class:Inference
+getWeakerInferences	inference.cc	/^void Inference::getWeakerInferences(InferenceList* list, Inference *infer1,$/;"	f	class:Inference
+get_mo_str	inference.cc	/^const char* get_mo_str(memory_order order) {$/;"	f
+get_rf_sb_paths	scfence.cc	/^paths_t * SCFence::get_rf_sb_paths(const ModelAction *act1, const ModelAction *act2) {$/;"	f	class:SCFence
+get_wildcard_id	wildcard.h	12;"	d
+get_wildcard_id_zero	wildcard.h	13;"	d
+hasBadRF	scgen.h	/^	bool hasBadRF;$/;"	m	class:SCGenerator
+hasBeenDiscovered	inferset.cc	/^bool InferenceSet::hasBeenDiscovered(Inference *infer) {$/;"	f	class:InferenceSet
+hasBeenExplored	inferset.cc	/^bool InferenceSet::hasBeenExplored(Inference *infer) {$/;"	f	class:InferenceSet
+hasFixes	inference.h	/^	bool hasFixes;$/;"	m	class:Inference
+hasFixes	scfence.h	/^	bool hasFixes() {$/;"	f	class:SCFence
+hasRestarted	scfence.h	/^	bool hasRestarted;$/;"	m	struct:scfence_priv
+ignoredActionSize	scfence.h	/^	int ignoredActionSize;$/;"	m	class:SCFence
+ignoredActionSize	scgen.h	/^	int ignoredActionSize;$/;"	m	class:SCGenerator
+ignoredActions	scfence.h	/^	HashTable<const ModelAction*, const ModelAction*, uintptr_t, 4> ignoredActions;$/;"	m	class:SCFence
+ignoredActions	scgen.h	/^	HashTable<const ModelAction*, const ModelAction*, uintptr_t, 4> ignoredActions;$/;"	m	class:SCGenerator
+implicitMOReadBound	scfence.h	/^	int implicitMOReadBound;$/;"	m	struct:scfence_priv
+imposeSC	scfence.cc	/^bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const ModelAction *act1, const ModelAction *act2) {$/;"	f	class:SCFence
+imposeSync	scfence.cc	/^bool SCFence::imposeSync(InferenceList *inferList,$/;"	f	class:SCFence
+inferImplicitMO	scfence.h	/^	bool inferImplicitMO;$/;"	m	struct:scfence_priv
+inferenceSet	scfence.h	/^	InferenceSet *inferenceSet;$/;"	m	struct:scfence_priv
+inference_stat	inferset.h	/^	inference_stat() :$/;"	f	struct:inference_stat
+inference_stat	inferset.h	/^typedef struct inference_stat {$/;"	s
+inference_stat_t	inferset.h	/^} inference_stat_t;$/;"	t	typeref:struct:inference_stat
+initialInfer	inferset.h	/^	Inference *initialInfer;$/;"	m	class:InferenceSet
+initializeByFile	scfence.cc	/^void SCFence::initializeByFile() {$/;"	f	class:SCFence
+inspectModelAction	scfence.cc	/^void SCFence::inspectModelAction(ModelAction *act) {$/;"	f	class:SCFence
+isApplicable	patch.cc	/^bool Patch::isApplicable() {$/;"	f	class:Patch
+isApplicable	patch.h	/^	bool isApplicable() {$/;"	f	class:Patch
+isBuggy	scfence.h	/^	bool isBuggy() {$/;"	f	class:SCFence
+isConflicting	scfence.h	/^	bool isConflicting(const ModelAction *act1, const ModelAction *act2) {$/;"	f	class:SCFence
+isExplored	inference.h	/^	bool isExplored() {$/;"	f	class:Inference
+isLeaf	inference.h	/^	bool isLeaf() {$/;"	f	class:Inference
+isReleaseSequence	scfence.cc	/^bool SCFence::isReleaseSequence(path_t *path) {$/;"	f	class:SCFence
+isSCEdge	scfence.h	/^	bool isSCEdge(const ModelAction *from, const ModelAction *to) {$/;"	f	class:SCFence
+isTheInference	scfence.cc	/^static bool isTheInference(Inference *infer) {$/;"	f	file:
+isTimeout	scfence.h	/^	bool isTimeout() {$/;"	f	class:SCFence
+is_normal_mo	wildcard.h	21;"	d
+is_normal_mo_infer	wildcard.h	20;"	d
+is_wildcard	wildcard.h	19;"	d
+label  sec  related	notes/related.tex	/^\\section{\\label{sec:related}Related Work}$/;"	s
+lastRecordedTime	scfence.h	/^	struct timeval lastRecordedTime;$/;"	m	struct:scfence_priv	typeref:struct:scfence_priv::timeval
+lastwrmap	scgen.h	/^	HashTable<void *, const ModelAction *, uintptr_t, 4 > lastwrmap;$/;"	m	class:SCGenerator
+leaf	inference.h	/^	bool leaf;$/;"	m	class:Inference
+list	inferlist.h	/^	ModelList<Inference*> *list;$/;"	m	class:InferenceList
+maxthreads	scgen.h	/^	int maxthreads;$/;"	m	class:SCGenerator
+memory_order_normal	wildcard.h	7;"	d
+memory_order_wildcard	wildcard.h	9;"	d
+merge	scgen.cc	/^bool SCGenerator::merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2) {$/;"	f	class:SCGenerator
+mo	patch.h	/^	memory_order mo;$/;"	m	class:PatchUnit
+mo_graph	scfence.h	/^	const CycleGraph *mo_graph;$/;"	m	class:SCFence
+modelCheckerAtExitState	scfence.cc	/^bool SCFence::modelCheckerAtExitState() {$/;"	f	class:SCFence
+name	scfence.cc	/^const char * SCFence::name() {$/;"	f	class:SCFence
+notAddedAtFirstPlace	inferset.h	/^	int notAddedAtFirstPlace;$/;"	m	struct:inference_stat
+operator []	inference.cc	/^memory_order& Inference::operator[](int idx) {$/;"	f	class:Inference
+option	scfence.cc	/^bool SCFence::option(char * opt) {$/;"	f	class:SCFence
+orders	inference.h	/^	memory_order *orders;$/;"	m	class:Inference
+parseOption	scfence.cc	/^bool SCFence::parseOption(char *opt) {$/;"	f	class:SCFence
+parseOptionHelper	scfence.cc	/^char* SCFence::parseOptionHelper(char *opt, int *optIdx) {$/;"	f	class:SCFence
+path_t	scfence.h	/^typedef action_list_t path_t;$/;"	t
+paths_t	scfence.h	/^typedef sync_paths_t paths_t;$/;"	t
+pop_back	inferlist.cc	/^void InferenceList::pop_back() {$/;"	f	class:InferenceList
+print	inference.cc	/^void Inference::print() {$/;"	f	class:Inference
+print	inferlist.cc	/^void InferenceList::print() {$/;"	f	class:InferenceList
+print	inferlist.cc	/^void InferenceList::print(ModelList<Inference*> *inferList, const char *msg) {$/;"	f	class:InferenceList
+print	inferlist.cc	/^void InferenceList::print(const char *msg) {$/;"	f	class:InferenceList
+print	inferset.h	/^	void print() {$/;"	f	struct:inference_stat
+print	patch.cc	/^void Patch::print() {$/;"	f	class:Patch
+print	patch.h	/^	void print() {$/;"	f	class:Patch
+printCandidates	inferset.cc	/^void InferenceSet::printCandidates() {$/;"	f	class:InferenceSet
+printCandidates	scfence.h	/^	void printCandidates() {$/;"	f	class:SCFence
+printResults	inferset.cc	/^void InferenceSet::printResults() {$/;"	f	class:InferenceSet
+printResults	scfence.h	/^	void printResults() {$/;"	f	class:SCFence
+print_always	scgen.h	/^	bool print_always;$/;"	m	class:SCGenerator
+print_always	scgen.h	/^	bool print_always;$/;"	m	struct:SCGeneratorOption
+print_buggy	scgen.h	/^	bool print_buggy;$/;"	m	class:SCGenerator
+print_buggy	scgen.h	/^	bool print_buggy;$/;"	m	struct:SCGeneratorOption
+print_list	scgen.cc	/^void SCGenerator::print_list(action_list_t *list) {$/;"	f	class:SCGenerator
+print_nonsc	scgen.h	/^	bool print_nonsc;$/;"	m	class:SCGenerator
+print_nonsc	scgen.h	/^	bool print_nonsc;$/;"	m	struct:SCGeneratorOption
+print_rf_sb_paths	scfence.cc	/^void SCFence::print_rf_sb_paths(paths_t *paths, const ModelAction *start, const ModelAction *end) {$/;"	f	class:SCFence
+priv	scfence.cc	/^scfence_priv *SCFence::priv;$/;"	m	class:SCFence	file:
+priv	scfence.h	/^	static scfence_priv *priv;$/;"	m	class:SCFence
+processAnnotatedReadSlow	scgen.cc	/^bool SCGenerator::processAnnotatedReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture) {$/;"	f	class:SCGenerator
+processReadFast	scgen.cc	/^bool SCGenerator::processReadFast(ModelAction *read, ClockVector *cv) {$/;"	f	class:SCGenerator
+processReadSlow	scgen.cc	/^bool SCGenerator::processReadSlow(ModelAction *read, ClockVector *cv, bool *updateFuture) {$/;"	f	class:SCGenerator
+pruneArray	scgen.cc	/^ModelAction* SCGenerator::pruneArray(ModelAction **array, int count) {$/;"	f	class:SCGenerator
+pruneCandidates	inferlist.cc	/^void InferenceList::pruneCandidates(Inference *curInfer) {$/;"	f	class:InferenceList
+push_back	inferlist.cc	/^void InferenceList::push_back(Inference *infer) {$/;"	f	class:InferenceList
+relaxed	wildcard.h	30;"	d
+release	wildcard.h	31;"	d
+reset	scgen.cc	/^void SCGenerator::reset(action_list_t *list) {$/;"	f	class:SCGenerator
+resize	inference.cc	/^void Inference::resize(int newsize) {$/;"	f	class:Inference
+restartModelChecker	scfence.cc	/^void SCFence::restartModelChecker() {$/;"	f	class:SCFence
+results	inferset.h	/^	InferenceList *results;$/;"	m	class:InferenceSet
+routineAfterAddFixes	scfence.cc	/^void SCFence::routineAfterAddFixes() {$/;"	f	class:SCFence
+routineBacktrack	scfence.cc	/^bool SCFence::routineBacktrack(bool feasible) {$/;"	f	class:SCFence
+sbNextAction	scfence.cc	/^ModelAction* SCFence::sbNextAction(ModelAction *act) {$/;"	f	class:SCFence
+sbPrevAction	scfence.cc	/^ModelAction* SCFence::sbPrevAction(ModelAction *act) {$/;"	f	class:SCFence
+scfence_priv	scfence.h	/^	scfence_priv() {$/;"	f	struct:scfence_priv
+scfence_priv	scfence.h	/^typedef struct scfence_priv {$/;"	s
+scfence_priv	scfence.h	/^} scfence_priv;$/;"	t	typeref:struct:scfence_priv
+scgen	scfence.h	/^	SCGenerator *scgen;$/;"	m	class:SCFence
+seqcst	wildcard.h	33;"	d
+setActions	scgen.cc	/^void SCGenerator::setActions(action_list_t *actions) {$/;"	f	class:SCGenerator
+setAnnotationMode	scgen.cc	/^void SCGenerator::setAnnotationMode(bool val) {$/;"	f	class:SCGenerator
+setBuggy	inference.h	/^	void setBuggy(bool val) {$/;"	f	class:Inference
+setBuggy	scfence.h	/^	void setBuggy(bool val) {$/;"	f	class:SCFence
+setCandidateFile	scfence.h	/^	void setCandidateFile(char* file) {$/;"	f	class:SCFence
+setCurInference	scfence.h	/^	void setCurInference(Inference* infer) {$/;"	f	class:SCFence
+setExecution	scfence.cc	/^void SCFence::setExecution(ModelExecution * execution) {$/;"	f	class:SCFence
+setExecution	scgen.cc	/^void SCGenerator::setExecution(ModelExecution *execution) {$/;"	f	class:SCGenerator
+setExplored	inference.h	/^	void setExplored(bool val) {$/;"	f	class:Inference
+setHasFixes	inference.h	/^	void setHasFixes(bool val) {$/;"	f	class:Inference
+setHasFixes	scfence.h	/^	void setHasFixes(bool val) {$/;"	f	class:SCFence
+setHasRestarted	scfence.h	/^	void setHasRestarted(int val) {$/;"	f	class:SCFence
+setImplicitMOReadBound	scfence.h	/^	void setImplicitMOReadBound(int bound) {$/;"	f	class:SCFence
+setInferImplicitMO	scfence.h	/^	void setInferImplicitMO(bool val) {$/;"	f	class:SCFence
+setInitialInfer	inferset.cc	/^void InferenceSet::setInitialInfer(Inference *initial) {$/;"	f	class:InferenceSet
+setInitialInference	scfence.h	/^	void setInitialInference(Inference *infer) {$/;"	f	class:SCFence
+setLeaf	inference.h	/^	void setLeaf(bool val) {$/;"	f	class:Inference
+setPrintAlways	scgen.cc	/^void SCGenerator::setPrintAlways(bool val) {$/;"	f	class:SCGenerator
+setPrintBuggy	scgen.cc	/^void SCGenerator::setPrintBuggy(bool val) {$/;"	f	class:SCGenerator
+setPrintNonSC	scgen.cc	/^void SCGenerator::setPrintNonSC(bool val) {$/;"	f	class:SCGenerator
+setShouldFix	inference.h	/^	void setShouldFix(bool val) {$/;"	f	class:Inference
+setSize	scfence.h	/^	 int setSize() {$/;"	f	class:SCFence
+setTimeout	scfence.h	/^	void setTimeout(int timeout) {$/;"	f	class:SCFence
+shouldFix	inference.h	/^	bool shouldFix;$/;"	m	class:Inference
+size	inference.h	/^	int size;$/;"	m	class:Inference
+stat	inferset.h	/^	inference_stat_t stat;$/;"	m	class:InferenceSet
+stats	scfence.h	/^	struct sc_statistics *stats;$/;"	m	class:SCFence	typeref:struct:SCFence::sc_statistics
+stats	scgen.h	/^	struct sc_statistics *stats;$/;"	m	class:SCGenerator	typeref:struct:SCGenerator::sc_statistics
+strengthen	inference.cc	/^int Inference::strengthen(const ModelAction *act, memory_order mo) {$/;"	f	class:Inference
+strengthen	inference.cc	/^int Inference::strengthen(const ModelAction *act, memory_order mo, bool &canUpdate, bool &hasUpdated) {$/;"	f	class:Inference
+sync_paths_t	scfence.h	/^typedef SnapList<path_t *> sync_paths_t;$/;"	t
+threadlists	scgen.h	/^	SnapVector<action_list_t> threadlists;$/;"	m	class:SCGenerator
+time	scfence.h	/^	bool time;$/;"	m	class:SCFence
+timeout	scfence.h	/^	int timeout;$/;"	m	struct:scfence_priv
+units	patch.h	/^	SnapVector<PatchUnit*> *units;$/;"	m	class:Patch
+updateConstraints	scgen.cc	/^bool SCGenerator::updateConstraints(ModelAction *act) {$/;"	f	class:SCGenerator
+update_stats	scgen.cc	/^void SCGenerator::update_stats() {$/;"	f	class:SCGenerator
+wildcard	wildcard.h	11;"	d
+~Inference	inference.h	/^	~Inference() {$/;"	f	class:Inference
+~SCFence	scfence.cc	/^SCFence::~SCFence() {$/;"	f	class:SCFence
+~SCGenerator	scgen.cc	/^SCGenerator::~SCGenerator() {$/;"	f	class:SCGenerator

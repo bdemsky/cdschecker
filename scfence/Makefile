@@ -1,7 +1,15 @@
 #BASE := ..
 
-$(SCFENCE_PLUGIN): $(SCFENCE_DIR)/scfence.cc $(SCFENCE_DIR)/scgen.h
-	$(CXX) -MMD -MF $(SCFENCE_DIR)/.$(notdir $<).d -c -fPIC -o $@ $< $(CPPFLAGS)
+DEP := $(SCFENCE_DIR)/scgen.o \
+	$(SCFENCE_DIR)/inference.o \
+	$(SCFENCE_DIR)/inferset.o \
+	$(SCFENCE_DIR)/inferlist.o \
+	$(SCFENCE_DIR)/scfence.o
+
+$(DEP): $(SCFENCE_DIR)/%.o : $(SCFENCE_DIR)/%.cc $(SCFENCE_DIR)/%.h
+	$(CXX) -MMD -MF $(SCFENCE_DIR)/.$(notdir $@).d -fPIC -c $< $(CPPFLAGS) -o $@
+
+OBJECTS += $(DEP)
 
 PHONY += clean
 

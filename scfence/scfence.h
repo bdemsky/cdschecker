@@ -5,9 +5,13 @@
 #include "hashtable.h"
 #include "memoryorder.h"
 #include "action.h"
+
 #include "wildcard.h"
+#include "patch.h"
 #include "inference.h"
+#include "inferlist.h"
 #include "inferset.h"
+
 #include "model.h"
 #include "cyclegraph.h"
 #include "scgen.h"
@@ -282,6 +286,14 @@ class SCFence : public TraceAnalysis {
 	 */
 	bool addCandidates(InferenceList *candidates) {
 		return getSet()->addCandidates(getCurInference(), candidates);
+	}
+
+	void setInitialInference(Inference *infer) {
+		getSet()->setInitialInfer(infer);
+	}
+
+	Inference* getInitialInference() {
+		return getSet()->getInitialInfer();
 	}
 
 	void addCurInference() {

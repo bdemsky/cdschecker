@@ -26,8 +26,6 @@ TESTS_DIR := test
 MARKDOWN := doc/Markdown/Markdown.pl
 
 all: $(LIB_SO) tests README.html
-	#$(MAKE) -C $(SPEC_DIR)
-	#$(MAKE) -C $(SCFENCE_DIR)
 
 debug: CPPFLAGS += -DCONFIG_DEBUG -O0 -g
 debug: all
@@ -44,23 +42,20 @@ SPEC_PLUGIN := $(SPEC_DIR)/specanalysis.o
 SPEC_LIB := $(SPEC_DIR)/spec_lib.o
 SCFENCE_PLUGIN :=$(SCFENCE_DIR)/scfence.o
 
+malloc.o: malloc.c
+	$(CC) -fPIC -c malloc.c -DMSPACES -DONLY_MSPACES -DHAVE_MMAP=0 $(CPPFLAGS) -Wno-unused-variable
+
+$(OBJECTS): %.o : %.cc
+	$(CXX) -MMD -MF .$@.d -fPIC -c $< $(CPPFLAGS)
+
 include $(SCFENCE_DIR)/Makefile
 include $(SPEC_DIR)/Makefile
 
 -include $(wildcard $(SPEC_DIR)/.*.d)
 -include $(wildcard $(SCFENCE_DIR)/.*.d)
 
-$(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ) $(SPEC_PLUGIN) $(SPEC_LIB) $(SCFENCE_PLUGIN)
+$(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ) $(DEP) $(SPEC_LIB) $(SCFENCE_PLUGIN)
 	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS) -O0 -g
-
-malloc.o: malloc.c
-	$(CC) -fPIC -c malloc.c -DMSPACES -DONLY_MSPACES -DHAVE_MMAP=0 $(CPPFLAGS) -Wno-unused-variable
-
-scgen.o : $(SCFENCE_DIR)/scgen.c $(SCFENCE_DIR)/scgen.h
-	$(CXX) -MMD -MF $(SCFENCE_DIR)/.$(notdir $<).d -c -fPIC -o $@ $< $(CPPFLAGS)
-
-$(OBJECTS): %.o : %.cc
-	$(CXX) -MMD -MF .$@.d -fPIC -c $< $(CPPFLAGS)
 
 %.pdf: %.dot
 	dot -Tpdf $< -o $@

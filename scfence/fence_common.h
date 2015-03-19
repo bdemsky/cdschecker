@@ -1,9 +1,13 @@
 #ifndef _FENCE_COMMON_
 #define _FENCE_COMMON_
 
-#ifdef __cplusplus
-using std::memory_order;
-#endif
+#include "model.h"
+#include "action.h"
+
+
+//#ifdef __cplusplus
+//using std::memory_order;
+//#endif
 
 #define DEFAULT_REPETITIVE_READ_BOUND 20
 
