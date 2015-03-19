@@ -17,9 +17,9 @@
 scfence_priv *SCFence::priv;
 
 SCFence::SCFence() :
+	scgen(new SCGenerator),
 	stats((struct sc_statistics *)model_calloc(1, sizeof(struct sc_statistics))),
-	execution(NULL),
-	scgen(new SCGenerator)
+	execution(NULL)
 {
 	priv = new scfence_priv();
 }
@@ -145,28 +145,6 @@ void SCFence::analyze(action_list_t *actions) {
 			return;
 		}
 	}
-}
-
-static bool isTheInference(Inference *infer) {
-	for (int i = 0; i < infer->getSize(); i++) {
-		memory_order mo1 = (*infer)[i], mo2;
-		if (mo1 == WILDCARD_NONEXIST)
-			mo1 = relaxed;
-		switch (i) {
-			case 3:
-				mo2 = acquire;
-			break;
-			case 11:
-				mo2 = release;
-			break;
-			default:
-				mo2 = relaxed;
-			break;
-		}
-		if (mo1 != mo2)
-			return false;
-	}
-	return true;
 }
 
 void SCFence::exitModelChecker() {
@@ -587,8 +565,6 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 	if (!inferList) {
 		return false;
 	}
-	int act1ThrdID = act1->get_tid(),
-		act2ThrdID = act2->get_tid();
 	action_list_t::iterator act1Iter = std::find(actions->begin(),
 		actions->end(), act1);
 	action_list_t::iterator act2Iter = std::find(act1Iter,
@@ -613,7 +589,7 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 	SnapVector<Patch*> *patches = new SnapVector<Patch*>;
 	//model_print("fences size %d\n", size);
 	
-	bool twoFences = false;
+	//bool twoFences = false;
 	// Impose SC on two fences
 	for (action_list_t::iterator fit1 = fences->begin(); fit1 != fences->end();
 		fit1++) {
@@ -624,7 +600,7 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 			ModelAction *fence2 = *fit2;
 			p = new Patch(fence1, memory_order_seq_cst, fence2, memory_order_seq_cst);
 			if (p->isApplicable()) {
-				twoFences = true;
+				//twoFences = true;
 				patches->push_back(p);
 			}
 		}
@@ -688,7 +664,7 @@ InferenceList* SCFence::getFixesFromPatternA(action_list_t *list, action_list_t:
 	} while (findIt != readIter);
 					
 	// Found all the possible write2s
-	FENCE_PRINT("write2s set size: %d\n", write2s->size());
+	FENCE_PRINT("write2s set size: %ld\n", write2s->size());
 	for (action_list_t::iterator itWrite2 = write2s->begin();
 		itWrite2 != write2s->end(); itWrite2++) {
 		InferenceList *tmpCandidates = new InferenceList;
@@ -926,7 +902,7 @@ bool SCFence::checkDataRace(action_list_t *list, ModelAction **act1,
 		ModelAction *act = *iter;
 		if (act->get_original_mo() != memory_order_normal)
 			continue;
-		void *loc = act->get_location();
+		//void *loc = act->get_location();
 		bool foundIt = false;
 		for (SnapList<action_list_t*>::iterator listIter = opList->begin();
 			listIter != opList->end(); listIter++) {
@@ -1202,7 +1178,7 @@ void SCFence::print_rf_sb_paths(paths_t *paths, const ModelAction *start, const 
 	for (paths_t::iterator paths_i = paths->begin(); paths_i !=
 		paths->end(); paths_i++) {
 		path_t *path = *paths_i;
-		FENCE_PRINT("Path %d, size (%d):\n", distance(paths->begin(), paths_i),
+		FENCE_PRINT("Path %ld, size (%ld):\n", distance(paths->begin(), paths_i),
 			path->size());
 		path_t::iterator it = path->begin(), i_next;
 		for (; it != path->end(); it++) {

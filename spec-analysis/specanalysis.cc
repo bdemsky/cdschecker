@@ -8,6 +8,7 @@
 #include <assert.h>
 #include "modeltypes.h"
 
+int trace_num_cnt = 0;
 
 /** Add ordering points **/
 
@@ -112,7 +113,7 @@ bool SPECAnalysis::check(node_list_t *sorted_commit_points) {
 		//model_print("hey!\n");
 		if (!passed) {
 			model_print("Interface %d failed\n", interface_num);
-			model_print("ID: %d\n", __ID__);
+			model_print("ID: %ld\n", __ID__);
 			model_print("Error exists in correctness check!!\n");
 			return false;
 		}
@@ -747,10 +748,10 @@ void SPECAnalysis::traverseActions(action_list_t *actions) {
 			model_print("Wrong annotation!\n");
 			return;
 		}
-		anno_hb_init *hb_rule = NULL;
+		//anno_hb_init *hb_rule = NULL;
 		anno_hb_condition *hb_condition = NULL;
-		commit_point_node *node;
-		anno_init *init;
+		//commit_point_node *node;
+		//anno_init *init;
 
 		anno_interface_begin *begin_anno;
 		anno_interface_end *end_anno;

@@ -38,10 +38,6 @@ README.html: README.md
 	$(MARKDOWN) $< > $@
 
 
-SPEC_PLUGIN := $(SPEC_DIR)/specanalysis.o 
-SPEC_LIB := $(SPEC_DIR)/spec_lib.o
-SCFENCE_PLUGIN :=$(SCFENCE_DIR)/scfence.o
-
 malloc.o: malloc.c
 	$(CC) -fPIC -c malloc.c -DMSPACES -DONLY_MSPACES -DHAVE_MMAP=0 $(CPPFLAGS) -Wno-unused-variable
 
@@ -54,7 +50,7 @@ include $(SPEC_DIR)/Makefile
 -include $(wildcard $(SPEC_DIR)/.*.d)
 -include $(wildcard $(SCFENCE_DIR)/.*.d)
 
-$(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ) $(DEP) $(SPEC_LIB) $(SCFENCE_PLUGIN)
+$(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ)
 	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS) -O0 -g
 
 %.pdf: %.dot
@@ -64,10 +60,8 @@ $(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ) $(DEP) $(SPEC_LIB) $(SCFENCE_PLUGIN)
 
 PHONY += clean
 clean:
-	rm -f *.o *.so .*.d *.pdf *.dot
+	rm -f *.o *.so .*.d *.pdf *.dot $(OBJECTS) $(SPEC_DIR)/.*.d $(SCFENCE_DIR)/.*.d
 	$(MAKE) -C $(TESTS_DIR) clean
-	$(MAKE) -C $(SPEC_DIR) clean
-	$(MAKE) -C $(SCFENCE_DIR) clean
 
 PHONY += mrclean
 mrclean: clean

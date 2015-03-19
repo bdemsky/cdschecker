@@ -1,19 +1,19 @@
 #include "scgen.h"
 	
 SCGenerator::SCGenerator() :
-	cvmap(),
+	execution(NULL),
 	actions(actions),
+	cvmap(),
 	cyclic(false),
 	badrfset(),
 	lastwrmap(),
 	threadlists(1),
 	dup_threadlists(1),
-	execution(NULL),
 	print_always(false),
 	print_buggy(false),
-	print_nonsc(false)
-{
-	stats = new struct sc_statistics;
+	print_nonsc(false),
+	stats(new struct sc_statistics) {
+
 }
 
 SCGenerator::~SCGenerator() {

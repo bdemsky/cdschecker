@@ -112,7 +112,7 @@ class Patch {
 	}
 
 	void print() {
-		for (int i = 0; i < units->size(); i++) {
+		for (unsigned i = 0; i < units->size(); i++) {
 			PatchUnit *u = (*units)[i];
 			model_print("wildcard %d -> %s\n",
 				get_wildcard_id_zero(u->getAct()->get_original_mo()),

@@ -1,15 +1,11 @@
 #BASE := ..
 
-#include $(BASE)/common.mk
+SPEC_PLUGIN := $(SPEC_DIR)/specanalysis.o
+SPEC_LIB := $(SPEC_DIR)/spec_lib.o
 
-#OBJECTS := spec_lib.o specanalysis.o
+SPEC_DEP := $(SPEC_LIB) $(SPEC_PLUGIN)
 
-#all: $(OBJECTS)
-
-#-include $(OBJECTS:%=.%.d)
-
-#CPPFLAGS += -I$(BASE) -I$(BASE)/include -I. -O3
-
+OBJECTS += $(SPEC_DEP)
 
 $(SPEC_PLUGIN): $(SPEC_DIR)/specanalysis.cc
 	$(CXX) -MMD -MF $(SPEC_DIR)/.$(notdir $@).d -c -fPIC -o $@ $< $(CPPFLAGS)
@@ -17,9 +13,3 @@ $(SPEC_PLUGIN): $(SPEC_DIR)/specanalysis.cc
 # Non-model rules
 $(SPEC_LIB): $(SPEC_DIR)/spec_lib.c
 	$(CC) -MMD -MF $(SPEC_DIR)/.$(notdir $@).d -c -fPIC -o $@ $< $(CPPFLAGS) -std=c99
-
-PHONY += clean
-clean:
-	rm -f *.o .*.d
-
-.PHONY: $(PHONY)

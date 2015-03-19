@@ -7,8 +7,10 @@
 #include "inferlist.h"
 
 class InferenceList;
+class Inference;
 
 extern const char* get_mo_str(memory_order order);
+extern bool isTheInference(Inference *infer);
 
 class Inference {
 	private:
@@ -65,7 +67,9 @@ class Inference {
 	void getWeakerInferences(InferenceList* list, Inference *infer1,
 		Inference *infer2, SnapVector<int> *strengthened, int idx);
 
-	int getSize();
+	int getSize() {
+		return size;
+	}
 
 	memory_order &operator[](int idx);
 	

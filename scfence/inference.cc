@@ -10,6 +10,28 @@ class Patch;
 class Inference;
 class InferenceList;
 
+bool isTheInference(Inference *infer) {
+	for (int i = 0; i < infer->getSize(); i++) {
+		memory_order mo1 = (*infer)[i], mo2;
+		if (mo1 == WILDCARD_NONEXIST)
+			mo1 = relaxed;
+		switch (i) {
+			case 3:
+				mo2 = acquire;
+			break;
+			case 11:
+				mo2 = release;
+			break;
+			default:
+				mo2 = relaxed;
+			break;
+		}
+		if (mo1 != mo2)
+			return false;
+	}
+	return true;
+}
+
 const char* get_mo_str(memory_order order) {
 	switch (order) {
 		case std::memory_order_relaxed: return "relaxed";
@@ -179,15 +201,14 @@ InferenceList* Inference::getWeakerInferences(Inference *infer) {
 	Inference *volatileInfer = new Inference(this);
 	InferenceList *res = new InferenceList;
 	getWeakerInferences(res, volatileInfer, infer, strengthened, 0);
-	//return res;
+	return res;
 }
 
 void Inference::getWeakerInferences(InferenceList* list, Inference *infer1,
 	Inference *infer2, SnapVector<int> *strengthened, int idx) {
-	int wildcard; // The wildcard
-	wildcard = (*strengthened)[idx];
-	memory_order mo1 = (*infer1)[wildcard],
-		mo2 = (*infer2)[wildcard];
+	//int wildcard = (*strengthened)[idx]; // The wildcard
+	//memory_order mo1 = (*infer1)[wildcard],
+	//	mo2 = (*infer2)[wildcard];
 }
 
 memory_order& Inference::operator[](int idx) {

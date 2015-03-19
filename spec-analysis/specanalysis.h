@@ -117,7 +117,7 @@ typedef struct commit_point_node {
 
 } commit_point_node;
 
-static int trace_num_cnt = 0;
+extern int trace_num_cnt;
 
 class SPECAnalysis : public TraceAnalysis {
  public:
