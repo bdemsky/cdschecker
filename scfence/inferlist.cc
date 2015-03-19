@@ -16,15 +16,19 @@ Inference* InferenceList::back() {
 	return list->back();
 }
 
+void InferenceList::push_back(Inference *infer) {
+	list->push_back(infer);
+}
+
+void InferenceList::pop_front() {
+	list->pop_front();
+}
+
 /** We should not call this function too often because we want a nicer
  *  abstraction of the list of inferences. So far, it will only be called in
  *  the functions in InferenceSet */
 ModelList<Inference*>* InferenceList::getList() {
 	return list;
-}
-
-void InferenceList::push_back(Inference *infer) {
-	list->push_back(infer);
 }
 
 bool InferenceList::applyPatch(Inference *curInfer, Inference *newInfer, Patch *patch) {
@@ -177,6 +181,10 @@ void InferenceList::clearAll(ModelList<Inference*> *l) {
 
 void InferenceList::clearAll(InferenceList *inferList) {
 	clearAll(inferList->list);
+}
+
+void InferenceList::print(InferenceList *inferList, const char *msg) {
+	print(inferList->getList(), msg);
 }
 
 void InferenceList::print(ModelList<Inference*> *inferList, const char *msg) {

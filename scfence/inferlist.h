@@ -18,7 +18,6 @@ class InferenceList {
 	public:
 	InferenceList();
 	int getSize();	
-	void pop_back();
 	Inference* back();
 
 	/** We should not call this function too often because we want a nicer
@@ -26,6 +25,8 @@ class InferenceList {
 	 *  the functions in InferenceSet */
 	ModelList<Inference*>* getList();	
 	void push_back(Inference *infer);
+	void pop_front();
+	void pop_back();
 	bool applyPatch(Inference *curInfer, Inference *newInfer, Patch *patch);
 
 	void applyPatch(Inference *curInfer, Patch* patch);
@@ -47,7 +48,9 @@ class InferenceList {
 
 	static void clearAll(InferenceList *inferList);
 	
-	void print(ModelList<Inference*> *inferList, const char *msg);
+	static void print(ModelList<Inference*> *inferList, const char *msg);
+
+	static void print(InferenceList *inferList, const char *msg);
 
 	void print();
 

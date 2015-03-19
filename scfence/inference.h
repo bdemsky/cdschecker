@@ -64,8 +64,10 @@ class Inference {
 	 *  still stronger than infer */
 	InferenceList* getWeakerInferences(Inference *infer);
 
-	void getWeakerInferences(InferenceList* list, Inference *infer1,
-		Inference *infer2, SnapVector<int> *strengthened, int idx);
+	memory_order nextWeakOrder(memory_order mo1, memory_order mo2);
+
+	void getWeakerInferences(InferenceList* list, Inference *tmpRes, Inference *infer1,
+		Inference *infer2, SnapVector<int> *strengthened, unsigned idx);
 
 	int getSize() {
 		return size;

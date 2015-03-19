@@ -186,6 +186,7 @@ int Inference::compareMemoryOrder(memory_order mo1, memory_order mo2) {
 InferenceList* Inference::getWeakerInferences(Inference *infer) {
 	// An array of strengthened wildcards
 	SnapVector<int> *strengthened = new SnapVector<int>;
+	model_print("Strengthened wildcards\n");
 	for (int i = 1; i <= size; i++) {
 		memory_order mo1 = orders[i],
 			mo2 = (*infer)[i];
@@ -193,22 +194,87 @@ InferenceList* Inference::getWeakerInferences(Inference *infer) {
 		ASSERT(compVal == 0 || compVal == 1);
 		if (compVal == 0) // Same
 			continue;
+		model_print("wildcard %d -> %s (%s)\n", i, get_mo_str(mo1),
+			get_mo_str(mo2));
 		strengthened->push_back(i);
 	}
 
 	// Got the strengthened wildcards, find out weaker inferences
 	// First get a volatile copy of this inference
-	Inference *volatileInfer = new Inference(this);
+	Inference *tmpRes = new Inference(this);
 	InferenceList *res = new InferenceList;
-	getWeakerInferences(res, volatileInfer, infer, strengthened, 0);
+	if (strengthened->size() == 0)
+		return res;
+	getWeakerInferences(res, tmpRes, this, infer, strengthened, 0);
+	res->pop_front();
+	res->pop_back();
+	InferenceList::print(res, "Weakened");
 	return res;
 }
 
-void Inference::getWeakerInferences(InferenceList* list, Inference *infer1,
-	Inference *infer2, SnapVector<int> *strengthened, int idx) {
-	//int wildcard = (*strengthened)[idx]; // The wildcard
-	//memory_order mo1 = (*infer1)[wildcard],
-	//	mo2 = (*infer2)[wildcard];
+
+// seq_cst -> acq_rel -> acquire -> release -> relaxed
+memory_order Inference::nextWeakOrder(memory_order mo1, memory_order mo2) {
+	memory_order res;
+	switch (mo1) {
+		case memory_order_seq_cst:
+			res = memory_order_acq_rel;
+			break;
+		case memory_order_acq_rel:
+			res = memory_order_acquire;
+			break;
+		case memory_order_acquire:
+			res = memory_order_relaxed;
+			break;
+		case memory_order_release:
+			res = memory_order_relaxed;
+			break;
+		case memory_order_relaxed:
+			res = memory_order_relaxed;
+			break;
+		default: 
+			res = memory_order_relaxed;
+			break;
+	}
+	int compVal = compareMemoryOrder(res, mo2);
+	if (compVal == 2 || compVal == -1) // Incomparable
+		res = mo2;
+	return res;
+}
+
+void Inference::getWeakerInferences(InferenceList* list, Inference *tmpRes,
+	Inference *infer1, Inference *infer2, SnapVector<int> *strengthened, unsigned idx) {
+	if (idx == strengthened->size()) { // Ready to produce one weakened result
+		Inference *res = new Inference(tmpRes);
+		//model_print("Weakened inference:\n");
+		//res->print();
+		res->setShouldFix(false);
+		list->push_back(res);
+		return;
+	}
+
+	int w = (*strengthened)[idx]; // The wildcard
+	memory_order mo1 = (*infer1)[w];
+	memory_order mo2 = (*infer2)[w];
+	if (mo2 == WILDCARD_NONEXIST)
+		mo2 = memory_order_relaxed;
+	memory_order weakenedMO = mo1;
+	do {
+		(*tmpRes)[w] = weakenedMO;
+		getWeakerInferences(list, tmpRes, infer1, infer2,
+			strengthened, idx + 1);
+		if (weakenedMO == memory_order_acq_rel) {
+			(*tmpRes)[w] = memory_order_release;
+			getWeakerInferences(list, tmpRes, infer1, infer2,
+				strengthened, idx + 1);
+		}
+		weakenedMO = nextWeakOrder(weakenedMO, mo2);
+		model_print("weakendedMO=%d\n", weakenedMO);
+		model_print("mo2=%d\n", mo2);
+	} while (weakenedMO != mo2);
+	(*tmpRes)[w] = weakenedMO;
+	getWeakerInferences(list, tmpRes, infer1, infer2,
+		strengthened, idx + 1);
 }
 
 memory_order& Inference::operator[](int idx) {
