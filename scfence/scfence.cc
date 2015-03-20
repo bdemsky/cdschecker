@@ -384,11 +384,6 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 	ModelAction *readBound,const ModelAction *write, const ModelAction *writeBound) {
 	
 	SnapVector<Patch*> *patches = new SnapVector<Patch*>;
-	Patch *p = new Patch(read, memory_order_acquire, write,
-		memory_order_release);
-	if (p->isApplicable())
-		patches->push_back(p);
-
 	/* Also support rel/acq fences synchronization here */
 	// Look for the acq fence after the read action
 	int readThrdID = read->get_tid(),
@@ -419,9 +414,11 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 	// Now we have a list of rel/acq fences at hand
 	int acqFenceSize = acqFences->size(),
 		relFenceSize = relFences->size();
-	if (acqFenceSize == 0 && relFenceSize == 0)
-		return patches;
-	else if (acqFenceSize > 0 && relFenceSize == 0) {
+	
+	Patch *p;
+	if (acqFenceSize == 0 && relFenceSize == 0) {
+		//return patches;
+	 } else if (acqFenceSize > 0 && relFenceSize == 0) {
 		for (action_list_t::iterator it = acqFences->begin(); it !=
 			acqFences->end(); it++) {
 			ModelAction *fence = *it;
@@ -467,6 +464,14 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 			}
 		}
 	}
+
+	// If we can find a fix with fences, we don't fix on the operation
+	if (patches->size() > 0)
+		return patches;
+	p = new Patch(read, memory_order_acquire, write,
+		memory_order_release);
+	if (p->isApplicable())
+		patches->push_back(p);
 	return patches;
 }
 
@@ -604,31 +609,52 @@ bool SCFence::imposeSC(action_list_t * actions, InferenceList *inferList, const 
 			ModelAction *fence2 = *fit2;
 			p = new Patch(fence1, memory_order_seq_cst, fence2, memory_order_seq_cst);
 			if (p->isApplicable()) {
-				twoFences = true;
+				Inference *curInfer = getCurInference();
+				memory_order mo1 = (*curInfer)[get_wildcard_id(fence1->get_original_mo())];
+				memory_order mo2 = (*curInfer)[get_wildcard_id(fence2->get_original_mo())];
+				// We can avoid this by adding two fences
+				if (mo1 != memory_order_seq_cst || mo2 != memory_order_seq_cst)
+					twoFences = true;
 				patches->push_back(p);
 			}
 		}
 	}
 
 	// Just impose SC on one fence
-	for (action_list_t::iterator fit = fences->begin(); fit != fences->end();
-		fit++) {
-		ModelAction *fence = *fit;
-		model_print("one fence\n");
-		fence->print();
-		p = new Patch(act1, memory_order_seq_cst, fence, memory_order_seq_cst);
-		if (p->isApplicable()) {
-			patches->push_back(p);
+	if (!twoFences) {
+		bool oneFence = false;
+		Inference *curInfer = getCurInference();
+		for (action_list_t::iterator fit = fences->begin(); fit != fences->end();
+			fit++) {
+			ModelAction *fence = *fit;
+			model_print("one fence\n");
+			fence->print();
+			p = new Patch(act1, memory_order_seq_cst, fence, memory_order_seq_cst);
+			if (p->isApplicable()) {
+				memory_order mo1 = (*curInfer)[get_wildcard_id(act1->get_original_mo())];
+				memory_order mo2 = (*curInfer)[get_wildcard_id(fence->get_original_mo())];
+				// We can avoid this by adding two fences
+				if (mo1 != memory_order_seq_cst || mo2 != memory_order_seq_cst)
+					oneFence = true;
+				patches->push_back(p);
+			}
+			p = new Patch(act2, memory_order_seq_cst, fence, memory_order_seq_cst);
+			if (p->isApplicable()) {
+				memory_order mo1 = (*curInfer)[get_wildcard_id(act2->get_original_mo())];
+				memory_order mo2 = (*curInfer)[get_wildcard_id(fence->get_original_mo())];
+				// We can avoid this by adding two fences
+				if (mo1 != memory_order_seq_cst || mo2 != memory_order_seq_cst)
+					oneFence = true;
+				patches->push_back(p);
+			}
 		}
-		p = new Patch(act2, memory_order_seq_cst, fence, memory_order_seq_cst);
-		if (p->isApplicable()) {
-			patches->push_back(p);
-		}
-	}
 
-	p = new Patch(act1, memory_order_seq_cst, act2, memory_order_seq_cst);
-	if (p->isApplicable()) {
-		patches->push_back(p);
+		//if (!oneFence) {
+			p = new Patch(act1, memory_order_seq_cst, act2, memory_order_seq_cst);
+			if (p->isApplicable()) {
+				patches->push_back(p);
+			}
+		//}
 	}
 	
 	if (patches->size() > 0) {
