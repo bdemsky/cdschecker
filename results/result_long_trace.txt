@@ -1,0 +1,275 @@
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 545
+Total executions: 1080
+Elapsed time in usec 549755
+SC count: 500
+Non-SC count: 0
+Total actions: 622910
+Elapsed time in buildVector 93757
+Elapsed time in computeCV 370866
+Elapsed time in computeCVOther 43815
+Elapsed time in processRead 134394
+Elapsed time in passChange 103451
+Actions per execution: 1245
+Read actions per execution: 631
+Write actions per execution: 585
+Push per execution: 2860
+Merge per execution: 9915
+Processed read actions per execution: 1850
+Processed writes calculated per processed read: 5
+Length of write lists per processed read: 75
+Maximum length of write lists: 175
+
+real	0m5.281s
+user	0m5.092s
+sys	0m0.169s
+
+
+#####################################################################
++ spsc-bugfix/spsc-queue -u3 -m2 -y -tSC -o time -o quiet -v0 -x500
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 620
+Total executions: 1155
+Elapsed time in usec 1103535
+SC count: 500
+Non-SC count: 0
+Total actions: 1210410
+Elapsed time in buildVector 188242
+Elapsed time in computeCV 754500
+Elapsed time in computeCVOther 85159
+Elapsed time in processRead 291668
+Elapsed time in passChange 205072
+Actions per execution: 2420
+Read actions per execution: 1231
+Write actions per execution: 1160
+Push per execution: 5535
+Merge per execution: 19265
+Processed read actions per execution: 3600
+Processed writes calculated per processed read: 5
+Length of write lists per processed read: 145
+Maximum length of write lists: 350
+
+real	0m15.480s
+user	0m15.014s
+sys	0m0.438s
+
+
+#####################################################################
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 695
+Total executions: 1230
+Elapsed time in usec 1732810
+SC count: 500
+Non-SC count: 0
+Total actions: 1797910
+Elapsed time in buildVector 274199
+Elapsed time in computeCV 1210077
+Elapsed time in computeCVOther 132295
+Elapsed time in processRead 497084
+Elapsed time in passChange 323300
+Actions per execution: 3595
+Read actions per execution: 1831
+Write actions per execution: 1735
+Push per execution: 8210
+Merge per execution: 28615
+Processed read actions per execution: 5350
+Processed writes calculated per processed read: 5
+Length of write lists per processed read: 215
+Maximum length of write lists: 525
+
+real	0m29.612s
+user	0m28.973s
+sys	0m0.601s
+
+
+#####################################################################
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 770
+Total executions: 1305
+Elapsed time in usec 2308493
+SC count: 500
+Non-SC count: 0
+Total actions: 2385410
+Elapsed time in buildVector 389475
+Elapsed time in computeCV 1603791
+Elapsed time in computeCVOther 169660
+Elapsed time in processRead 677233
+Elapsed time in passChange 416125
+Actions per execution: 4770
+Read actions per execution: 2431
+Write actions per execution: 2310
+Push per execution: 10885
+Merge per execution: 37965
+Processed read actions per execution: 7100
+Processed writes calculated per processed read: 6
+Length of write lists per processed read: 284
+Maximum length of write lists: 700
+
+real	0m54.121s
+user	0m53.145s
+sys	0m0.917s
+
+#####################################################################
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 845
+Total executions: 1380
+Elapsed time in usec 2937320
+SC count: 500
+Non-SC count: 0
+Total actions: 2972910
+Elapsed time in buildVector 470868
+Elapsed time in computeCV 2070280
+Elapsed time in computeCVOther 212576
+Elapsed time in processRead 912837
+Elapsed time in passChange 521007
+Actions per execution: 5945
+Read actions per execution: 3031
+Write actions per execution: 2885
+Push per execution: 13560
+Merge per execution: 47315
+Processed read actions per execution: 8850
+Processed writes calculated per processed read: 6
+Length of write lists per processed read: 354
+Maximum length of write lists: 875
+
+real	1m19.176s
+user	1m18.118s
+sys	0m0.977s
+
+#####################################################################
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 920
+Total executions: 1455
+Elapsed time in usec 3572111
+SC count: 500
+Non-SC count: 0
+Total actions: 3560410
+Elapsed time in buildVector 553416
+Elapsed time in computeCV 2539207
+Elapsed time in computeCVOther 251974
+Elapsed time in processRead 1162192
+Elapsed time in passChange 617013
+Actions per execution: 7120
+Read actions per execution: 3631
+Write actions per execution: 3460
+Push per execution: 16235
+Merge per execution: 56665
+Processed read actions per execution: 10600
+Processed writes calculated per processed read: 6
+Length of write lists per processed read: 424
+Maximum length of write lists: 1050
+
+real	1m51.872s
+user	1m50.440s
+sys	0m1.329s
+
+
+#####################################################################
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 995
+Total executions: 1530
+Elapsed time in usec 4356972
+SC count: 500
+Non-SC count: 0
+Total actions: 4147910
+Elapsed time in buildVector 707398
+Elapsed time in computeCV 3107755
+Elapsed time in computeCVOther 305313
+Elapsed time in processRead 1430530
+Elapsed time in passChange 774932
+Actions per execution: 8295
+Read actions per execution: 4231
+Write actions per execution: 4035
+Push per execution: 18910
+Merge per execution: 66015
+Processed read actions per execution: 12350
+Processed writes calculated per processed read: 6
+Length of write lists per processed read: 493
+Maximum length of write lists: 1225
+
+real	2m21.594s
+user	2m19.907s
+sys	0m1.557s
+
+
+#####################################################################
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 1070
+Total executions: 1605
+Elapsed time in usec 5152915
+SC count: 500
+Non-SC count: 0
+Total actions: 4735410
+Elapsed time in buildVector 836186
+Elapsed time in computeCV 3686928
+Elapsed time in computeCVOther 345545
+Elapsed time in processRead 1764102
+Elapsed time in passChange 887391
+Actions per execution: 9470
+Read actions per execution: 4831
+Write actions per execution: 4610
+Push per execution: 21585
+Merge per execution: 75365
+Processed read actions per execution: 14100
+Processed writes calculated per processed read: 6
+Length of write lists per processed read: 563
+Maximum length of write lists: 1400
+
+real	3m30.560s
+user	3m28.426s
+sys	0m1.948s
+
+
+#####################################################################
+******* Model-checking complete: *******
+Number of complete, bug-free executions: 500
+Number of redundant executions: 35
+Number of buggy executions: 0
+Number of infeasible executions: 1145
+Total executions: 1680
+Elapsed time in usec 6103435
+SC count: 500
+Non-SC count: 0
+Total actions: 5322910
+Elapsed time in buildVector 955218
+Elapsed time in computeCV 4418214
+Elapsed time in computeCVOther 401015
+Elapsed time in processRead 2143906
+Elapsed time in passChange 1088948
+Actions per execution: 10645
+Read actions per execution: 5431
+Write actions per execution: 5185
+Push per execution: 24260
+Merge per execution: 84715
+Processed read actions per execution: 15850
+Processed writes calculated per processed read: 6
+Length of write lists per processed read: 632
+Maximum length of write lists: 1575
+
+real	4m21.081s
+user	4m18.613s
+sys	0m2.245s
