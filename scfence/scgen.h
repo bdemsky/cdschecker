@@ -36,11 +36,11 @@ public:
 	bool getPrintAlways();
 	bool getHasBadRF();
 
+	void setAnnotationMode(bool val);
+
 	void setPrintBuggy(bool val);
 	
 	void setPrintNonSC(bool val);
-
-	void setAnnotationMode(bool val);
 
 	action_list_t * getSCList();
 	
@@ -82,6 +82,7 @@ private:
 	bool merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2);
 
 	void check_rf(action_list_t *list);
+	void check_rf1(action_list_t *list);
 	
 	void reset(action_list_t *list);
 	

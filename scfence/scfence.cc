@@ -335,6 +335,9 @@ bool SCFence::option(char * opt) {
 	} else if (strcmp(opt, "weaken")==0) {
 		weaken=true;
 		return false;
+	} else if (strcmp(opt, "annotation")==0) {
+		scgen->setAnnotationMode(true);
+		return false;
 	} else if (!parseOption(opt)) {
 		if (getCandidateFile() != NULL)
 			initializeByFile();
@@ -1070,7 +1073,7 @@ bool SCFence::routineBacktrack(bool feasible) {
 		}
 		curInfer->print();
 		// Try to weaken this inference
-		if (weaken) {
+		if (weaken && !isBuggy()) {
 			getSet()->addWeakerInference(curInfer);
 		}
 		
@@ -1111,17 +1114,21 @@ void SCFence::routineAfterAddFixes() {
 	
 	/******** getNextInference ********/
 	Inference *next = getNextInference();
-	ASSERT (next);
+	//ASSERT (next);
 
-	/******** setCurInference ********/
-	setCurInference(next);
-	/******** restartModelChecker ********/
-	restartModelChecker();
-	
-	model_print("Add fixes routine end:\n");
-	model_print("Restart checking with the follwing inference:\n");
-	getCurInference()->print();
-	model_print("Checking...\n");
+	if (next) {
+		/******** setCurInference ********/
+		setCurInference(next);
+		/******** restartModelChecker ********/
+		restartModelChecker();
+		
+		model_print("Add fixes routine end:\n");
+		model_print("Restart checking with the follwing inference:\n");
+		getCurInference()->print();
+		model_print("Checking...\n");
+	} else {
+		routineBacktrack(false);
+	}
 }
 
 

@@ -12,6 +12,7 @@ SCGenerator::SCGenerator() :
 	print_always(false),
 	print_buggy(false),
 	print_nonsc(false),
+	annotationMode(false),
 	stats(new struct sc_statistics) {
 
 }
@@ -75,6 +76,7 @@ action_list_t * SCGenerator::getSCList() {
 	
 	fastVersion = true;
 	action_list_t *list = generateSC(actions);
+	//check_rf1(list); // Use it to check whether computeCV is correct
 	if (cyclic) {
 		reset(actions);
 		delete list;
@@ -107,24 +109,12 @@ void SCGenerator::print_list(action_list_t *list) {
 		if (act->get_seq_number() > 0) {
 			if (badrfset.contains(act))
 				model_print("BRF ");
-			/*
-			if (act->is_rmwr()) {
-				model_print("RMWR");
-			}
-			if (act->is_rmw()) {
-				model_print("RMW");
-			}
-			if (act->is_rmwc()) {
-				model_print("RMWC");
-			}
-			*/
 			act->print();
 			if (badrfset.contains(act)) {
 				model_print("Desired Rf: %u \n", badrfset.get(act)->get_seq_number());
 			}
 		}
-		//if (hasBadRF)
-		//	cvmap.get(act)->print();
+		//cvmap.get(act)->print();
 		hash = hash ^ (hash << 3) ^ ((*it)->hash());
 	}
 	model_print("HASH %u\n", hash);
@@ -321,6 +311,9 @@ bool SCGenerator::processReadFast(ModelAction *read, ClockVector *cv) {
 
 	/* Merge in the clock vector from the write */
 	const ModelAction *write = read->get_reads_from();
+	if (!write) { // The case where the write is a promise
+		return false;
+	}
 	ClockVector *writecv = cvmap.get(write);
 	changed |= merge(cv, read, write) && (*read < *write);
 
@@ -340,6 +333,8 @@ bool SCGenerator::processReadFast(ModelAction *read, ClockVector *cv) {
 			if (!write2->is_write())
 				continue;
 			if (write2 == write)
+				continue;
+			if (write2 == read) // If read is a RMW
 				continue;
 
 			ClockVector *write2cv = cvmap.get(write2);
@@ -380,8 +375,8 @@ bool SCGenerator::processReadSlow(ModelAction *read, ClockVector *cv, bool *upda
 
 	for (int i = 0; i <= maxthreads; i++) {
 		thread_id_t tid = int_to_id(i);
-		if (tid == read->get_tid())
-			continue;
+		//if (tid == read->get_tid())
+		//	continue;
 		//if (tid == write->get_tid())
 		//	continue;
 		action_list_t *list = execution->get_actions_on_obj(read->get_location(), tid);
@@ -392,6 +387,8 @@ bool SCGenerator::processReadSlow(ModelAction *read, ClockVector *cv, bool *upda
 			if (!write2->is_write())
 				continue;
 			if (write2 == write)
+				continue;
+			if (write2 == read) // If read is a RMW
 				continue;
 
 			ClockVector *write2cv = cvmap.get(write2);
@@ -530,12 +527,45 @@ bool SCGenerator::merge(ClockVector *cv, const ModelAction *act, const ModelActi
 
 }
 
+void SCGenerator::check_rf1(action_list_t *list) {
+	bool hasBadRF1 = false;
+	HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > badrfset1;
+	HashTable<void *, const ModelAction *, uintptr_t, 4 > lastwrmap1;
+	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
+		const ModelAction *act = *it;
+		if (act->is_read()) {
+			if (act->get_reads_from() != lastwrmap1.get(act->get_location())) {
+				badrfset1.put(act, lastwrmap1.get(act->get_location()));
+				hasBadRF1 = true;
+			}
+		}
+		if (act->is_write())
+			lastwrmap1.put(act->get_location(), act);
+	}
+	if (cyclic != hasBadRF1 && !annotationMode) {
+		if (cyclic)
+			model_print("Assert failure & non-SC\n");
+		else
+			model_print("Assert failure & SC\n");
+		if (fastVersion) {
+			model_print("Fast\n");
+		} else {
+			model_print("Slow\n");
+		}
+		print_list(list);
+	}
+	if (!annotationMode) {
+		ASSERT (cyclic == hasBadRF1);
+	}
+}
+
 void SCGenerator::check_rf(action_list_t *list) {
 	hasBadRF = false;
 	for (action_list_t::iterator it = list->begin(); it != list->end(); it++) {
 		const ModelAction *act = *it;
 		if (act->is_read()) {
-			if (act->get_reads_from() != lastwrmap.get(act->get_location())) {
+			const ModelAction *write = act->get_reads_from();
+			if (write && write != lastwrmap.get(act->get_location())) {
 				badrfset.put(act, lastwrmap.get(act->get_location()));
 				hasBadRF = true;
 			}
@@ -543,13 +573,21 @@ void SCGenerator::check_rf(action_list_t *list) {
 		if (act->is_write())
 			lastwrmap.put(act->get_location(), act);
 	}
-	if (cyclic != hasBadRF) {
+	if (cyclic != hasBadRF && !annotationMode) {
 		if (cyclic)
 			model_print("Assert failure & non-SC\n");
 		else
 			model_print("Assert failure & SC\n");
+		if (fastVersion) {
+			model_print("Fast\n");
+		} else {
+			model_print("Slow\n");
+		}
+		print_list(list);
 	}
-	ASSERT (cyclic == hasBadRF);
+	if (!annotationMode) {
+		ASSERT (cyclic == hasBadRF);
+	}
 }
 
 void SCGenerator::reset(action_list_t *list) {
