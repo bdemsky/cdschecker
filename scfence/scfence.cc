@@ -435,23 +435,8 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 				patches->push_back(p);
 		}
 	} else {
-		/* Only impose on the acqFences */
-		for (action_list_t::iterator it = acqFences->begin(); it !=
-			acqFences->end(); it++) {
-			ModelAction *fence = *it;
-			p = new Patch(fence, memory_order_acquire, write, memory_order_release);
-			if (p->isApplicable())
-				patches->push_back(p);
-		}
-		/* Only impose on the relFences */
-		for (action_list_t::iterator it = relFences->begin(); it !=
-			relFences->end(); it++) {
-			ModelAction *fence = *it;
-			p = new Patch(fence, memory_order_release, read, memory_order_acquire);
-			if (p->isApplicable())
-				patches->push_back(p);
-		}
 		/* Impose on both relFences and acqFences */
+		bool twoFences = false;
 		for (action_list_t::iterator it1 = relFences->begin(); it1 !=
 			relFences->end(); it1++) {
 			ModelAction *relFence = *it1;
@@ -459,6 +444,26 @@ SnapVector<Patch*>* SCFence::getAcqRel(const ModelAction *read, const
 				acqFences->end(); it2++) {
 				ModelAction *acqFence = *it2;
 				p = new Patch(relFence, memory_order_release, acqFence, memory_order_acquire);
+				if (p->isApplicable()) {
+					patches->push_back(p);
+					twoFences = true;
+				}
+			}
+		}
+		if (!twoFences) {
+			/* Only impose on the acqFences */
+			for (action_list_t::iterator it = acqFences->begin(); it !=
+				acqFences->end(); it++) {
+				ModelAction *fence = *it;
+				p = new Patch(fence, memory_order_acquire, write, memory_order_release);
+				if (p->isApplicable())
+					patches->push_back(p);
+			}
+			/* Only impose on the relFences */
+			for (action_list_t::iterator it = relFences->begin(); it !=
+				relFences->end(); it++) {
+				ModelAction *fence = *it;
+				p = new Patch(fence, memory_order_release, read, memory_order_acquire);
 				if (p->isApplicable())
 					patches->push_back(p);
 			}

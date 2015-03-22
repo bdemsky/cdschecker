@@ -178,10 +178,12 @@ bool InferenceSet::addWeakerInference(Inference *curInfer) {
 			hasImposeSC = true;
 	}
 	// Only apply weakening to the inferences that has imposed SC
+	/*
 	if (!hasImposeSC) {
 		model_print("The current inference hasn't imposed SC\n");
 		return false;
 	}
+	*/
 
 	for (int i = 0; i < strengthened->size(); i++) {
 		int w = (*strengthened)[i]; // The wildcard
