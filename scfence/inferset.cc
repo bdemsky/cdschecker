@@ -269,7 +269,7 @@ bool InferenceSet::addInference(Inference *infer) {
 		infer->setLeaf(true);
 		candidates->push_back(infer);
 		discoveredSet->push_back(infer);
-		FENCE_PRINT("Discovered %lu\n", infer->getHash());
+		FENCE_PRINT("Discovered a parameter assignment with hashcode %lu\n", infer->getHash());
 		return true;
 	} else {
 		stat.notAddedAtFirstPlace++;

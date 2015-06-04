@@ -51,7 +51,7 @@ include $(SPEC_DIR)/Makefile
 -include $(wildcard $(SCFENCE_DIR)/.*.d)
 
 $(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ)
-	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS) -O0 -g
+	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS) -O3 -g
 
 %.pdf: %.dot
 	dot -Tpdf $< -o $@

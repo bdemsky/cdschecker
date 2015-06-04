@@ -11,6 +11,7 @@
 #include "inference.h"
 #include "inferset.h"
 #include "sc_annotation.h"
+#include "errno.h"
 #include <stdio.h>
 #include <algorithm>
 
@@ -22,6 +23,7 @@ SCFence::SCFence() :
 	execution(NULL)
 {
 	priv = new scfence_priv();
+	weaken = true;
 }
 
 SCFence::~SCFence() {
@@ -172,20 +174,23 @@ void SCFence::actionAtModelCheckingFinish() {
 
 	/** Backtrack with a successful inference */
 	routineBacktrack(true);
-
+/*
 	if (time)
 		model_print("Elapsed time in usec %llu\n", stats->elapsedtime);
 	model_print("SC count: %u\n", stats->sccount);
 	model_print("Non-SC count: %u\n", stats->nonsccount);
 	model_print("Total actions: %llu\n", stats->actions);
 	//unsigned long long actionperexec=(stats->actions)/(stats->sccount+stats->nonsccount);
+*/
 }
 
 void SCFence::initializeByFile() {
-	FILE *fp = fopen(getCandidateFile(), "r");
+	char *name = getCandidateFile();
+	FILE *fp = fopen(name, "r");
 	if (fp == NULL) {
-		fprintf(stderr, "Cannot open the file!\n");
-		return;
+		fprintf(stderr, "Cannot open the input parameter assignment file: %s!\n", name);
+		perror(name);
+		exit(EXIT_FAILURE);
 	}
 	Inference *infer = NULL;
 	int curNum = 0;
@@ -247,7 +252,7 @@ void SCFence::initializeByFile() {
 char* SCFence::parseOptionHelper(char *opt, int *optIdx) {
 	char *res = (char*) model_malloc(1024 * sizeof(char));
 	int resIdx = 0;
-	while (opt[*optIdx] != '\0' && opt[*optIdx] != '_') {
+	while (opt[*optIdx] != '\0' && opt[*optIdx] != '|') {
 		res[resIdx++] = opt[(*optIdx)++];
 	}
 	res[resIdx] = '\0';
@@ -307,7 +312,7 @@ bool SCFence::parseOption(char *opt) {
 				return true;
 				break;
 		}
-		if (opt[optIdx] == '_') {
+		if (opt[optIdx] == '|') {
 			optIdx++;
 		} else {
 			break;
@@ -317,7 +322,51 @@ bool SCFence::parseOption(char *opt) {
 
 }
 
+char* SCFence::getInputFileName(char *opt) {
+	char *res = NULL;
+	if (opt[0] == 'f' &&
+		opt[1] == 'i' &&
+		opt[2] == 'l' &&
+		opt[3] == 'e' &&
+		opt[4] == '-') {
+		
+		res = (char*) model_malloc(1024 * sizeof(char));
+		int i = 0, j = 5;
+		while (opt[j] != '\0') {
+			res[i++] = opt[j++];
+		}
+		res[i] = '\0';
+	}
+	return res;
+}
+
+int SCFence::getImplicitMOBound(char *opt) {
+	char *num = NULL;
+	if (opt[0] == 'b' &&
+		opt[1] == 'o' &&
+		opt[2] == 'u' &&
+		opt[3] == 'n' &&
+		opt[4] == 'd' &&
+		opt[5] == '-') {
+		
+		num = (char*) model_malloc(1024 * sizeof(char));
+		int i = 0, j = 6;
+		while (opt[j] != '\0') {
+			num[i++] = opt[j++];
+		}
+		num[i] = '\0';
+	}
+	if (num) {
+		return atoi(num);
+	} else {
+		return 0;
+	}
+}
+
 bool SCFence::option(char * opt) {
+	char *inputFileName = NULL;
+	unsigned implicitMOBoundNum = 0;
+
 	if (strcmp(opt, "verbose")==0) {
 		scgen->setPrintAlways(true);
 		return false;
@@ -332,28 +381,41 @@ bool SCFence::option(char * opt) {
 	} else if (strcmp(opt, "time")==0) {
 		time=true;
 		return false;
-	} else if (strcmp(opt, "weaken")==0) {
-		weaken=true;
+	} else if (strcmp(opt, "no-weaken")==0) {
+		weaken=false;
 		return false;
-	} else if (strcmp(opt, "annotation")==0) {
+	} else if (strcmp(opt, "anno")==0) {
 		scgen->setAnnotationMode(true);
 		return false;
-	} else if (!parseOption(opt)) {
-		if (getCandidateFile() != NULL)
-			initializeByFile();
+	} else if (strcmp(opt, "implicit-mo")==0) {
+		setInferImplicitMO(true);
+		return false;
+	} else if ((inputFileName = getInputFileName(opt)) != NULL) {
+		if (strcmp(inputFileName, "") == 0) {
+			model_print("Need to specify a file that contains initial inference!\n");
+			return true;
+		}
+		setCandidateFile(inputFileName);
+		initializeByFile();
+		return false;
+	} else if ((implicitMOBoundNum = getImplicitMOBound(opt)) > 0) {
+		//model_print("Parsing b option!\n");
+		//model_print("b value: %s\n", val);
+		setImplicitMOReadBound(implicitMOBoundNum);
 		return false;
 	} else {
-		model_print("SC Analysis options\n");
-		model_print("verbose -- print all feasible executions\n");
-		model_print("buggy -- print only buggy executions (default)\n");
-		model_print("nonsc -- print non-sc execution\n");
-		model_print("quiet -- print nothing\n");
-		model_print("time -- time execution of scanalysis\n");
+		//model_print("SC Analysis options\n");
+		//model_print("verbose -- print all feasible executions\n");
+		//model_print("buggy -- print only buggy executions (default)\n");
+		//model_print("nonsc -- print non-sc execution\n");
+		//model_print("quiet -- print nothing\n");
+		//model_print("time -- time execution of scanalysis\n");
 		
-		model_print("OR short options with _ (understore) as separator\n");
-		model_print("f -- takes candidate file as argument\n");
-		model_print("m -- imply implicit modification order, takes no arguments\n");
-		model_print("b -- specify the bound for the mo implication, takes a number as argument\n");
+		model_print("file-InputFile -- takes candidate file as argument right after the symbol '-' \n");
+		model_print("no-weaken -- turn off the weakening mode (by default ON)\n");
+		model_print("anno -- turn on the annotation mode (by default OFF)\n");
+		model_print("implicit-mo -- imply implicit modification order, takes no arguments (by default OFF, default bound is %d\n", DEFAULT_REPETITIVE_READ_BOUND);
+		model_print("bound-NUM -- specify the bound for the implicit mo implication, takes a number as argument right after the symbol '-'\n");
 		model_print("\n");
 		return true;
 	}

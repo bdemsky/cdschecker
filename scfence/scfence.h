@@ -166,6 +166,12 @@ class SCFence : public TraceAnalysis {
 	/** For the SC analysis */
 	void update_stats();
 
+	/** Get the custom input number for implicit bound */
+	int getImplicitMOBound(char *opt);
+
+	/** Get the input file for initial parameter assignments */
+	char* getInputFileName(char *opt);
+
 	/** The function to parse the SCFence plugin options */
 	bool parseOption(char *opt);
 
