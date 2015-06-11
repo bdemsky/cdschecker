@@ -1,0 +1,23 @@
+AutoMO Artifact Evaluation: Overview 
+------------------------------------
+
+AutoMO is a tool that provides support for developers to port data structures
+that originally assume the SC memory model to the C/C++11 memory model. The most
+important contribution of AutoMO is that it can automatically infer memory order
+parameters of C/C++11 data structures to provide SC for given test cases.
+
+This full artifact is targetted to help reproduce and extend the evaluation of
+the main body (Section 8) of the paper submission #126 --- "AutoMO: Automatic
+Inference of Memory Order Parameters for C/C++11", which facilites later
+research on this field. It includes the source code of the implementation of
+AutoMO, the benchmarks we used to evaluate AutoMO, our evaluation results and
+the scripts to reproduce our results. We packaged the full artifact with a VM
+image, a tarball of source code of both AutoMO and the benchmarks, the scripts
+to build and run AutoMO natively, and the getting-started and step-by-step
+documents.
+
+We provide two ways for reviewers to evaluate the artifact: run via the provided
+VM or build AutoMO natively. Reviewers could first go through the
+getting-started file to have a sense how to build the initial environment, and
+then follow the step-by-step file to reproduce our results or build their own
+example.

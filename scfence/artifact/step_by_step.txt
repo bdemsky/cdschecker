@@ -1,0 +1,176 @@
+AutoMO Artifact Evaluation: Step by Step
+========================================
+
+Our artifact only has a command line interface, and the full artifact is located
+in the directory of "~/oopsla15-artifact-automo".
+
+Source Code Structure Overview
+------------------------------
+
+As the paper mentions, AutoMO is built upon the CDSChecker model checker, and
+has been implemented as a back-end analysis of CDSChecker (for more information
+about the CDSChecker, PLEASE refer to the CDSChecker page
+http://plrg.eecs.uci.edu/?page_id=42). To ease the run-time environmental
+configuration, we included the CDSChecker's source code. In
+~/oopsla15-artifact-automo, the directory is organized as follows:
+
+1. All the original CDSChecker's source code is located in the directory
+of "~/oopsla15-artifact-automo".
+
+2. All the source code of AutoMO (as an extended part of CDSChecker) is located
+in the directory of "~/oopsla15-artifact-automo/scfence".
+
+3. All of the source code of our benchmarks, scripts to run AutoMO and necessary
+results are located in the directory of "~/oopsla15-artifact-automo/benchmarks",
+and each benchmark is located in its separate sub-directory listed as follows:
+
+Benchmark					Directory
+Chase-Lev					~/oopsla15-artifact-automo/benchmarks/chase-lev-deque-bugfix
+SPSC						~/oopsla15-artifact-automo/benchmarks/spsc-queue-scfence
+Barrier						~/oopsla15-artifact-automo/benchmarks/barrier
+Dekker						~/oopsla15-artifact-automo/benchmarks/dekker-fences
+MCS lock					~/oopsla15-artifact-automo/benchmarks/mcs-lock
+MPMC						~/oopsla15-artifact-automo/benchmarks/mpmc-queue
+M&S queue					~/oopsla15-artifact-automo/benchmarks/ms-queue
+Linux RW lock				~/oopsla15-artifact-automo/benchmarks/linuxrwlocks
+Seqlock						~/oopsla15-artifact-automo/benchmarks/seqlock
+Concurrent hashtable		~/oopsla15-artifact-automo/benchmarks/concurrent-hashmap
+Treiber stack				~/oopsla15-artifact-automo/benchmarks/treiber-stack
+
+
+How to Configure (Step by Step)
+-------------------------------
+
+1. Build the extended CDSChecker that has AutoMO's implementation. To
+do this, go to the directory of ~/oopsla15-artifact-automo and type the "make"
+command:
+
+	cd ~/oopsla15-artifact-automo/
+	
+	make
+
+This step will take about 1 minute.
+
+2. Build the benchmarks that will run with the CDSChecker's dynamic libraries
+for C/C++11 atomics. Go to the directory of
+~/oopsla15-artifact-automo/benchmarks, and type the "make" command:
+
+	cd ~/oopsla15-artifact-automo/benchmarks
+
+	make
+
+This step will take about 10 seconds.
+
+
+How to Run AutoMO to Reproduce the Results
+------------------------------------------
+
+For a C/C++11 benchmark to run on AutoMO, developers should replace each of the
+memory order parameter in the benchmark with a wildcard parameter. We provide a
+wrapper for different wildcards --- wildcard(int). For example,
+for one instance of a memory order parameter, we can use "wildcard(1)", while
+for another instance we use a different wildcard, say "wildcard(2)". Developers
+then run their benchmarks with AutoMO and AutoMO will print out all the
+parameter assignments (basically a mapping from wildcard parameters to real
+C/C++11 memory order parameters).
+
+In the sub-directory of each of the benchmarks, we have a script called
+"infer.sh". To reproduce the result of a specific benchmark, go to the
+corresponding sub-directory and run the "infer.sh" script. The "infer.sh" script
+actually has the necessary options and test cases to run that benchmark.
+
+For example, if you want to reproduce the results of the SPSC, you can follow
+the follwoing instructions:
+
+Go to the sub-directory of the SPSC, and then run the "infer.sh" script:
+
+	cd ~/oopsla15-artifact-automo/benchmarks/spsc-queue-scfence
+
+	./infer.sh			(or use "time ./infer.sh" to measure the time)
+
+And the script will output its result similar to the follwing:
+	Result 0:
+	wildcard 1 -> memory_order_seq_cst
+	wildcard 2 -> memory_order_seq_cst
+	wildcard 3 -> memory_order_relaxed
+	wildcard 4 -> memory_order_relaxed
+	wildcard 5 -> memory_order_relaxed
+	wildcard 6 -> memory_order_seq_cst
+	wildcard 7 -> memory_order_seq_cst,
+
+which means AutoMO infers one result (Result #0) with a parameter assignment for
+the 7 wildcard parameters of this benchmark.  The same process applies to all
+other benchmarks.
+
+Each sub-directory also has one to many "result*.txt" files, which contains the
+results (incluing time) that we ran on an Ubuntu 14.04 Linux machine with an
+Intel Core i7 3770 processor. 
+
+Quick tips:
+-----------
+
+If you run with the VM, the time may vary. For example, we tried to run some
+benchmarks on a VM on Ubuntu 12.04 machine with Intel(R) Xeon(R) CPU E5405 @
+2.00GHz, the slow-down can be up to 3X than our native results.
+
+
+
+Different Options AutoMO Provides:
+----------------------------------
+
+Since AutoMO is an extension of CDSChecker, it is consistent with the CDSChecker
+options. In CDSChecker, to run invoke the AutoMO plugin, developers need to
+provide the option "-t SCFENCE", and then optionally follow use "-o" to specify
+the options for AutoMO. We only explain the options related to AutoMO.
+
+1. -o file-InputFile			Takes candidate file as argument right after the '-'
+
+2. -o anno						Turn on the annotation mode (by default OFF);
+								this option is only for advanced users, and it's
+								only specified in the benchmark of concurrent
+								hashmap.
+
+3. -o no-weaken					Turn off the weakening mode (by default ON); we
+								ran all of our results with this mode on.
+
+4. -o implicit-mo				Imply implicit modification order, takes no arguments
+								(by default OFF, default bound is 10). This
+								option is used when developers find there exists
+								an potential infinite loop with more relaxed
+								parameters and wants to finish the inference by
+								implying an modification order between some
+								store operations. We've only used this option in
+								the benchmark of the MCS lock. See the source
+								code for more detailed reference. 
+
+5. -o bound-NUM					Related to option 4. Specify the bound for the
+								implicit modification order implication, takes a
+								number # as argument right after the '-' symbol.
+
+
+
+Build Your Own Benchmark:
+-------------------------
+
+Our artifact not only supports the benchmarks we have for our evaluation in the
+paper, but it also supports other benchmarks that developers may want to port to
+C/C++11. Here's how to run your own benchmark and use AutoMO to infer parameters
+for it.
+
+First of all, you will need to create a directory under the directory of
+"~/oopsla15-artifact-automo/benchmarks", say
+"~/oopsla15-artifact-automo/benchmarks/new-bench".
+
+Then you need to put the source code in "new-bench" directory, and use the
+provided headers by CDSChecker, for example, the "stdatomic.h" and "unrelacy.h"
+headers. And then you need to include the "wildcard.h" header, and replace all
+the atomic accesses with wildcard parameters. Also, replace the normal memory
+accesses with atomic access with the memory_order_normal parameter.
+
+Write up some testcases, and add the new-bench to the Makefile under the
+directory of "~/oopsla15-artifact-automo/benchmarks", and then compile the new
+benchmark by typing "make" in the benchmarks directory.
+
+Afterwards, copy the file "~/oopsla15-artifact-automo/benchmarks/infer.sh" to
+the new-bench directory and run the "new-bench/infer.sh" in the new-bench
+directory.

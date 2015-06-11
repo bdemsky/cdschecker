@@ -1,0 +1,39 @@
+AutoMO Artifact Evaluation: Getting Started
+===========================================
+
+In order to ease the process of the evaluation of our tool (AutoMO) for the
+reviewers, we have packaged our source code, benchmarks and some necessary notes
+and results in a virtual machine image with the Ubuntu Linux
+(14.04.2-desktop-amd64). Practically if necessary, one can move our source code
+and compile it on other Linux-like systems and reproduce our results.
+
+Provided VM
+-----------
+
+We provide a VM image with the name "AutoMO.vdi" which is at the same directory
+as this getting started guide.  We have configured our VM image with 2 CPUs, 4
+GB of RAM and 16 GB of hard disk space under Virtual Box (the Virtual Box 4.1.12
+version). We recommend you to configure your own VM environment with at least
+the mentioned requirements, and import the AutoMO.vdi file as the existing hard
+disk.
+
+The username/password is  ubuntu/12344321.
+
+Login in with this account, open the command line terminal. In the terminal, go
+to the directory "~/oopsla15-artifact-automo" with the following command:
+
+cd ~/oopsla15-artifact-automo
+
+The full artifact to be reviewed is located within this directory. Please also
+see the more detailed "step_by_step.txt" file (on the same directory as this
+file) for how to build the environment and run AutoMO.
+
+
+Run Natively
+------------
+
+In case reviewers want to build AutoMO natively instead of running on a VM, the
+full artifact (source code, benchmarks and results) are also packaged in the
+"oopsla15-artifact-automo.tar.gz" file. Alternatively, reviewers can also untar
+this tarball into some linux machine and then follow the same step-by-step
+guide as that in the VM.
