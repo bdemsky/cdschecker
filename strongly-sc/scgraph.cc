@@ -80,6 +80,15 @@ SCGraph::~SCGraph() {
 }
 
 
+path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
+    EdgeList *edges = to->incoming;
+    path_list_t *res = new path_list_t;
+    for (unsigned i = 0; i < edges->size(); i++) {
+        SCEdge *e = (*edges)[i];
+        SCNode *n = e->node;
+    }
+}
+
 void SCGraph::buildGraph() {
     buildVectors();
     computeCV();

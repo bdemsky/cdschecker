@@ -9,6 +9,9 @@ struct SCNode;
 struct SCEdge;
 typedef ModelVector<SCEdge *> EdgeList;
 typedef SnapList<SCNode *> node_list_t;
+typedef SnapList<SCEdge *> path_t;
+typedef SnapList<path_t *> path_list_t;
+
 
 struct SCNode {
     const ModelAction *op;
@@ -61,6 +64,9 @@ class SCGraph {
    
     // A map from an operation to a node
     HashTable<const ModelAction *, SCNode *, uintptr_t, 4 > nodeMap;
+
+    // Find the paths from one node to another node
+    path_list_t * findPaths(SCNode *from, SCNode *to);
 
     // Build the graph from the trace
 	void buildGraph();

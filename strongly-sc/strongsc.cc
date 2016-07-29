@@ -47,5 +47,5 @@ bool StrongSC::option(char * opt) {
 
 void StrongSC::analyze(action_list_t *actions) {
     SCGraph *graph = new SCGraph(execution, actions);
-    graph->print();
+    //graph->print();
 }
