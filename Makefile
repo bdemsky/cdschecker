@@ -2,6 +2,7 @@ include common.mk
 
 SPEC_DIR := spec-analysis
 SCFENCE_DIR := scfence
+STRONGSC_DIR := strongly-sc
 
 OBJECTS := libthreads.o schedule.o model.o threads.o librace.o action.o \
 	   nodestack.o clockvector.o main.o snapshot-interface.o cyclegraph.o \
@@ -11,7 +12,7 @@ OBJECTS := libthreads.o schedule.o model.o threads.o librace.o action.o \
 
 SPECIAL_OBJ :=  malloc.o
 
-CPPFLAGS += -Iinclude -I. -I$(SPEC_DIR) -I$(SCFENCE_DIR)
+CPPFLAGS += -Iinclude -I. -I$(SPEC_DIR) -I$(SCFENCE_DIR) -I$(STRONGSC_DIR)
 LDFLAGS := -ldl -lrt -rdynamic
 SHARED := -shared
 
@@ -44,11 +45,13 @@ malloc.o: malloc.c
 $(OBJECTS): %.o : %.cc
 	$(CXX) -MMD -MF .$@.d -fPIC -c $< $(CPPFLAGS)
 
+include $(STRONGSC_DIR)/Makefile
 include $(SCFENCE_DIR)/Makefile
 include $(SPEC_DIR)/Makefile
 
 -include $(wildcard $(SPEC_DIR)/.*.d)
 -include $(wildcard $(SCFENCE_DIR)/.*.d)
+-include $(wildcard $(STRONGSC_DIR)/.*.d)
 
 $(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ)
 	$(CXX) $(SHARED) -o $(LIB_SO) $+ $(LDFLAGS) -O3 -g
@@ -60,7 +63,7 @@ $(LIB_SO): $(OBJECTS) $(SPECIAL_OBJ)
 
 PHONY += clean
 clean:
-	rm -f *.o *.so .*.d *.pdf *.dot $(OBJECTS) $(SPEC_DIR)/.*.d $(SCFENCE_DIR)/.*.d
+	rm -f *.o *.so .*.d *.pdf *.dot $(OBJECTS) $(SPEC_DIR)/.*.d $(SCFENCE_DIR)/.*.d $(STRONGSC_DIR)/.*.d
 	$(MAKE) -C $(TESTS_DIR) clean
 
 PHONY += mrclean

@@ -2,6 +2,7 @@
 #include "scanalysis.h"
 #include "specanalysis.h"
 #include "scfence.h"
+#include "strongsc.h"
 
 ModelVector<TraceAnalysis *> * registered_analysis;
 ModelVector<TraceAnalysis *> * installed_analysis;
@@ -12,6 +13,7 @@ void register_plugins() {
 	registered_analysis->push_back(new SCAnalysis());
 	registered_analysis->push_back(new SPECAnalysis());
 	registered_analysis->push_back(new SCFence());
+	registered_analysis->push_back(new StrongSC());
 }
 
 ModelVector<TraceAnalysis *> * getRegisteredTraceAnalysis() {
