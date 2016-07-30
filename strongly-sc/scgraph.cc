@@ -80,12 +80,20 @@ SCGraph::~SCGraph() {
 }
 
 
+
 path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
     EdgeList *edges = to->incoming;
-    path_list_t *res = new path_list_t;
+    path_list_t *result = new path_list_t;
     for (unsigned i = 0; i < edges->size(); i++) {
         SCEdge *e = (*edges)[i];
         SCNode *n = e->node;
+        SCEdgeType type = e->type;
+        // Find all the paths: "from" -> "n"
+        path_list_t *subResult = findPaths(from, n);
+        // Then attach the edge "e" to the subResult
+        if (!subResult->empty()) {
+            
+        }
     }
 }
 

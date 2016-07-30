@@ -7,11 +7,12 @@
 
 struct SCNode;
 struct SCEdge;
+struct SCPath;
+struct SCGraph;
 typedef ModelVector<SCEdge *> EdgeList;
 typedef SnapList<SCNode *> node_list_t;
-typedef SnapList<SCEdge *> path_t;
-typedef SnapList<path_t *> path_list_t;
-
+typedef SnapList<SCEdge *> edge_list_t;
+typedef SnapList<SCPath *> path_list_t;
 
 struct SCNode {
     const ModelAction *op;
@@ -40,6 +41,22 @@ struct SCEdge {
     SCEdge(SCEdgeType type, SCNode *node);
 
 	SNAPSHOTALLOC
+};
+
+/**
+    This represents a path of the SC Graph. We use a list of edges to from
+    the destination to the source. For example, a path "A -sb-> B -rf-> C" from A to C
+    is represented as "(rf, B), (sb, A)".
+
+    We also record the number of implied edges and reads-from edges in the path.
+    For example, in the aformentiioned path, impliedCnt=0 && rfCnt=1.
+*/
+struct SCPath {
+    unsigned impliedCnt; // The number of implied edges in this path
+    unsigned rfCnt; // The number of reads-from edges in this path
+    edge_list_t *edges;
+
+    SCPath();
 };
 
 class SCGraph {
