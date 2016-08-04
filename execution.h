@@ -118,6 +118,10 @@ public:
 
 	CycleGraph * const get_mo_graph() { return mo_graph; }
 
+	action_list_t * const get_obj_list(const void *loc) {
+        return obj_map.get(loc);
+    }
+
 	SNAPSHOTALLOC
 private:
 	int get_execution_number() const;

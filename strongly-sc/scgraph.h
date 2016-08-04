@@ -13,6 +13,7 @@ typedef ModelVector<SCEdge *> EdgeList;
 typedef SnapList<SCNode *> node_list_t;
 typedef SnapList<SCEdge *> edge_list_t;
 typedef SnapList<SCPath *> path_list_t;
+typedef SnapList<action_list_t *> obj_list_list_t;
 
 struct SCNode {
     const ModelAction *op;
@@ -57,10 +58,14 @@ struct SCPath {
     edge_list_t *edges;
 
     SCPath();
+    // Copy constructor
+    SCPath(SCPath &p);
+    
+    void addEdgeFromFront(SCEdge *e);
 };
 
 class SCGraph {
- public:
+public:
     SCGraph();
     SCGraph(ModelExecution *e, action_list_t *actions);
     ~SCGraph();
@@ -69,21 +74,42 @@ class SCGraph {
 	void print();
     
 	SNAPSHOTALLOC
- private:
+private:
     // The SC execution 
     ModelExecution *execution;
    
     // The original SC trace
     action_list_t *actions;
 
+    // The per location list
+    obj_list_list_t objLists;
+    // The location map
+    HashTable<const void *, const void *, uintptr_t, 4 > objSet;
+
     // A list of node representatives
     node_list_t nodes;
    
     // A map from an operation to a node
     HashTable<const ModelAction *, SCNode *, uintptr_t, 4 > nodeMap;
+    
+    HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > locSet;
+
+    // Check whether the property holds
+    bool checkStrongSC();
+    bool checkStrongSCPerLoc(action_list_t *objList);
+    bool imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
+    bool imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
+        end, SCNode *from, SCNode *to, edge_list_t *edges);
+    SCEdge * removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
 
     // Find the paths from one node to another node
     path_list_t * findPaths(SCNode *from, SCNode *to);
+
+    // Given an existing list of subpaths from A to B1, and an edge from B1 to
+    // B, and a result set of edges from A to B, this method attached the edge
+    // (B1, B) to the subpaths, and then add them to the result set.
+    void addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths, SCEdge
+    *e);
 
     // Build the graph from the trace
 	void buildGraph();

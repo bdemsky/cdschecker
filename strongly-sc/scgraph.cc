@@ -46,7 +46,7 @@ void SCNode::addIncomingEdge(SCEdge *e) {
 
 void SCNode::print() {
     op->print();
-    for (int i = 0; i < outgoing->size(); i++) {
+    for (unsigned i = 0; i < outgoing->size(); i++) {
         SCEdge *e = (*outgoing)[i];
         model_print("\t-");
         printSCEdgeType(e->type);
@@ -64,10 +64,34 @@ SCEdge::SCEdge(SCEdgeType type, SCNode *node) :
 }
 
 
+/**********    SCPath    **********/
+SCPath::SCPath() :
+    impliedCnt(0),
+    rfCnt(0),
+    edges(new edge_list_t) {
+    
+}
+
+SCPath::SCPath(SCPath &p) {
+    edges = new edge_list_t(*p.edges);
+    impliedCnt = p.impliedCnt;
+    rfCnt = p.rfCnt;
+}
+
+void SCPath::addEdgeFromFront(SCEdge *e) {
+    if (e->type == RF)
+        rfCnt++;
+    else if (e->type == WW || e->type == RW)
+        impliedCnt++;
+    edges->push_front(e);
+}
+
 /**********    SCGraph    **********/
 SCGraph::SCGraph(ModelExecution *e, action_list_t *actions) :
     execution(e),
     actions(actions),
+    objLists(),
+    objSet(),
     nodes(),
     nodeMap(),
 	cvmap(),
@@ -80,6 +104,155 @@ SCGraph::~SCGraph() {
 }
 
 
+// Check whether the property holds
+bool SCGraph::checkStrongSC() {
+	for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
+        action_list_t *objs = *it;
+        if (!checkStrongSCPerLoc(objs))
+            return false;
+    }
+
+    return true;
+}
+
+
+bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
+    for (action_list_t::iterator it1 = objList->begin(); it1 != objList->end();
+    it1++) {
+        action_list_t::iterator it2 = it1;
+        it2++;
+        ModelAction *act1 = *it1;
+        ClockVector *cv1 = cvmap.get(act1);
+        SCNode *n1 = nodeMap.get(act1);
+        ASSERT (cv1);
+        for (; it2 != objList->end(); it2++) {
+            ModelAction *act2 = *it2;
+            ClockVector *cv2 = cvmap.get(act2);
+            SCNode *n2 = nodeMap.get(act2);
+            ASSERT (cv2);
+            
+            // The objList is always ordered by the seq_number of actions
+            ASSERT (act1->get_seq_number() < act2->get_seq_number());
+            
+            if (cv2->synchronized_since(act1)) {
+                if (act1->is_write() && act2->is_write()) {
+                    // act2 is a RMW && act1 -rf-> act2
+                    if (act2->is_rmw() && act2->get_reads_from() == act1) {
+                        // Don't need to do anything
+                    } else {
+                        // Take out the WW edge from n1->n2
+                        SCEdge *incomingEdge = removeIncomingEdge(n1, n2, WW);
+                        path_list_t * paths = findPaths(n1, n2);
+                        if (!imposeStrongPath(n1, n2, paths))
+                            return false;
+                        // Add back the WW edge from n1->n2
+                        n2->incoming->push_back(incomingEdge);
+                    }
+                } else if (act1->is_write() && act2->is_read()) {
+
+                }
+            } else {
+                // act1 and act2 are not ordered
+                // We currently impose the seq_cst memory order between stores
+                if (act1->is_write() && act2->is_write()) {
+                    if (act1->get_mo() != memory_order_seq_cst ||
+                        act2->get_mo() != memory_order_seq_cst)
+                        return false;
+                }
+
+            }
+        }
+    }
+
+    return true;
+}
+
+bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
+    for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
+        SCPath *p = *it;
+        bool isStrongPath = true;
+        // This is a natrual strong path (sb + thread create/start... => hb)
+        if (p->impliedCnt == 0 && p->rfCnt == 0) {
+            return true;
+        } else if (p->impliedCnt == 0) { // A synchronizable path
+            edge_list_t *edges = p->edges;
+            return imposeSyncPath(edges->begin(), edges->end(), from, to, edges);
+        } else { // An SC-required path
+            if (to->op->get_mo() != memory_order_seq_cst) {
+                isStrongPath = false;
+                continue;
+            }
+            //edge_list_t *edges = p->edges;
+            //for (
+
+            
+
+        }
+    }
+
+    return true;
+}
+
+bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
+    end, SCNode *from, SCNode *to, edge_list_t *edges) {
+    // Try a simple release-sequence-type synchronization
+    // Find a continuous rf chain
+    bool rfStart = false;
+    bool rfEnd = false;
+    bool isRelSeq = true;
+    const ModelAction *relHead, *relTail;
+    SCNode *curNode = to;
+    for (edge_list_t::iterator it = begin; it != end; it++) {
+        SCEdge *e = *it;
+        if (e->type == RF && !rfStart) {
+            rfStart = true;
+            relTail = curNode->op;
+        }
+        if (rfStart && e->type != RF) {
+            rfEnd = true;
+            relHead = curNode->op;
+        }
+        if (e->type == RF && rfEnd) {
+            isRelSeq = false;
+            break;
+        }
+        curNode = e->node;
+    }
+
+    if (isRelSeq) {
+        return relHead->get_mo() == memory_order_release && relTail->get_mo() ==
+            memory_order_acquire;
+    } else { // Simply require every reads-from edge to be release/acquire
+        curNode = to;
+        for (edge_list_t::iterator it = begin; it != end; it++) {
+            SCEdge *e = *it;
+            if (e->type == RF) {
+                const ModelAction *write = e->node->op;
+                if (write->get_mo() != memory_order_release ||
+                    curNode->op->get_mo() != memory_order_acquire)
+                    return false;
+            }
+            curNode = e->node;
+        }
+    }
+
+    return true;
+}
+
+SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) {
+    EdgeList *incomingEdges = to->incoming;
+    for (unsigned i = 0; i < incomingEdges->size(); i++) {
+        SCEdge *existing  = (*incomingEdges)[i];
+        if (type == existing->type &&
+            from == existing->node) {
+            incomingEdges->erase(incomingEdges->begin() + i);
+            return existing;
+        }
+    }
+    // The caller must make sure that there's such an edge
+    ASSERT (false);
+    return NULL;
+}
 
 path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
     EdgeList *edges = to->incoming;
@@ -87,19 +260,55 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
     for (unsigned i = 0; i < edges->size(); i++) {
         SCEdge *e = (*edges)[i];
         SCNode *n = e->node;
-        SCEdgeType type = e->type;
-        // Find all the paths: "from" -> "n"
-        path_list_t *subResult = findPaths(from, n);
-        // Then attach the edge "e" to the subResult
-        if (!subResult->empty()) {
-            
+        path_list_t *subpaths = NULL;
+        
+        if (n == from) {
+            // Node "n" is equals to node "from", end of search
+            // subpaths contain only 1 edge (i.e., e)
+            subpaths = new path_list_t;
+            SCPath *p = new SCPath;
+            p->addEdgeFromFront(e);
+            subpaths->push_back(p);
+        } else if (n->op->get_seq_number() > from->op->get_seq_number()) {
+            // Node n's seq_num > from's seq_num, subpaths should be empty
+            // Since it's an SC execution 
+            subpaths = NULL;
+        } else {
+            // Find all the paths: "from" -> "n"
+            //path_list_t *subpaths = findPaths(from, n);
         }
+
+        // Then attach the edge "e" to the subResult
+        if (subpaths != NULL && !subpaths->empty()) {
+            addPathsFromSubpaths(result, subpaths, e);
+
+            // This should be the right time to delete subpaths
+            // But make sure to check subpaths is not null
+            if (subpaths) {
+                delete subpaths;
+            }
+        }
+    }
+
+    return result;
+}
+
+
+void SCGraph::addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths,
+    SCEdge *e) {
+    for (path_list_t::iterator it = subpaths->begin(); it != subpaths->end();
+    it++) {
+        SCPath *subpath = *it;
+        SCPath *newPath = new SCPath(*subpath);
+        newPath->addEdgeFromFront(e);
+        result->push_back(newPath);
     }
 }
 
 void SCGraph::buildGraph() {
     buildVectors();
     computeCV();
+    checkStrongSC();
 }
 
 
@@ -130,6 +339,14 @@ int SCGraph::buildVectors() {
 	int numactions = 0;
 	for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
 		ModelAction *act = *it;
+        // Check if it's a known location
+        void *loc = act->get_location();
+        if (!objSet.contains(loc)) {
+            action_list_t *objList = execution->get_obj_list(loc);
+            objLists.push_back(objList);
+            objSet.put(loc, loc);
+        }
+
         // Initialize the node, add it to the list & map
         SCNode *n = new SCNode(act);
         nodes.push_back(n);
