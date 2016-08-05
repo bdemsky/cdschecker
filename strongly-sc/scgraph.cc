@@ -176,23 +176,50 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
             return true;
         } else if (p->impliedCnt == 0) { // A synchronizable path
             edge_list_t *edges = p->edges;
-            return imposeSyncPath(edges->begin(), edges->end(), from, to, edges);
+            if (imposeSyncPath(edges->begin(), edges->end(), from, to, edges))
+                return true;
         } else { // An SC-required path
             if (to->op->get_mo() != memory_order_seq_cst) {
                 isStrongPath = false;
                 continue;
             }
-            //edge_list_t *edges = p->edges;
-            //for (
+            // Find the synchronizable subpaths 
+            edge_list_t *edges = p->edges;
+            // "head" and "tail" represents the head and tail of a
+            // synchronizable subpath
+            edge_list_t::iterator curIter = edges->begin(),
+                beginIter = curIter, endIter = curIter;
+            SCNode *fromNode = from, *toNode = from;
+            for (; curIter != edges->end(); curIter++) {
+                // toNode points to the end of the subpath
+                // fromNode points to the head of the subpath
+                // when they are equals, only one node is in the path
+                SCEdge *e = *curIter;
+                SCNode *dest = e->node;
+                if (e->type == RW || e->type == WW) { // Found the end node
+                    endIter = curIter;
+                    toNode = 
+                } else {
+                    fromNode = dest;
+                }
+                if (dest == to) { // The last edge, end of search
+                    if (imposeSyncPath(headIter, tailIter, fromNode, dest,
+                        edges))
+                        return true;
+                    break;
+                }
 
-            
-
+            }
         }
     }
 
-    return true;
+    return false;
 }
 
+/**
+    When we call this method, the begin iterator points to the first edge that
+    goes to the "to" node.
+*/
 bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     end, SCNode *from, SCNode *to, edge_list_t *edges) {
     // Try a simple release-sequence-type synchronization
