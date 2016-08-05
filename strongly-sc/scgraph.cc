@@ -36,6 +36,18 @@ SCNode::SCNode(ModelAction *op) :
 
 }
 
+bool SCNode::is_seqcst() {
+    return op->is_seqcst();
+}
+
+bool SCNode::is_release() {
+    return op->is_release();
+}
+
+bool SCNode::is_acquire() {
+    return op->is_acquire();
+}
+
 void SCNode::addOutgoingEdge(SCEdge *e) {
     outgoing->push_back(e);
 }
@@ -103,7 +115,6 @@ SCGraph::~SCGraph() {
 
 }
 
-
 // Check whether the property holds
 bool SCGraph::checkStrongSC() {
 	for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
@@ -136,10 +147,9 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
             
             if (cv2->synchronized_since(act1)) {
                 if (act1->is_write() && act2->is_write()) {
+                    // Only need to check when the condition is not true:
                     // act2 is a RMW && act1 -rf-> act2
-                    if (act2->is_rmw() && act2->get_reads_from() == act1) {
-                        // Don't need to do anything
-                    } else {
+                    if (!(act2->is_rmw() && act2->get_reads_from() == act1)) {
                         // Take out the WW edge from n1->n2
                         SCEdge *incomingEdge = removeIncomingEdge(n1, n2, WW);
                         path_list_t * paths = findPaths(n1, n2);
@@ -149,17 +159,22 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                         n2->incoming->push_back(incomingEdge);
                     }
                 } else if (act1->is_write() && act2->is_read()) {
-
+                    // Take out the RF edge from n1->n2
+                    SCEdge *incomingEdge = removeIncomingEdge(n1, n2, RF);
+                    path_list_t * paths = findPaths(n1, n2);
+                    if (!imposeStrongPath(n1, n2, paths))
+                        return false;
+                    // Add back the RF edge from n1->n2
+                    n2->incoming->push_back(incomingEdge);
                 }
             } else {
                 // act1 and act2 are not ordered
                 // We currently impose the seq_cst memory order between stores
                 if (act1->is_write() && act2->is_write()) {
-                    if (act1->get_mo() != memory_order_seq_cst ||
-                        act2->get_mo() != memory_order_seq_cst)
+                    if (!act1->is_seqcst() ||
+                        !act2->is_seqcst())
                         return false;
                 }
-
             }
         }
     }
@@ -170,7 +185,6 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
 bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
     for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
         SCPath *p = *it;
-        bool isStrongPath = true;
         // This is a natrual strong path (sb + thread create/start... => hb)
         if (p->impliedCnt == 0 && p->rfCnt == 0) {
             return true;
@@ -179,36 +193,76 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
             if (imposeSyncPath(edges->begin(), edges->end(), from, to, edges))
                 return true;
         } else { // An SC-required path
-            if (to->op->get_mo() != memory_order_seq_cst) {
-                isStrongPath = false;
+            if (!to->is_seqcst() || !from->is_seqcst()) {
+                // A quick check first; if nodes "from" and "to" are not
+                // seq_cst, imediately check another path
                 continue;
             }
             // Find the synchronizable subpaths 
             edge_list_t *edges = p->edges;
-            // "head" and "tail" represents the head and tail of a
+            // "fromNode" and "endNode" represents the head and tail of a
             // synchronizable subpath
             edge_list_t::iterator curIter = edges->begin(),
                 beginIter = curIter, endIter = curIter;
-            SCNode *fromNode = from, *toNode = from;
-            for (; curIter != edges->end(); curIter++) {
-                // toNode points to the end of the subpath
-                // fromNode points to the head of the subpath
-                // when they are equals, only one node is in the path
+            SCNode *fromNode = to, *toNode = to, *curNode = to;
+            while (true) {
+                // toNode points to the end of the subpath (already seq_cst);
+                // fromNode points to the head of the subpath;
+                // when they are equals, only one node is in the path;
+                // curNode is the node that the edge "e" points to
                 SCEdge *e = *curIter;
                 SCNode *dest = e->node;
-                if (e->type == RW || e->type == WW) { // Found the end node
-                    endIter = curIter;
-                    toNode = 
-                } else {
-                    fromNode = dest;
-                }
-                if (dest == to) { // The last edge, end of search
-                    if (imposeSyncPath(headIter, tailIter, fromNode, dest,
-                        edges))
-                        return true;
-                    break;
-                }
 
+                if (e->type == RF || e->type == SB) {
+                    // Simply update the curNode & increase curIter
+                    curNode = e->node;
+                    curIter++;
+                    if (dest == from) {
+                        // This is the end of the last subpath, from becomes the
+                        // fromNode
+                        endIter = edges->end();
+                        if (!imposeSyncPath(beginIter, endIter, from, toNode,
+                            edges)) {
+                            // This is not a strong path
+                            break;
+                        } else {
+                            // Reach the very first subpath, done!
+                            return true;
+                        }
+                    }
+                } else { // This is either RW or WW
+                    // Found the from node, i.e. the curNode
+                    fromNode = curNode;
+                    // First check seq_cst of fromNode
+                    if (!fromNode->is_seqcst()) {
+                        // This is not a strong path
+                        break;
+                    }
+                    if (fromNode != toNode) {
+                        // More than one node in this "subpath"
+                        endIter = curIter;
+                        if (!imposeSyncPath(beginIter, endIter, fromNode,
+                            toNode, edges)) {
+                            // This is not a strong path
+                            break;
+                        }
+                    }
+                    // Update the iterators and nodes for the next subpath
+                    curIter++;
+                    if (curIter == edges->end()) {
+                        // The end of the search, and this is a strong path
+                        return true;
+                    }
+                    // Otherwise update the invariables
+                    beginIter = curIter;
+                    curNode = dest;
+                    toNode = dest;
+                    // Also make sure that the toNode is always checked
+                    if (!toNode->is_seqcst()) {
+                        // This is not a strong path
+                        break;
+                    }
+                }  
             }
         }
     }
@@ -247,16 +301,15 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     }
 
     if (isRelSeq) {
-        return relHead->get_mo() == memory_order_release && relTail->get_mo() ==
-            memory_order_acquire;
+        return relHead->is_release() && relTail->is_acquire();
     } else { // Simply require every reads-from edge to be release/acquire
         curNode = to;
         for (edge_list_t::iterator it = begin; it != end; it++) {
             SCEdge *e = *it;
             if (e->type == RF) {
                 const ModelAction *write = e->node->op;
-                if (write->get_mo() != memory_order_release ||
-                    curNode->op->get_mo() != memory_order_acquire)
+                if (!write->is_release() ||
+                    !curNode->is_acquire())
                     return false;
             }
             curNode = e->node;

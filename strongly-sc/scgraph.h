@@ -22,6 +22,10 @@ struct SCNode {
 
     SCNode(ModelAction *op);
 
+    bool is_seqcst();
+    bool is_release();
+    bool is_acquire();
+
     void addOutgoingEdge(SCEdge *e);
 
     void addIncomingEdge(SCEdge *e);
