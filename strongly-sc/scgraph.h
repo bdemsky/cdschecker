@@ -30,6 +30,7 @@ struct SCNode {
 
     void addIncomingEdge(SCEdge *e);
 
+    void printAction();
     void print();
 
 	SNAPSHOTALLOC
@@ -66,6 +67,7 @@ struct SCPath {
     SCPath(SCPath &p);
     
     void addEdgeFromFront(SCEdge *e);
+    void print(SCNode *tailNode);
 };
 
 class SCGraph {
@@ -97,6 +99,8 @@ private:
     HashTable<const ModelAction *, SCNode *, uintptr_t, 4 > nodeMap;
     
     HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > locSet;
+
+	void printInfoPerLoc();
 
     // Check whether the property holds
     bool checkStrongSC();

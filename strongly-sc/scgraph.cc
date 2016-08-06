@@ -3,6 +3,7 @@
 #include "threads-model.h"
 #include "clockvector.h"
 #include "execution.h"
+#include "mydebug.h"
 #include <sys/time.h>
 
 
@@ -56,14 +57,24 @@ void SCNode::addIncomingEdge(SCEdge *e) {
     incoming->push_back(e);
 }
 
+void SCNode::printAction() {
+    model_print("%-4d T%-2d   %-13s  %7s  %14p\n",
+        op->get_seq_number(), id_to_int(op->get_tid()), op->get_type_str(),
+        op->get_mo_str(), op->get_location());
+}
+
 void SCNode::print() {
-    op->print();
+    if (op->is_uninitialized()) {
+        // Currently ignore the fake actions, i.e. uninitialized stores
+        return;
+    }
+    printAction();
     for (unsigned i = 0; i < outgoing->size(); i++) {
         SCEdge *e = (*outgoing)[i];
-        model_print("\t-");
+        model_print("  -");
         printSCEdgeType(e->type);
         model_print("->  ");
-        e->node->op->print();
+        e->node->printAction();
     }
 }
 
@@ -98,6 +109,23 @@ void SCPath::addEdgeFromFront(SCEdge *e) {
     edges->push_front(e);
 }
 
+void SCPath::print(SCNode *tailNode) {
+    edge_list_t::reverse_iterator it = edges->rbegin();
+    SCEdge *e = *it;
+    SCNode *n = e->node;
+    model_print("Path from %d to %d: ", n->op->get_seq_number(),
+        tailNode->op->get_seq_number());
+    for (; it != edges->rend(); it++) {
+        e = *it;
+        n = e->node;
+        model_print("%d -", n->op->get_seq_number());
+        printSCEdgeType(e->type);
+        model_print("-> ");
+
+    }
+    model_print("%d\n", tailNode->op->get_seq_number());
+}
+
 /**********    SCGraph    **********/
 SCGraph::SCGraph(ModelExecution *e, action_list_t *actions) :
     execution(e),
@@ -115,9 +143,28 @@ SCGraph::~SCGraph() {
 
 }
 
+void SCGraph::printInfoPerLoc() {
+    model_print("**********    Location List    **********\n");
+    for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
+        action_list_t *objs = *it;
+        action_list_t::iterator objIt = objs->begin();
+        ModelAction *act = *objIt;
+        if (act->is_read() || act->is_write())
+            model_print("Location %14p:\n", act->get_location());
+        for (; objIt != objs->end(); objIt++) {
+            act = *objIt;
+            if ((act->is_read() || act->is_write()) &&
+                !act->is_uninitialized()) {
+                model_print("  ");
+                act->print();
+            }
+        }
+    }
+}
+
 // Check whether the property holds
 bool SCGraph::checkStrongSC() {
-	for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
+    for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
         action_list_t *objs = *it;
         if (!checkStrongSCPerLoc(objs))
             return false;
@@ -133,9 +180,15 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
         action_list_t::iterator it2 = it1;
         it2++;
         ModelAction *act1 = *it1;
+        if (act1->is_uninitialized()) {
+            // Ignore the uninitialized stores
+            continue;
+        }
+
         ClockVector *cv1 = cvmap.get(act1);
         SCNode *n1 = nodeMap.get(act1);
         ASSERT (cv1);
+        DPRINT("********    Checking Location %12p    ********\n", act1->get_location());
         for (; it2 != objList->end(); it2++) {
             ModelAction *act2 = *it2;
             ClockVector *cv2 = cvmap.get(act2);
@@ -146,6 +199,7 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
             ASSERT (act1->get_seq_number() < act2->get_seq_number());
             
             if (cv2->synchronized_since(act1)) {
+                DPRINT("%d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
                 if (act1->is_write() && act2->is_write()) {
                     // Only need to check when the condition is not true:
                     // act2 is a RMW && act1 -rf-> act2
@@ -185,6 +239,7 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
 bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
     for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
         SCPath *p = *it;
+        DB(p->print(to);)
         // This is a natrual strong path (sb + thread create/start... => hb)
         if (p->impliedCnt == 0 && p->rfCnt == 0) {
             return true;
@@ -266,7 +321,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
             }
         }
     }
-
+    
     return false;
 }
 
@@ -335,6 +390,8 @@ SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) 
 }
 
 path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
+    DPRINT("Finding path %d -> %d\n", from->op->get_seq_number(),
+        to->op->get_seq_number());
     EdgeList *edges = to->incoming;
     path_list_t *result = new path_list_t;
     for (unsigned i = 0; i < edges->size(); i++) {
@@ -388,11 +445,14 @@ void SCGraph::addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths,
 void SCGraph::buildGraph() {
     buildVectors();
     computeCV();
+    print();
+    printInfoPerLoc();
     checkStrongSC();
 }
 
 
 void SCGraph::print() {
+    model_print("**********    SC Graph    **********\n");
     for (node_list_t::iterator it = nodes.begin(); it != nodes.end(); it++) {
         SCNode *n = *it;
         n->print();
