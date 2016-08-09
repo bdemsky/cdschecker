@@ -157,6 +157,108 @@ void SCPath::print(SCNode *tailNode, bool lineBreak) {
         model_print("\n");
 }
 
+/**********    SCInference    **********/
+SCInference::SCInference() {
+    wildcardMap = new HashTable<int, memory_order, uintptr_t, 4 >;
+    wildcardList = new SnapVector<int>;
+}
+
+
+void SCInference::addWildcard(int wildcard) {
+    if (!wildcardMap->contains(wildcard))
+        wildcardMap->put(wildcard, toMap(memory_order_relaxed));
+}
+
+void SCInference::imposeAcquire(int wildcard) {
+    if (!wildcardMap->contains(wildcard)) {
+        wildcardMap->put(wildcard, toMap(memory_order_acquire));
+    } else {
+        memory_order curMO = fromMap(wildcardMap->get(wildcard));
+        if (curMO == memory_order_relaxed)
+            wildcardMap->put(wildcard, toMap(memory_order_acquire));
+        else if (curMO == memory_order_release)
+            wildcardMap->put(wildcard, toMap(memory_order_acq_rel));
+    }
+}
+
+void SCInference::imposeRelease(int wildcard) {
+    if (!wildcardMap->contains(wildcard)) {
+        wildcardMap->put(wildcard, toMap(memory_order_release));
+    } else {
+        memory_order curMO = fromMap(wildcardMap->get(wildcard));
+        if (curMO == memory_order_relaxed)
+            wildcardMap->put(wildcard, toMap(memory_order_release));
+        else if (curMO == memory_order_acquire)
+            wildcardMap->put(wildcard, toMap(memory_order_acq_rel));
+    }
+}
+
+void SCInference::imposeSC(int wildcard) {
+    wildcardMap->put(wildcard, toMap(memory_order_seq_cst));
+}
+
+
+bool SCInference::is_seqcst(const ModelAction *act) {
+    memory_order wildcardMO = act->get_original_mo();
+    if (is_wildcard(wildcardMO)) {
+        int wildcard = get_wildcard_id(wildcardMO);
+        ASSERT (wildcard > 0);
+
+        if (!wildcardMap->contains(wildcard))
+            return false;
+        memory_order curMO = fromMap(wildcardMap->get(wildcard));
+        return curMO == memory_order_seq_cst;
+    } else {
+        return act->is_seqcst();
+    }
+}
+
+bool SCInference::is_release(const ModelAction *act) {
+    memory_order wildcardMO = act->get_original_mo();
+    if (is_wildcard(wildcardMO)) {
+        int wildcard = get_wildcard_id(wildcardMO);
+        ASSERT (wildcard > 0);
+
+        if (!wildcardMap->contains(wildcard))
+            return false;
+        memory_order curMO = fromMap(wildcardMap->get(wildcard));
+        return curMO == memory_order_release || curMO == memory_order_acq_rel ||
+            curMO == memory_order_seq_cst;
+    } else {
+        return act->is_release();
+    }
+}
+
+bool SCInference::is_acquire(const ModelAction *act) {
+    memory_order wildcardMO = act->get_original_mo();
+    if (is_wildcard(wildcardMO)) {
+        int wildcard = get_wildcard_id(wildcardMO);
+        ASSERT (wildcard > 0);
+
+        if (!wildcardMap->contains(wildcard))
+            return false;
+        memory_order curMO = fromMap(wildcardMap->get(wildcard));
+        return curMO == memory_order_acquire || curMO == memory_order_acq_rel ||
+            curMO == memory_order_seq_cst;
+    } else {
+        return act->is_acquire();
+    }
+}
+
+
+memory_order SCInference::toMap(memory_order mo) {
+    int tmp = (int) mo;
+    tmp++;
+    return (memory_order) tmp;
+}
+
+memory_order SCInference::fromMap(memory_order mo) {
+    int tmp = (int) mo;
+    tmp--;
+    return (memory_order) tmp;
+}
+
+
 /**********    SCGraph    **********/
 SCGraph::SCGraph(ModelExecution *e, action_list_t *actions) :
     execution(e),
@@ -165,6 +267,7 @@ SCGraph::SCGraph(ModelExecution *e, action_list_t *actions) :
     objSet(),
     nodes(),
     nodeMap(),
+    inference(),
 	cvmap(),
     threadlists(1) {
     buildGraph();

@@ -49,7 +49,7 @@ ModelAction::ModelAction(action_type_t type, memory_order order, void *loc,
 	/* References to NULL atomic variables can end up here */
 	ASSERT(loc || type == ATOMIC_FENCE || type == MODEL_FIXUP_RELSEQ);
 
-    // Make sure we capture the wildcar info
+    // Make sure we capture the wildcard info
     this->original_order = order;
     // By default we treat all wildcards as seq_cst
     if (is_wildcard(order))

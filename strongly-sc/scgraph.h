@@ -1,5 +1,6 @@
 #ifndef SCGRAPH_H
 #define SCGRAPH_H
+#include "wildcard.h"
 #include "hashtable.h"
 #include "execution.h"
 #include "action.h"
@@ -74,6 +75,28 @@ struct SCPath {
 	SNAPSHOTALLOC
 };
 
+struct SCInference {
+    HashTable<int, memory_order, uintptr_t, 4 > *wildcardMap;
+    SnapVector<int> *wildcardList;
+
+    SCInference();
+    void addWildcard(int wildcard);
+    void imposeAcquire(int wildcard);
+    void imposeRelease(int wildcard);
+    void imposeSC(int wildcard);
+
+    bool is_seqcst(const ModelAction *act);
+    bool is_release(const ModelAction *act);
+    bool is_acquire(const ModelAction *act);
+
+    // These two are just to get around the fact that the HashTable won't allow
+    // NULL or '0' values
+    memory_order toMap(memory_order mo);
+    memory_order fromMap(memory_order mo);
+
+	SNAPSHOTALLOC
+};
+
 class SCGraph {
 public:
     SCGraph();
@@ -105,6 +128,9 @@ private:
     HashTable<const ModelAction *, const ModelAction *, uintptr_t, 4 > locSet;
 
 	void printInfoPerLoc();
+
+    // Currently we just infer one set of parameters
+    SCInference inference;
 
     // Check whether the property holds
     bool checkStrongSC();
