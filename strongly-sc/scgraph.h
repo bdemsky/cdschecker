@@ -68,6 +68,9 @@ struct SCPath {
     
     void addEdgeFromFront(SCEdge *e);
     void print(SCNode *tailNode);
+    void print();
+
+	SNAPSHOTALLOC
 };
 
 class SCGraph {
@@ -111,7 +114,7 @@ private:
     SCEdge * removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
 
     // Find the paths from one node to another node
-    path_list_t * findPaths(SCNode *from, SCNode *to);
+    path_list_t * findPaths(SCNode *from, SCNode *to, int depth = 1);
 
     // Given an existing list of subpaths from A to B1, and an edge from B1 to
     // B, and a result set of edges from A to B, this method attached the edge

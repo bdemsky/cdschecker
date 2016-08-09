@@ -109,6 +109,22 @@ void SCPath::addEdgeFromFront(SCEdge *e) {
     edges->push_front(e);
 }
 
+void SCPath::print() {
+    edge_list_t::reverse_iterator it = edges->rbegin();
+    SCEdge *e = *it;
+    SCNode *n = e->node;
+    model_print("Path from %d: ", n->op->get_seq_number());
+    for (; it != edges->rend(); it++) {
+        e = *it;
+        n = e->node;
+        model_print("%d -", n->op->get_seq_number());
+        printSCEdgeType(e->type);
+        model_print("-> ");
+
+    }
+    model_print("\n");
+}
+
 void SCPath::print(SCNode *tailNode) {
     edge_list_t::reverse_iterator it = edges->rbegin();
     SCEdge *e = *it;
@@ -210,7 +226,8 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                         if (!imposeStrongPath(n1, n2, paths))
                             return false;
                         // Add back the WW edge from n1->n2
-                        n2->incoming->push_back(incomingEdge);
+                        if (incomingEdge)
+                            n2->incoming->push_back(incomingEdge);
                     }
                 } else if (act1->is_write() && act2->is_read()) {
                     // Take out the RF edge from n1->n2
@@ -219,7 +236,8 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                     if (!imposeStrongPath(n1, n2, paths))
                         return false;
                     // Add back the RF edge from n1->n2
-                    n2->incoming->push_back(incomingEdge);
+                    if (incomingEdge)
+                        n2->incoming->push_back(incomingEdge);
                 }
             } else {
                 // act1 and act2 are not ordered
@@ -239,6 +257,7 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
 bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
     for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
         SCPath *p = *it;
+        DPRINT("****  ");
         DB(p->print(to);)
         // This is a natrual strong path (sb + thread create/start... => hb)
         if (p->impliedCnt == 0 && p->rfCnt == 0) {
@@ -385,13 +404,23 @@ SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) 
         }
     }
     // The caller must make sure that there's such an edge
-    ASSERT (false);
     return NULL;
 }
 
-path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
-    DPRINT("Finding path %d -> %d\n", from->op->get_seq_number(),
-        to->op->get_seq_number());
+static void printSpace(int num) {
+    for (int i = 0; i < num; i++)
+        model_print(" ");
+}
+
+// The depth parameter is by default 0; and we only use that for the purpose of
+// generating debugging output
+path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to, int depth) {
+    DB( 
+        int spaceCnt = depth * 2;
+        printSpace(spaceCnt);
+    )
+    DPRINT("Depth %d: Finding path %d -> %d\n", depth,
+        from->op->get_seq_number(), to->op->get_seq_number());
     EdgeList *edges = to->incoming;
     path_list_t *result = new path_list_t;
     for (unsigned i = 0; i < edges->size(); i++) {
@@ -399,26 +428,35 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
         SCNode *n = e->node;
         path_list_t *subpaths = NULL;
         
+        DB( printSpace(spaceCnt); )
+        DPRINT("Edge %d:  %d -> %d\n", i + 1, n->op->get_seq_number(),
+            to->op->get_seq_number());
+        // Then recursively find all the paths from "from" to "n"
         if (n == from) {
             // Node "n" is equals to node "from", end of search
             // subpaths contain only 1 edge (i.e., e)
-            subpaths = new path_list_t;
+            DB( printSpace(spaceCnt); )
+            DPRINT("Hitting beginning node\n");
+            
+            // Immediately add this path to "result"
             SCPath *p = new SCPath;
             p->addEdgeFromFront(e);
-            subpaths->push_back(p);
-        } else if (n->op->get_seq_number() > from->op->get_seq_number()) {
+            result->push_back(p);
+        } else if (n->op->get_seq_number() < from->op->get_seq_number() ||
+            n->op->is_uninitialized()) {
             // Node n's seq_num > from's seq_num, subpaths should be empty
-            // Since it's an SC execution 
+            // Since it's an SC execution
+            DB( printSpace(spaceCnt); )
+            DPRINT("Not the right edge\n");
             subpaths = NULL;
         } else {
             // Find all the paths: "from" -> "n"
-            //path_list_t *subpaths = findPaths(from, n);
+            subpaths = findPaths(from, n, depth + 1);
         }
 
-        // Then attach the edge "e" to the subResult
+        // Then attach the edge "e" to the paths
         if (subpaths != NULL && !subpaths->empty()) {
             addPathsFromSubpaths(result, subpaths, e);
-
             // This should be the right time to delete subpaths
             // But make sure to check subpaths is not null
             if (subpaths) {
@@ -427,6 +465,28 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
         }
     }
 
+    DB (
+    if (result->empty()) {
+        printSpace(spaceCnt);
+        model_print("Depth %d: NO path from %d -> %d\n", depth,
+            from->op->get_seq_number(), to->op->get_seq_number());
+    } else {
+        printSpace(spaceCnt);
+        model_print("Depth %d: Found paths from %d -> %d\n", depth,
+            from->op->get_seq_number(), to->op->get_seq_number());
+        int cnt = 1;
+        for (path_list_t::iterator it = result->begin(); it != result->end();
+            it++, cnt++) {
+            SCPath *p = *it;
+            printSpace(spaceCnt);
+            model_print("#%d. ", cnt);
+            p->print(to);
+        }
+    }
+    )
+    
+
+
     return result;
 }
 
@@ -434,7 +494,7 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
 void SCGraph::addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths,
     SCEdge *e) {
     for (path_list_t::iterator it = subpaths->begin(); it != subpaths->end();
-    it++) {
+        it++) {
         SCPath *subpath = *it;
         SCPath *newPath = new SCPath(*subpath);
         newPath->addEdgeFromFront(e);
