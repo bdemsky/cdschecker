@@ -67,8 +67,9 @@ struct SCPath {
     SCPath(SCPath &p);
     
     void addEdgeFromFront(SCEdge *e);
-    void print(SCNode *tailNode);
-    void print();
+    void print(SCNode *tailNode, bool lineBreak = true);
+    void print(bool lineBreak = true);
+    void printWithOrder(SCNode *tailNode, bool lineBreak = true);
 
 	SNAPSHOTALLOC
 };

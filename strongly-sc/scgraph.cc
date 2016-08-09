@@ -109,37 +109,52 @@ void SCPath::addEdgeFromFront(SCEdge *e) {
     edges->push_front(e);
 }
 
-void SCPath::print() {
+void SCPath::print(bool lineBreak) {
     edge_list_t::reverse_iterator it = edges->rbegin();
     SCEdge *e = *it;
     SCNode *n = e->node;
-    model_print("Path from %d: ", n->op->get_seq_number());
     for (; it != edges->rend(); it++) {
         e = *it;
         n = e->node;
         model_print("%d -", n->op->get_seq_number());
         printSCEdgeType(e->type);
         model_print("-> ");
-
     }
-    model_print("\n");
+    if (lineBreak)
+        model_print("\n");
 }
 
-void SCPath::print(SCNode *tailNode) {
+void SCPath::printWithOrder(SCNode *tailNode, bool lineBreak) {
     edge_list_t::reverse_iterator it = edges->rbegin();
     SCEdge *e = *it;
     SCNode *n = e->node;
-    model_print("Path from %d to %d: ", n->op->get_seq_number(),
-        tailNode->op->get_seq_number());
+    for (; it != edges->rend(); it++) {
+        e = *it;
+        n = e->node;
+        model_print("%d(%s) -", n->op->get_seq_number(), n->op->get_mo_str());
+        printSCEdgeType(e->type);
+        model_print("-> ");
+    }
+    model_print("%d(%s)", tailNode->op->get_seq_number(),
+        tailNode->op->get_mo_str());
+    if (lineBreak)
+        model_print("\n");
+}
+
+void SCPath::print(SCNode *tailNode, bool lineBreak) {
+    edge_list_t::reverse_iterator it = edges->rbegin();
+    SCEdge *e = *it;
+    SCNode *n = e->node;
     for (; it != edges->rend(); it++) {
         e = *it;
         n = e->node;
         model_print("%d -", n->op->get_seq_number());
         printSCEdgeType(e->type);
         model_print("-> ");
-
     }
-    model_print("%d\n", tailNode->op->get_seq_number());
+    model_print("%d", tailNode->op->get_seq_number());
+    if (lineBreak)
+        model_print("\n");
 }
 
 /**********    SCGraph    **********/
@@ -182,10 +197,13 @@ void SCGraph::printInfoPerLoc() {
 bool SCGraph::checkStrongSC() {
     for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
         action_list_t *objs = *it;
-        if (!checkStrongSCPerLoc(objs))
+        if (!checkStrongSCPerLoc(objs)) {
+            model_print("The execution is NOT strongly SC\n");
             return false;
+        }
     }
-
+    
+    model_print("The execution is strongly SC\n");
     return true;
 }
 
@@ -255,21 +273,46 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
 }
 
 bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
+    // Special case: not ordered
+    if (paths->empty()) {
+        if (to->op->is_read()) {
+            return true;
+        } else {
+            // Right now, make sure from and to are both seq_cst
+            if (from->op->is_seqcst() && to->op->is_seqcst()) {
+                return true;
+            } else {
+                DPRINT("Unordered writes NOT seq_cst (%d or %d)\n",
+                    from->op->get_seq_number(),
+                    to->op->get_seq_number());
+                return false;
+            }
+        }
+
+    }
+
     for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
         SCPath *p = *it;
-        DPRINT("****  ");
-        DB(p->print(to);)
+        DB (
+            model_print("**** Checking path: ");
+            p->printWithOrder(to);
+        )
         // This is a natrual strong path (sb + thread create/start... => hb)
         if (p->impliedCnt == 0 && p->rfCnt == 0) {
+            DPRINT("SB path\n");
             return true;
         } else if (p->impliedCnt == 0) { // A synchronizable path
             edge_list_t *edges = p->edges;
-            if (imposeSyncPath(edges->begin(), edges->end(), from, to, edges))
+            if (imposeSyncPath(edges->begin(), edges->end(), from, to, edges)) {
+                DPRINT("Synchronized path\n");
                 return true;
+            }
         } else { // An SC-required path
             if (!to->is_seqcst() || !from->is_seqcst()) {
                 // A quick check first; if nodes "from" and "to" are not
                 // seq_cst, imediately check another path
+                DPRINT("NOT an SC'ed path (%d or %d is not SC)\n",
+                    from->op->get_seq_number(), to->op->get_seq_number());
                 continue;
             }
             // Find the synchronizable subpaths 
@@ -298,9 +341,12 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                         if (!imposeSyncPath(beginIter, endIter, from, toNode,
                             edges)) {
                             // This is not a strong path
+                            DPRINT("NOT an SC'ed path (%d -> %d is not synchronized)\n",
+                                from->op->get_seq_number(), toNode->op->get_seq_number());
                             break;
                         } else {
                             // Reach the very first subpath, done!
+                            DPRINT("SC'ed path\n");
                             return true;
                         }
                     }
@@ -310,6 +356,8 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                     // First check seq_cst of fromNode
                     if (!fromNode->is_seqcst()) {
                         // This is not a strong path
+                        DPRINT("NOT an SC'ed path (%d is not SC)\n",
+                            fromNode->op->get_seq_number());
                         break;
                     }
                     if (fromNode != toNode) {
@@ -318,6 +366,8 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                         if (!imposeSyncPath(beginIter, endIter, fromNode,
                             toNode, edges)) {
                             // This is not a strong path
+                            DPRINT("NOT an SC'ed path (%d -> %d is not synchronized)\n",
+                                fromNode->op->get_seq_number(), toNode->op->get_seq_number());
                             break;
                         }
                     }
@@ -325,6 +375,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                     curIter++;
                     if (curIter == edges->end()) {
                         // The end of the search, and this is a strong path
+                        DPRINT("SC'ed path\n");
                         return true;
                     }
                     // Otherwise update the invariables
@@ -334,6 +385,8 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                     // Also make sure that the toNode is always checked
                     if (!toNode->is_seqcst()) {
                         // This is not a strong path
+                        DPRINT("NOT an SC'ed path (%d is not SC)\n",
+                            toNode->op->get_seq_number());
                         break;
                     }
                 }  
@@ -350,12 +403,16 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
 */
 bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     end, SCNode *from, SCNode *to, edge_list_t *edges) {
+
+    DPRINT("**** Checking synchronization %d -> %d: ",
+        from->op->get_seq_number(), to->op->get_seq_number());
+
     // Try a simple release-sequence-type synchronization
     // Find a continuous rf chain
     bool rfStart = false;
     bool rfEnd = false;
     bool isRelSeq = true;
-    const ModelAction *relHead, *relTail;
+    const ModelAction *relHead = NULL, *relTail = NULL;
     SCNode *curNode = to;
     for (edge_list_t::iterator it = begin; it != end; it++) {
         SCEdge *e = *it;
@@ -374,8 +431,15 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
         curNode = e->node;
     }
 
-    if (isRelSeq) {
-        return relHead->is_release() && relTail->is_acquire();
+    if (relHead && relTail && isRelSeq) {
+        if (relHead->is_release() && relTail->is_acquire()) {
+            DPRINT("Synchronized path (release sequence)\n");
+            return true;
+        } else {
+            DPRINT("Not a synchronized path (release sequence) (%d or %d is not rel/acq)\n",
+                relHead->get_seq_number(), relTail->get_seq_number());
+            return false;
+        }
     } else { // Simply require every reads-from edge to be release/acquire
         curNode = to;
         for (edge_list_t::iterator it = begin; it != end; it++) {
@@ -383,13 +447,18 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
             if (e->type == RF) {
                 const ModelAction *write = e->node->op;
                 if (!write->is_release() ||
-                    !curNode->is_acquire())
+                    !curNode->is_acquire()) {
+                    DPRINT("Not a synchronized path (%d or %d is not rel/acq)\n",
+                        write->get_seq_number(),
+                        curNode->op->get_seq_number());
                     return false;
+                }
             }
             curNode = e->node;
         }
     }
 
+    DPRINT("Synchronized path (normal)\n");
     return true;
 }
 
