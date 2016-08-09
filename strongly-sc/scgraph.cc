@@ -308,6 +308,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                 return true;
             }
         } else { // An SC-required path
+            DPRINT("Checking an SCable path\n");
             if (!to->is_seqcst() || !from->is_seqcst()) {
                 // A quick check first; if nodes "from" and "to" are not
                 // seq_cst, imediately check another path
