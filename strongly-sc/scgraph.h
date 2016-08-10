@@ -5,6 +5,7 @@
 #include "execution.h"
 #include "action.h"
 #include "stl-model.h"
+#include "scinference.h"
 
 struct SCNode;
 struct SCEdge;
@@ -70,29 +71,7 @@ struct SCPath {
     void addEdgeFromFront(SCEdge *e);
     void print(SCNode *tailNode, bool lineBreak = true);
     void print(bool lineBreak = true);
-    void printWithOrder(SCNode *tailNode, bool lineBreak = true);
-
-	SNAPSHOTALLOC
-};
-
-struct SCInference {
-    HashTable<int, memory_order, uintptr_t, 4 > *wildcardMap;
-    SnapVector<int> *wildcardList;
-
-    SCInference();
-    void addWildcard(int wildcard);
-    void imposeAcquire(int wildcard);
-    void imposeRelease(int wildcard);
-    void imposeSC(int wildcard);
-
-    bool is_seqcst(const ModelAction *act);
-    bool is_release(const ModelAction *act);
-    bool is_acquire(const ModelAction *act);
-
-    // These two are just to get around the fact that the HashTable won't allow
-    // NULL or '0' values
-    memory_order toMap(memory_order mo);
-    memory_order fromMap(memory_order mo);
+    void printWithOrder(SCNode *tailNode, SCInference *infer, bool lineBreak = true);
 
 	SNAPSHOTALLOC
 };
@@ -100,7 +79,7 @@ struct SCInference {
 class SCGraph {
 public:
     SCGraph();
-    SCGraph(ModelExecution *e, action_list_t *actions);
+    SCGraph(ModelExecution *e, action_list_t *actions, SCInference *infer);
     ~SCGraph();
 
     // Print the graph 
@@ -130,7 +109,7 @@ private:
 	void printInfoPerLoc();
 
     // Currently we just infer one set of parameters
-    SCInference inference;
+    SCInference *inference;
 
     // Check whether the property holds
     bool checkStrongSC();
@@ -138,6 +117,8 @@ private:
     bool imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
     bool imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
         end, SCNode *from, SCNode *to, edge_list_t *edges);
+    
+    SCEdge * removeRFEdge(SCNode *read);
     SCEdge * removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
 
     // Find the paths from one node to another node

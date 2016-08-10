@@ -28,6 +28,17 @@ static void printSCEdgeType(SCEdgeType type) {
     }
 }
 
+static const char* get_mo_str(memory_order order) {
+    switch (order) {
+        case std::memory_order_relaxed: return "relaxed";
+        case std::memory_order_acquire: return "acquire";
+        case std::memory_order_release: return "release";
+        case std::memory_order_acq_rel: return "acq_rel";
+        case std::memory_order_seq_cst: return "seq_cst";
+        default: return "unknown";
+    }
+}
+
 
 /**********    SCNode    **********/
 SCNode::SCNode(ModelAction *op) :
@@ -124,19 +135,40 @@ void SCPath::print(bool lineBreak) {
         model_print("\n");
 }
 
-void SCPath::printWithOrder(SCNode *tailNode, bool lineBreak) {
+void SCPath::printWithOrder(SCNode *tailNode, SCInference *infer, bool lineBreak) {
     edge_list_t::reverse_iterator it = edges->rbegin();
     SCEdge *e = *it;
     SCNode *n = e->node;
+    // The wildcard ID 
+    int wildcard = 0;
+    // The current wildcard memory order
+    memory_order curMO;
     for (; it != edges->rend(); it++) {
         e = *it;
         n = e->node;
-        model_print("%d(%s) -", n->op->get_seq_number(), n->op->get_mo_str());
+        if (is_wildcard(n->op->get_original_mo())) {
+            wildcard = get_wildcard_id(n->op->get_original_mo());
+            curMO = infer->getWildcardMO(wildcard);
+            model_print("%d(w%d)(%s) -", n->op->get_seq_number(), wildcard,
+                get_mo_str(curMO));
+        } else {
+            model_print("%d(\"%s\") -", n->op->get_seq_number(),
+                n->op->get_mo_str());
+        }
         printSCEdgeType(e->type);
         model_print("-> ");
     }
-    model_print("%d(%s)", tailNode->op->get_seq_number(),
-        tailNode->op->get_mo_str());
+    
+    if (is_wildcard(tailNode->op->get_original_mo())) {
+        wildcard = get_wildcard_id(tailNode->op->get_original_mo());
+        curMO = infer->getWildcardMO(wildcard);
+        model_print("%d(w%d)(%s)", tailNode->op->get_seq_number(), wildcard,
+            get_mo_str(curMO));
+    } else {
+        model_print("%d(\"%s\")", tailNode->op->get_seq_number(),
+            tailNode->op->get_mo_str());
+    }
+
     if (lineBreak)
         model_print("\n");
 }
@@ -157,117 +189,17 @@ void SCPath::print(SCNode *tailNode, bool lineBreak) {
         model_print("\n");
 }
 
-/**********    SCInference    **********/
-SCInference::SCInference() {
-    wildcardMap = new HashTable<int, memory_order, uintptr_t, 4 >;
-    wildcardList = new SnapVector<int>;
-}
-
-
-void SCInference::addWildcard(int wildcard) {
-    if (!wildcardMap->contains(wildcard))
-        wildcardMap->put(wildcard, toMap(memory_order_relaxed));
-}
-
-void SCInference::imposeAcquire(int wildcard) {
-    if (!wildcardMap->contains(wildcard)) {
-        wildcardMap->put(wildcard, toMap(memory_order_acquire));
-    } else {
-        memory_order curMO = fromMap(wildcardMap->get(wildcard));
-        if (curMO == memory_order_relaxed)
-            wildcardMap->put(wildcard, toMap(memory_order_acquire));
-        else if (curMO == memory_order_release)
-            wildcardMap->put(wildcard, toMap(memory_order_acq_rel));
-    }
-}
-
-void SCInference::imposeRelease(int wildcard) {
-    if (!wildcardMap->contains(wildcard)) {
-        wildcardMap->put(wildcard, toMap(memory_order_release));
-    } else {
-        memory_order curMO = fromMap(wildcardMap->get(wildcard));
-        if (curMO == memory_order_relaxed)
-            wildcardMap->put(wildcard, toMap(memory_order_release));
-        else if (curMO == memory_order_acquire)
-            wildcardMap->put(wildcard, toMap(memory_order_acq_rel));
-    }
-}
-
-void SCInference::imposeSC(int wildcard) {
-    wildcardMap->put(wildcard, toMap(memory_order_seq_cst));
-}
-
-
-bool SCInference::is_seqcst(const ModelAction *act) {
-    memory_order wildcardMO = act->get_original_mo();
-    if (is_wildcard(wildcardMO)) {
-        int wildcard = get_wildcard_id(wildcardMO);
-        ASSERT (wildcard > 0);
-
-        if (!wildcardMap->contains(wildcard))
-            return false;
-        memory_order curMO = fromMap(wildcardMap->get(wildcard));
-        return curMO == memory_order_seq_cst;
-    } else {
-        return act->is_seqcst();
-    }
-}
-
-bool SCInference::is_release(const ModelAction *act) {
-    memory_order wildcardMO = act->get_original_mo();
-    if (is_wildcard(wildcardMO)) {
-        int wildcard = get_wildcard_id(wildcardMO);
-        ASSERT (wildcard > 0);
-
-        if (!wildcardMap->contains(wildcard))
-            return false;
-        memory_order curMO = fromMap(wildcardMap->get(wildcard));
-        return curMO == memory_order_release || curMO == memory_order_acq_rel ||
-            curMO == memory_order_seq_cst;
-    } else {
-        return act->is_release();
-    }
-}
-
-bool SCInference::is_acquire(const ModelAction *act) {
-    memory_order wildcardMO = act->get_original_mo();
-    if (is_wildcard(wildcardMO)) {
-        int wildcard = get_wildcard_id(wildcardMO);
-        ASSERT (wildcard > 0);
-
-        if (!wildcardMap->contains(wildcard))
-            return false;
-        memory_order curMO = fromMap(wildcardMap->get(wildcard));
-        return curMO == memory_order_acquire || curMO == memory_order_acq_rel ||
-            curMO == memory_order_seq_cst;
-    } else {
-        return act->is_acquire();
-    }
-}
-
-
-memory_order SCInference::toMap(memory_order mo) {
-    int tmp = (int) mo;
-    tmp++;
-    return (memory_order) tmp;
-}
-
-memory_order SCInference::fromMap(memory_order mo) {
-    int tmp = (int) mo;
-    tmp--;
-    return (memory_order) tmp;
-}
 
 
 /**********    SCGraph    **********/
-SCGraph::SCGraph(ModelExecution *e, action_list_t *actions) :
+SCGraph::SCGraph(ModelExecution *e, action_list_t *actions, SCInference *infer) :
     execution(e),
     actions(actions),
     objLists(),
     objSet(),
     nodes(),
     nodeMap(),
-    inference(),
+    inference(infer),
 	cvmap(),
     threadlists(1) {
     buildGraph();
@@ -351,8 +283,8 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                             n2->incoming->push_back(incomingEdge);
                     }
                 } else if (act1->is_write() && act2->is_read()) {
-                    // Take out the RF edge from n1->n2
-                    SCEdge *incomingEdge = removeIncomingEdge(n1, n2, RF);
+                    // Take out the RF edge of n2
+                    SCEdge *incomingEdge = removeRFEdge(n2);
                     path_list_t * paths = findPaths(n1, n2);
                     if (!imposeStrongPath(n1, n2, paths))
                         return false;
@@ -364,8 +296,11 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                 // act1 and act2 are not ordered
                 // We currently impose the seq_cst memory order between stores
                 if (act1->is_write() && act2->is_write()) {
-                    if (!act1->is_seqcst() ||
-                        !act2->is_seqcst())
+                    DPRINT("Unordered writes NOT seq_cst (%d or %d)\n",
+                        act1->get_seq_number(),
+                        act2->get_seq_number());
+                    if (!inference->imposeSC(act1) &&
+                        !inference->imposeSC(act2))
                         return false;
                 }
             }
@@ -375,6 +310,26 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
     return true;
 }
 
+// comparison, not case sensitive.
+static bool comparePath(const SCPath *first, const SCPath *second)
+{
+    if (first->rfCnt == 0 && first->impliedCnt == 0)
+        return true;
+    if (second->rfCnt == 0 && second->impliedCnt == 0)
+        return false;
+
+    if (first->impliedCnt == 0 && second->impliedCnt > 0)
+        return true;
+    if (first->impliedCnt > 0 && second->impliedCnt == 0)
+        return false;
+
+    if (first->impliedCnt == second->impliedCnt)
+        return first->rfCnt < second->rfCnt;
+
+    return first->impliedCnt < second->impliedCnt;
+}
+
+
 bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
     // Special case: not ordered
     if (paths->empty()) {
@@ -382,123 +337,134 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
             return true;
         } else {
             // Right now, make sure from and to are both seq_cst
-            if (from->op->is_seqcst() && to->op->is_seqcst()) {
+            if (inference->is_seqcst(from->op) && inference->is_seqcst(to->op)) {
                 return true;
             } else {
                 DPRINT("Unordered writes NOT seq_cst (%d or %d)\n",
                     from->op->get_seq_number(),
                     to->op->get_seq_number());
-                return false;
+                if (!inference->imposeSC(from->op) &&
+                    !inference->imposeSC(to->op))
+                    return false;
             }
         }
 
     }
 
-    for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
-        SCPath *p = *it;
-        DB (
-            model_print("**** Checking path: ");
-            p->printWithOrder(to);
-        )
-        // This is a natrual strong path (sb + thread create/start... => hb)
-        if (p->impliedCnt == 0 && p->rfCnt == 0) {
+    // Find a path to impose strongly SC
+    paths->sort(comparePath);
+    path_list_t::iterator it = paths->begin();
+    SCPath *p = *it;
+
+    DB (
+        model_print("**** Checking path: ");
+        p->printWithOrder(to, inference);
+    )
+
+    if (p->impliedCnt == 0) {
+        if (p->rfCnt == 0) {
+            // This is a natrual strong path (sb + thread create/start... => hb)
             DPRINT("SB path\n");
             return true;
-        } else if (p->impliedCnt == 0) { // A synchronizable path
+        } else {
+            // A synchronizable path
             edge_list_t *edges = p->edges;
             if (imposeSyncPath(edges->begin(), edges->end(), from, to, edges)) {
                 DPRINT("Synchronized path\n");
                 return true;
             }
-        } else { // An SC-required path
-            DPRINT("Checking an SCable path\n");
-            if (!to->is_seqcst() || !from->is_seqcst()) {
-                // A quick check first; if nodes "from" and "to" are not
-                // seq_cst, imediately check another path
-                DPRINT("NOT an SC'ed path (%d or %d is not SC)\n",
-                    from->op->get_seq_number(), to->op->get_seq_number());
-                continue;
-            }
-            // Find the synchronizable subpaths 
-            edge_list_t *edges = p->edges;
-            // "fromNode" and "endNode" represents the head and tail of a
-            // synchronizable subpath
-            edge_list_t::iterator curIter = edges->begin(),
-                beginIter = curIter, endIter = curIter;
-            SCNode *fromNode = to, *toNode = to, *curNode = to;
-            while (true) {
-                // toNode points to the end of the subpath (already seq_cst);
-                // fromNode points to the head of the subpath;
-                // when they are equals, only one node is in the path;
-                // curNode is the node that the edge "e" points to
-                SCEdge *e = *curIter;
-                SCNode *dest = e->node;
+        }
+    } else {
+        // An SC'able path
+        DPRINT("Checking an SCable path\n");
+        if (!inference->is_seqcst(to->op) || !inference->is_seqcst(from->op)) {
+            // A quick check first; if nodes "from" and "to" are not
+            // seq_cst, imediately check another path
+            DPRINT("Try to impose SC on %d or %d\n",
+                from->op->get_seq_number(), to->op->get_seq_number());
+            if (!inference->imposeSC(from->op) || !inference->imposeSC(to->op))
+                return false;
+        }
+        // Find the synchronizable subpaths 
+        edge_list_t *edges = p->edges;
+        // "fromNode" and "endNode" represents the head and tail of a
+        // synchronizable subpath
+        edge_list_t::iterator curIter = edges->begin(),
+            beginIter = curIter, endIter = curIter;
+        SCNode *fromNode = to, *toNode = to, *curNode = to;
+        while (true) {
+            // toNode points to the end of the subpath (already seq_cst);
+            // fromNode points to the head of the subpath;
+            // when they are equals, only one node is in the path;
+            // curNode is the node that the edge "e" points to
+            SCEdge *e = *curIter;
+            SCNode *dest = e->node;
 
-                if (e->type == RF || e->type == SB) {
-                    // Simply update the curNode & increase curIter
-                    curNode = e->node;
-                    curIter++;
-                    if (dest == from) {
-                        // This is the end of the last subpath, from becomes the
-                        // fromNode
-                        endIter = edges->end();
-                        if (!imposeSyncPath(beginIter, endIter, from, toNode,
-                            edges)) {
-                            // This is not a strong path
-                            DPRINT("NOT an SC'ed path (%d -> %d is not synchronized)\n",
-                                from->op->get_seq_number(), toNode->op->get_seq_number());
-                            break;
-                        } else {
-                            // Reach the very first subpath, done!
-                            DPRINT("SC'ed path\n");
-                            return true;
-                        }
-                    }
-                } else { // This is either RW or WW
-                    // Found the from node, i.e. the curNode
-                    fromNode = curNode;
-                    // First check seq_cst of fromNode
-                    if (!fromNode->is_seqcst()) {
+            if (e->type == RF || e->type == SB) {
+                // Simply update the curNode & increase curIter
+                curNode = e->node;
+                curIter++;
+                if (dest == from) {
+                    // This is the end of the last subpath, from becomes the
+                    // fromNode
+                    endIter = edges->end();
+                    if (!imposeSyncPath(beginIter, endIter, from, toNode,
+                        edges)) {
                         // This is not a strong path
-                        DPRINT("NOT an SC'ed path (%d is not SC)\n",
-                            fromNode->op->get_seq_number());
-                        break;
-                    }
-                    if (fromNode != toNode) {
-                        // More than one node in this "subpath"
-                        endIter = curIter;
-                        if (!imposeSyncPath(beginIter, endIter, fromNode,
-                            toNode, edges)) {
-                            // This is not a strong path
-                            DPRINT("NOT an SC'ed path (%d -> %d is not synchronized)\n",
-                                fromNode->op->get_seq_number(), toNode->op->get_seq_number());
-                            break;
-                        }
-                    }
-                    // Update the iterators and nodes for the next subpath
-                    curIter++;
-                    if (curIter == edges->end()) {
-                        // The end of the search, and this is a strong path
+                        DPRINT("NOT an SC'able path (%d -> %d is not synchronized)\n",
+                            from->op->get_seq_number(), toNode->op->get_seq_number());
+                        return false;
+                    } else {
+                        // Reach the very first subpath, done!
                         DPRINT("SC'ed path\n");
                         return true;
                     }
-                    // Otherwise update the invariables
-                    beginIter = curIter;
-                    curNode = dest;
-                    toNode = dest;
-                    // Also make sure that the toNode is always checked
-                    if (!toNode->is_seqcst()) {
+                }
+            } else { // This is either RW or WW
+                // Found the from node, i.e. the curNode
+                fromNode = curNode;
+                // First check seq_cst of fromNode
+                if (!inference->is_seqcst(fromNode->op)) {
+                    DPRINT("Try to impose SC on %d\n",
+                        fromNode->op->get_seq_number());
+                    if (!inference->imposeSC(fromNode->op))
+                        return false;
+                }
+                if (fromNode != toNode) {
+                    // More than one node in this "subpath"
+                    endIter = curIter;
+                    if (!imposeSyncPath(beginIter, endIter, fromNode,
+                        toNode, edges)) {
                         // This is not a strong path
-                        DPRINT("NOT an SC'ed path (%d is not SC)\n",
-                            toNode->op->get_seq_number());
-                        break;
+                        DPRINT("NOT an SC'ed path (%d -> %d is not synchronized)\n",
+                            fromNode->op->get_seq_number(), toNode->op->get_seq_number());
+                        return false;
                     }
-                }  
+                }
+                // Update the iterators and nodes for the next subpath
+                curIter++;
+                if (curIter == edges->end()) {
+                    // The end of the search, and this is a strong path
+                    DPRINT("SC'ed path\n");
+                    return true;
+                }
+                // Otherwise update the invariables
+                beginIter = curIter;
+                curNode = dest;
+                toNode = dest;
+                // Also make sure that the toNode is always checked
+                if (!inference->is_seqcst(toNode->op)) {
+                    // This is not a strong path
+                    DPRINT("Try to impose SC on %d\n",
+                        toNode->op->get_seq_number());
+                    if (!inference->imposeSC(toNode->op))
+                        return false;
+                }
             }
         }
     }
     
-    return false;
+    return true;
 }
 
 /**
@@ -536,13 +502,17 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     }
 
     if (relHead && relTail && isRelSeq) {
-        if (relHead->is_release() && relTail->is_acquire()) {
+        if (inference->is_release(relHead) && inference->is_acquire(relTail)) {
             DPRINT("Synchronized path (release sequence)\n");
             return true;
         } else {
-            DPRINT("Not a synchronized path (release sequence) (%d or %d is not rel/acq)\n",
+            DPRINT("Try to synchronize path (release sequence) (%d or %d is not rel/acq)\n",
                 relHead->get_seq_number(), relTail->get_seq_number());
-            return false;
+            if (inference->imposeRelease(relHead) &&
+                inference->imposeAcquire(relTail))
+                return true;
+            else
+                return false;
         }
     } else { // Simply require every reads-from edge to be release/acquire
         curNode = to;
@@ -550,12 +520,14 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
             SCEdge *e = *it;
             if (e->type == RF) {
                 const ModelAction *write = e->node->op;
-                if (!write->is_release() ||
-                    !curNode->is_acquire()) {
-                    DPRINT("Not a synchronized path (%d or %d is not rel/acq)\n",
+                if (!inference->is_release(write) ||
+                    !inference->is_acquire(curNode->op)) {
+                    DPRINT("Try to synchronize path (%d or %d is not rel/acq)\n",
                         write->get_seq_number(),
                         curNode->op->get_seq_number());
-                    return false;
+                    if (!inference->imposeRelease(relHead) ||
+                        !inference->imposeAcquire(relTail))
+                        return false;
                 }
             }
             curNode = e->node;
@@ -566,7 +538,28 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     return true;
 }
 
+SCEdge * SCGraph::removeRFEdge(SCNode *read) {
+    ASSERT (read->op->is_read());
+    EdgeList *incomingEdges = read->incoming;
+    for (unsigned i = 0; i < incomingEdges->size(); i++) {
+        SCEdge *existing  = (*incomingEdges)[i];
+        if (existing->type == RF) {
+            DPRINT("Take out the %d -RF->%d edge temporarily\n",
+                existing->node->op->get_seq_number(),
+                read->op->get_seq_number());
+            incomingEdges->erase(incomingEdges->begin() + i);
+            return existing;
+        }
+    }
+
+    // A read must have a store to read from
+    ASSERT (false);
+}
+
 SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) {
+    DPRINT("Take out the %d -", from->op->get_seq_number());
+    printSCEdgeType(type);
+    DPRINT("-> %d edge temporarily\n", to->op->get_seq_number());
     EdgeList *incomingEdges = to->incoming;
     for (unsigned i = 0; i < incomingEdges->size(); i++) {
         SCEdge *existing  = (*incomingEdges)[i];
@@ -653,7 +646,7 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to, int depth) {
             SCPath *p = *it;
             printSpace(spaceCnt);
             model_print("#%d. ", cnt);
-            p->print(to);
+            p->printWithOrder(to, inference);
         }
     }
     )
@@ -676,11 +669,15 @@ void SCGraph::addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths,
 }
 
 void SCGraph::buildGraph() {
+    DPRINT("****  Pre-execution inference  ****\n");
+    inference->print(); 
     buildVectors();
     computeCV();
     print();
     printInfoPerLoc();
     checkStrongSC();
+    DPRINT("****  Post-execution inference  ****\n");
+    inference->print(); 
 }
 
 

@@ -1,14 +1,15 @@
 #include "strongsc.h"
-#include "scgraph.h"
 #include "action.h"
 #include "threads-model.h"
 #include "clockvector.h"
 #include "execution.h"
 #include <sys/time.h>
+#include "scgraph.h"
+#include "scinference.h"
 
 
 StrongSC::StrongSC() {
-
+    infer = new SCInference;
 }
 
 StrongSC::~StrongSC() {
@@ -25,7 +26,7 @@ const char * StrongSC::name() {
 }
 
 void StrongSC::finish() {
-	
+	delete infer;
 }
 
 bool StrongSC::option(char * opt) {
@@ -46,5 +47,5 @@ bool StrongSC::option(char * opt) {
 }
 
 void StrongSC::analyze(action_list_t *actions) {
-    SCGraph *graph = new SCGraph(execution, actions);
+    SCGraph *graph = new SCGraph(execution, actions, infer);
 }
