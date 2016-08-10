@@ -76,6 +76,18 @@ struct SCPath {
 	SNAPSHOTALLOC
 };
 
+// Used for the function to find all the paths between two nodes
+struct EdgeChoice {
+    SCNode *n; // The node the current edge points to
+    int i; // The index of the incoming edge
+
+    int finished; // Whether this choice is finished exploring
+
+    EdgeChoice(SCNode *n, int i, int finished = 0);
+	
+    SNAPSHOTALLOC
+};
+
 class SCGraph {
 public:
     SCGraph();
@@ -127,6 +139,7 @@ private:
 
     // Find the paths from one node to another node
     path_list_t * findPaths(SCNode *from, SCNode *to, int depth = 1);
+    path_list_t * findPathsIteratively(SCNode *from, SCNode *to);
 
     // Given an existing list of subpaths from A to B1, and an edge from B1 to
     // B, and a result set of edges from A to B, this method attached the edge

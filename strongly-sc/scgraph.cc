@@ -174,6 +174,12 @@ void SCPath::print(SCNode *tailNode, bool lineBreak) {
 }
 
 
+/**********    EdgeChoice    **********/
+EdgeChoice::EdgeChoice(SCNode *n, int i, int finished) :
+    n(n),
+    i(i),
+    finished(finished) {
+}
 
 /**********    SCGraph    **********/
 SCGraph::SCGraph(ModelExecution *e, action_list_t *actions, SCInference *infer) :
@@ -259,6 +265,7 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                         // Take out the WW edge from n1->n2
                         SCEdge *incomingEdge = removeIncomingEdge(n1, n2, WW);
                         path_list_t * paths = findPaths(n1, n2);
+                        findPathsIteratively(n1, n2);
                         if (!imposeStrongPath(n1, n2, paths))
                             return false;
                         // Add back the WW edge from n1->n2
@@ -269,6 +276,7 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                     // Take out the RF edge of n2
                     SCEdge *incomingEdge = removeRFEdge(n2);
                     path_list_t * paths = findPaths(n1, n2);
+                    findPathsIteratively(n1, n2);
                     if (!imposeStrongPath(n1, n2, paths))
                         return false;
                     // Add back the RF edge from n1->n2
@@ -278,6 +286,7 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                     // Take out the RW edge from n1->n2
                     SCEdge *incomingEdge = removeIncomingEdge(n1, n2, RW);
                     path_list_t * paths = findPaths(n1, n2);
+                    findPathsIteratively(n1, n2);
                     if (!imposeSynchronizablePath(n1, n2, paths))
                         return false;
                     // Add back the WW edge from n1->n2
@@ -598,6 +607,80 @@ SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) 
 static void printSpace(int num) {
     for (int i = 0; i < num; i++)
         model_print(" ");
+}
+
+// Find all the paths iteratively
+path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
+    
+    DPRINT("****  Iteratively finding path %d -> %d  ****\n", from->op->get_seq_number(),
+        to->op->get_seq_number());
+
+    // The main stack we use to maintain the choices and backtrack
+    SnapList<EdgeChoice *> edgeStack; 
+    // The list to store our paths
+    path_list_t *result = new path_list_t;
+
+    int fromSeqNum = from->op->get_seq_number();
+    edgeStack.push_back(new EdgeChoice(to, 0, 0));
+
+    // Main loop
+    while (!edgeStack.empty()) {
+        EdgeChoice *choice = edgeStack.back();
+        SCNode *n = choice->n;
+        EdgeList *incomingEdges = n->incoming;
+
+        if (choice->finished == 0) { // The current choice of edge is done
+            choice->finished = 1; // Don't need to pop the edge choice yet
+            // Add the first incoming edge of "n"
+            SCEdge *e = (*incomingEdges)[choice->i];
+            SCNode *n0 = e->node;
+            for (unsigned i = 0; i < n0->incoming->size(); i++) {
+                SCEdge *e0 = (*n0->incoming)[i];
+                if (e0->node->op->get_seq_number() == fromSeqNum) {
+                    // Found a path, build the path
+                    SCPath *p = new SCPath;
+                    // Add the first edge
+                    p->addEdgeFromFront(e0);
+                    for (SnapList<EdgeChoice *>::reverse_iterator iter =
+                        edgeStack.rbegin(); iter != edgeStack.rend();
+                        iter++) {
+                        EdgeChoice *c = *iter;
+                        p->addEdgeFromFront((*c->n->incoming)[c->i]);
+                    }
+                    // Add the path to the result list
+                    DB (
+                        model_print("Found a path: ");
+                        p->printWithOrder(to, inference);
+                    )
+                    result->push_back(p);
+                } else if (e0->node->op->get_seq_number() > fromSeqNum) {
+                    // Haven't found the "from" node yet, just keep pushing to
+                    // the stack
+                    edgeStack.push_back(new EdgeChoice(n0, i, 0));
+                }
+            }
+        } else {
+            // The current edge choice is done, backtrack
+            if (incomingEdges->size() != choice->i + 1) {
+                // We don't need to pop the choice yet, just update the choice
+                choice->finished = 0;
+                choice->i++;
+            } else {
+                // Ready to pop out the choice
+                edgeStack.pop_back();
+            }
+        }
+
+        if (n->op->get_seq_number() < fromSeqNum ||
+            n->op->is_uninitialized()) {
+            // Node n's seq_num > from's seq_num, subpaths should be empty
+            // Since it's an SC execution
+        }
+    }
+
+    DPRINT("****  Iteratively finding path (done) %d -> %d  ****\n", from->op->get_seq_number(),
+        to->op->get_seq_number());
+    return result;
 }
 
 // The depth parameter is by default 0; and we only use that for the purpose of
