@@ -15,8 +15,8 @@ static void a(void *obj)
 {
 	atomic_store_explicit(&z, 1, wildcard(1));
 	atomic_store_explicit(&x, 1, wildcard(2));
-	atomic_store_explicit(&y, 1, wildcard(3)); 
-	//atomic_store_explicit(&y, 1, release);
+	//atomic_store_explicit(&y, 1, wildcard(3)); 
+	atomic_store_explicit(&y, 1, release);
 }
 
 static void b(void *obj)
@@ -28,20 +28,16 @@ static void b(void *obj)
 static void c(void *obj)
 {
     // It reads from 'w3'
-	r1=atomic_load_explicit(&y, wildcard(6));
-	//r1=atomic_load_explicit(&y, acquire);
+	//r1=atomic_load_explicit(&y, wildcard(6));
+	r1=atomic_load_explicit(&y, acquire);
     // It reads from 'w4'
-	r2=atomic_load_explicit(&x, wildcard(7));
-	//r2=atomic_load_explicit(&x, relaxed);
-}
-
-static void d(void *obj)
-{
+	//r2=atomic_load_explicit(&x, wildcard(7));
+	r2=atomic_load_explicit(&x, relaxed);
 }
 
 int user_main(int argc, char **argv)
 {
-	thrd_t t1, t2,t3, t4;
+	thrd_t t1, t2,t3;
 
 	atomic_init(&x, 0);
 	atomic_init(&y, 0);
@@ -50,12 +46,10 @@ int user_main(int argc, char **argv)
 	thrd_create(&t1, (thrd_start_t)&a, NULL);
 	thrd_create(&t2, (thrd_start_t)&b, NULL);
 	thrd_create(&t3, (thrd_start_t)&c, NULL);
-	//thrd_create(&t4, (thrd_start_t)&d, NULL);
 
 	thrd_join(t1);
 	thrd_join(t2);
 	thrd_join(t3);
-	//thrd_join(t4);
 
 	return 0;
 }
