@@ -24,6 +24,10 @@ struct SCNode {
 
     SCNode(ModelAction *op);
 
+    bool earlier(SCNode *another);
+    static bool earlier(SCNode *n1, SCNode *n2);
+    static bool earlier(const ModelAction *act1, const ModelAction *act2);
+
     bool is_seqcst();
     bool is_release();
     bool is_acquire();
