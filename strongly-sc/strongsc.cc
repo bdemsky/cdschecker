@@ -26,6 +26,8 @@ const char * StrongSC::name() {
 }
 
 void StrongSC::finish() {
+    model_print("****  Post-all-execution inference  ****\n");
+    infer->print();
 	delete infer;
 }
 

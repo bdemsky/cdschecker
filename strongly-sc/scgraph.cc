@@ -8,27 +8,17 @@
 
 
 /**********    Misc    **********/
-static void printSCEdgeType(SCEdgeType type) {
+static const char * get_edge_str(SCEdgeType type) {
     switch (type) {
-        case SB:
-            model_print("SB");
-            break;
-        case RF:
-            model_print("RF");
-            break;
-        case RW:
-            model_print("RW");
-            break;
-        case WW:
-            model_print("WW");
-            break;
-        default:
-            ASSERT(false);
-            break;
+        case SB: return "SB";
+        case RF: return "RF";
+        case RW: return "RW";
+        case WW: return "WW";
+        default: return "UnkonwEdge";
     }
 }
 
-static const char* get_mo_str(memory_order order) {
+static const char * get_mo_str(memory_order order) {
     switch (order) {
         case std::memory_order_relaxed: return "relaxed";
         case std::memory_order_acquire: return "acquire";
@@ -82,9 +72,7 @@ void SCNode::print() {
     printAction();
     for (unsigned i = 0; i < outgoing->size(); i++) {
         SCEdge *e = (*outgoing)[i];
-        model_print("  -");
-        printSCEdgeType(e->type);
-        model_print("->  ");
+        model_print("  -%s->  ", get_edge_str(e->type));
         e->node->printAction();
     }
 }
@@ -127,9 +115,8 @@ void SCPath::print(bool lineBreak) {
     for (; it != edges->rend(); it++) {
         e = *it;
         n = e->node;
-        model_print("%d -", n->op->get_seq_number());
-        printSCEdgeType(e->type);
-        model_print("-> ");
+        model_print("%d -%s-> ", n->op->get_seq_number(),
+            get_edge_str(e->type));
     }
     if (lineBreak)
         model_print("\n");
@@ -152,11 +139,9 @@ void SCPath::printWithOrder(SCNode *tailNode, SCInference *infer, bool lineBreak
             model_print("%d(w%d)(%s) -", n->op->get_seq_number(), wildcard,
                 get_mo_str(curMO));
         } else {
-            model_print("%d(\"%s\") -", n->op->get_seq_number(),
-                n->op->get_mo_str());
+            model_print("%d(\"%s\") -%s-> ", n->op->get_seq_number(),
+                n->op->get_mo_str(), get_edge_str(e->type));
         }
-        printSCEdgeType(e->type);
-        model_print("-> ");
     }
     
     if (is_wildcard(tailNode->op->get_original_mo())) {
@@ -180,9 +165,8 @@ void SCPath::print(SCNode *tailNode, bool lineBreak) {
     for (; it != edges->rend(); it++) {
         e = *it;
         n = e->node;
-        model_print("%d -", n->op->get_seq_number());
-        printSCEdgeType(e->type);
-        model_print("-> ");
+        model_print("%d -%s-> ", n->op->get_seq_number(),
+            get_edge_str(e->type));
     }
     model_print("%d", tailNode->op->get_seq_number());
     if (lineBreak)
@@ -233,12 +217,11 @@ bool SCGraph::checkStrongSC() {
     for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
         action_list_t *objs = *it;
         if (!checkStrongSCPerLoc(objs)) {
-            model_print("The execution is NOT strongly SC\n");
+            DPRINT("The execution is NOT strongly SC'able\n");
             return false;
         }
     }
     
-    model_print("The execution is strongly SC\n");
     return true;
 }
 
@@ -291,6 +274,15 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                     // Add back the RF edge from n1->n2
                     if (incomingEdge)
                         n2->incoming->push_back(incomingEdge);
+                } else if (act1->is_read() && act2->is_write()) {
+                    // Take out the RW edge from n1->n2
+                    SCEdge *incomingEdge = removeIncomingEdge(n1, n2, RW);
+                    path_list_t * paths = findPaths(n1, n2);
+                    if (!imposeSynchronizablePath(n1, n2, paths))
+                        return false;
+                    // Add back the WW edge from n1->n2
+                    if (incomingEdge)
+                        n2->incoming->push_back(incomingEdge);
                 }
             } else {
                 // act1 and act2 are not ordered
@@ -327,6 +319,37 @@ static bool comparePath(const SCPath *first, const SCPath *second)
         return first->rfCnt < second->rfCnt;
 
     return first->impliedCnt < second->impliedCnt;
+}
+
+
+bool SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths) {
+    if (paths->empty())
+        return true;
+
+    // Sort the path list; if we have a synchronizable path, it must be the
+    // first one in the sorted list
+    paths->sort(comparePath);
+    path_list_t::iterator it = paths->begin();
+    SCPath *p = *it;
+
+    if (p->impliedCnt > 0) {
+        // We simply don't have a synchronizable path
+        return true;
+    } else {
+        // If so, we simply impose synchronization on path "p"
+        DB (
+            model_print("**** Checking path (read->write): ");
+            p->printWithOrder(to, inference);
+        )
+        edge_list_t *edges = p->edges;
+        if (imposeSyncPath(edges->begin(), edges->end(), from, to, edges)) {
+            DPRINT("Synchronized path\n");
+            return true;
+        } else {
+            DPRINT("Unsynchronizable path from read to write!!\n");
+            return false;
+        }
+    }
 }
 
 
@@ -525,8 +548,8 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
                     DPRINT("Try to synchronize path (%d or %d is not rel/acq)\n",
                         write->get_seq_number(),
                         curNode->op->get_seq_number());
-                    if (!inference->imposeRelease(relHead) ||
-                        !inference->imposeAcquire(relTail))
+                    if (!inference->imposeRelease(write) ||
+                        !inference->imposeAcquire(curNode->op))
                         return false;
                 }
             }
@@ -557,9 +580,8 @@ SCEdge * SCGraph::removeRFEdge(SCNode *read) {
 }
 
 SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) {
-    DPRINT("Take out the %d -", from->op->get_seq_number());
-    printSCEdgeType(type);
-    DPRINT("-> %d edge temporarily\n", to->op->get_seq_number());
+    DPRINT("Take out the %d -%s-> %d edge temporarily\n", from->op->get_seq_number(),
+        get_edge_str(type), to->op->get_seq_number());
     EdgeList *incomingEdges = to->incoming;
     for (unsigned i = 0; i < incomingEdges->size(); i++) {
         SCEdge *existing  = (*incomingEdges)[i];
@@ -669,15 +691,25 @@ void SCGraph::addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths,
 }
 
 void SCGraph::buildGraph() {
-    DPRINT("****  Pre-execution inference  ****\n");
-    inference->print(); 
+    DB(
+        model_print("****  Pre-execution inference  ****\n");
+        inference->print();
+    )
+
     buildVectors();
     computeCV();
-    print();
-    printInfoPerLoc();
+    
+    DB(
+        print();
+        printInfoPerLoc();
+    )
+
     checkStrongSC();
-    DPRINT("****  Post-execution inference  ****\n");
-    inference->print(); 
+
+    DB(
+        model_print("****  Post-execution inference  ****\n");
+        inference->print();
+    )
 }
 
 

@@ -13,26 +13,23 @@ static int r1, r2, r3;
 
 static void a(void *obj)
 {
-	atomic_store_explicit(&z, 1, wildcard(1));
-	atomic_store_explicit(&x, 1, wildcard(2));
-	//atomic_store_explicit(&y, 1, wildcard(3)); 
-	atomic_store_explicit(&y, 1, release);
+	atomic_store_explicit(&z, 1, wildcard(1)); // SC
+	atomic_store_explicit(&x, 1, wildcard(2)); // SC
+	atomic_store_explicit(&y, 1, wildcard(3)); // release
 }
 
 static void b(void *obj)
 {
-	atomic_store_explicit(&x, 2, wildcard(4));
+	atomic_store_explicit(&x, 2, wildcard(4)); // SC
     // It can read from the old z=0
-	r3=atomic_load_explicit(&z, wildcard(5));
+	r3=atomic_load_explicit(&z, wildcard(5)); // SC
 }
 static void c(void *obj)
 {
     // It reads from 'w3'
-	//r1=atomic_load_explicit(&y, wildcard(6));
-	r1=atomic_load_explicit(&y, acquire);
+	r1=atomic_load_explicit(&y, wildcard(6)); // acquire
     // It reads from 'w4'
-	//r2=atomic_load_explicit(&x, wildcard(7));
-	r2=atomic_load_explicit(&x, relaxed);
+	r2=atomic_load_explicit(&x, wildcard(7)); // SC
 }
 
 int user_main(int argc, char **argv)

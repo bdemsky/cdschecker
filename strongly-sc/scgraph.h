@@ -114,6 +114,10 @@ private:
     // Check whether the property holds
     bool checkStrongSC();
     bool checkStrongSCPerLoc(action_list_t *objList);
+
+
+    // Used for paths from read to write
+    bool imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths);
     bool imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
     bool imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
         end, SCNode *from, SCNode *to, edge_list_t *edges);
