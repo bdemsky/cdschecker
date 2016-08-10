@@ -13,12 +13,12 @@ static int r1, r2;
 static void a(void *obj)
 {
 	atomic_store_explicit(&x, 1, wildcard(1));
-	atomic_store_explicit(&y, 1, wildcard(2));
+	r1=atomic_load_explicit(&y, wildcard(2));
 }
 
 static void b(void *obj)
 {
-	r1=atomic_load_explicit(&y, wildcard(3));
+	atomic_store_explicit(&y, 1, wildcard(3));
 	r2=atomic_load_explicit(&x, wildcard(4));
 }
 
