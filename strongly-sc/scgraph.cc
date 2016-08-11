@@ -34,10 +34,22 @@ static const char * get_mo_str(memory_order order) {
 SCNode::SCNode(ModelAction *op) :
     op(op),
     incoming(new EdgeList),
-    outgoing(new EdgeList) {
-
+    outgoing(new EdgeList),
+    sbCV (new ClockVector(NULL, op)) {
 }
 
+
+bool SCNode::mergeSB(SCNode *dest) {
+    return dest->sbCV->merge(sbCV);
+}
+
+bool SCNode::sbSynchronized(SCNode *dest) {
+    return dest->sbCV->synchronized_since(op);
+}
+
+bool SCNode::sbRFSynchronized(SCNode *dest) {
+    return op->happens_before(dest->op);
+}
 
 bool SCNode::earlier(SCNode *another) {
     return earlier(this, another);
@@ -279,36 +291,56 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
             ASSERT (cv2);
             
             // The objList is always ordered by the seq_number of actions
-            ASSERT (act1->get_seq_number() < act2->get_seq_number());
-            
+            ASSERT (n1->earlier(n2));
+
+            path_list_t * paths = NULL;
             if (cv2->synchronized_since(act1)) {
                 DPRINT("%d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
                 if (act1->is_write() && act2->is_write()) {
                     // Only need to check when the condition is not true:
                     // act2 is a RMW && act1 -rf-> act2
                     if (!(act2->is_rmw() && act2->get_reads_from() == act1)) {
+                        if (n1->sbSynchronized(n2)) {
+                            // n1 -SB-> n2
+                            continue;
+                        }
+
                         // Take out the WW edge from n1->n2
                         SCEdge *incomingEdge = removeIncomingEdge(n1, n2, WW);
-                        path_list_t * paths = findPathsIteratively(n1, n2);
-                        if (!imposeStrongPath(n1, n2, paths))
-                            return false;
+                        if (n1->sbRFSynchronized(n2)) {
+                            // n1 -sbUrf-> n2
+                            paths = findSynchronizablePathsIteratively(n1, n2);
+                            if (!imposeSynchronizablePath(n1, n2, paths))
+                                return false;
+                            ASSERT (!paths->empty());
+                        } else {
+                            paths = findPathsIteratively(n1, n2);
+                            if (!imposeStrongPath(n1, n2, paths))
+                                return false;
+                        }
                         // Add back the WW edge from n1->n2
                         if (incomingEdge)
                             n2->incoming->push_back(incomingEdge);
                     }
                 } else if (act1->is_write() && act2->is_read()) {
+                    if (n1->sbSynchronized(n2)) {
+                        // n1 -SB-> n2
+                        continue;
+                    }
+
                     // Take out the RF edge of n2
                     SCEdge *incomingEdge = removeRFEdge(n2);
-                    path_list_t * paths = findPathsIteratively(n1, n2);
+                    paths = findPathsIteratively(n1, n2);
                     if (!imposeStrongPath(n1, n2, paths))
                         return false;
                     // Add back the RF edge from n1->n2
                     if (incomingEdge)
                         n2->incoming->push_back(incomingEdge);
-                } else if (act1->is_read() && act2->is_write()) {
+                } else if (act1->is_read() && act2->is_write() &&
+                    act1->happens_before(act2)) {
                     // Take out the RW edge from n1->n2
                     SCEdge *incomingEdge = removeIncomingEdge(n1, n2, RW);
-                    path_list_t * paths = findPathsIteratively(n1, n2);
+                    paths = findSynchronizablePathsIteratively(n1, n2);
                     if (!imposeSynchronizablePath(n1, n2, paths))
                         return false;
                     // Add back the WW edge from n1->n2
@@ -333,7 +365,7 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
     return true;
 }
 
-// comparison, not case sensitive.
+// Compare the cost of paths
 static bool comparePath(const SCPath *first, const SCPath *second)
 {
     if (first->rfCnt == 0 && first->impliedCnt == 0)
@@ -400,6 +432,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                 if (!inference->imposeSC(from->op) &&
                     !inference->imposeSC(to->op))
                     return false;
+                return true;
             }
         }
 
@@ -631,6 +664,140 @@ static void printSpace(int num) {
         model_print(" ");
 }
 
+// Find all the synchronizable paths (sb U rf) iteratively; the main algorithm
+// is the same is the findPathsIteratively() method except that it only looks
+// for SB & RF edges.
+path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *to) {
+
+    DPRINT("****  Iteratively finding synchronizable path %d -> %d  ****\n",
+        from->op->get_seq_number(), to->op->get_seq_number());
+    // The main stack we use to maintain the choices and backtrack
+    SnapList<EdgeChoice *> edgeStack; 
+    // The list to store our paths
+    path_list_t *result = new path_list_t;
+
+    unsigned fromSeqNum = from->op->get_seq_number();
+    // Initially push back the 0th edge of to's incoming edges
+    edgeStack.push_back(new EdgeChoice(to, 0, 0));
+    // The first edge must be either an SB or RF edge
+    ASSERT ((*to->incoming)[0]->type <= RF);
+    DPRINT("Push back: (%d, %d, %d)\n", to->op->get_seq_number(), 0, 0);
+
+    // Main loop
+    while (!edgeStack.empty()) {
+        EdgeChoice *choice = edgeStack.back();
+        SCNode *n = choice->n;
+        EdgeList *incomingEdges = n->incoming;
+        DPRINT("Peek back: (%d, %d, %d)\n", n->op->get_seq_number(), choice->i,
+            choice->finished);
+
+        if ((*incomingEdges)[choice->i]->type > RF) {
+            // Backtrack since we only look for SB & RF edges
+            // The current edge choice is done, backtrack
+            DPRINT("RW|WW edge backtrack: \n");
+            // FIXME: We can actually give up very early here since all other
+            // edges with bigger index should be RW|WW edges
+            if (incomingEdges->size() != choice->i + 1) {
+                // We don't need to pop the choice yet, just update the choice
+                choice->finished = 0;
+                choice->i++;
+                DPRINT("Advance choice: (%d, %d, %d)\n",
+                    n->op->get_seq_number(), choice->i, choice->finished);
+            }
+        }
+
+        if (choice->finished == 0) { // The current choice of edge is done
+            choice->finished = 1; // Don't need to pop the edge choice yet
+            // Add the first incoming edge of "n"
+            SCEdge *e = (*incomingEdges)[choice->i];
+            SCNode *n0 = e->node;
+
+            // This is also an ending condition, backtrack
+            if (n0->incoming->empty()) {
+                DPRINT("Empty choice: (%d, %d, %d)\n", n->op->get_seq_number(),
+                    choice->i, choice->finished);
+                if (incomingEdges->size() != choice->i + 1) {
+                    // We don't need to pop the choice yet, just update the choice
+                    choice->finished = 0;
+                    choice->i++;
+                    DPRINT("Advance choice: (%d, %d, %d)\n",
+                        n->op->get_seq_number(), choice->i, choice->finished);
+                } else {
+                    // Ready to pop out the choice
+                    edgeStack.pop_back();
+                    DPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
+                        choice->i, choice->finished);
+                }
+                // Go back to the loop
+                continue;
+            }
+
+            // Otherwise, push back the first edge of n0
+            if (n0->op->get_seq_number() == fromSeqNum) {
+                // Found a path, build the path
+                SCPath *p = new SCPath;
+                // Add the first edge
+                DPRINT("Add edge: ");
+                for (SnapList<EdgeChoice *>::reverse_iterator iter =
+                    edgeStack.rbegin(); iter != edgeStack.rend();
+                    iter++) {
+                    EdgeChoice *c = *iter;
+                    SCEdge *e0 = (*c->n->incoming)[c->i];
+                    DPRINT("%d -> ", e0->node->op->get_seq_number());
+                    p->addEdgeFromFront(e0);
+                }
+                DPRINT("%d\n", to->op->get_seq_number());
+                // Add the path to the result list
+                result->push_back(p);
+                DPRINT("Found path:");
+                DB( p->printWithOrder(to, inference); )
+            } else if (from->earlier(n0)) {
+                // Haven't found the "from" node yet, just keep pushing to
+                // the stack
+                edgeStack.push_back(new EdgeChoice(n0, 0, 0));
+                DPRINT("Push back: (%d, %d, %d)\n", n0->op->get_seq_number(), 0,
+                    0);
+            }
+        } else {
+            // The current edge choice is done, backtrack
+            DPRINT("Finished backtrack: \n");
+            if (incomingEdges->size() != choice->i + 1) {
+                // We don't need to pop the choice yet, just update the choice
+                choice->finished = 0;
+                choice->i++;
+                DPRINT("Advance choice: (%d, %d, %d)\n",
+                    n->op->get_seq_number(), choice->i, choice->finished);
+            } else {
+                // Ready to pop out the choice
+                edgeStack.pop_back();
+                DPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
+                    choice->i, choice->finished);
+            }
+        }
+
+        if (n->op->get_seq_number() < fromSeqNum ||
+            n->op->is_uninitialized()) {
+            // Node n's seq_num > from's seq_num, subpaths should be empty
+            // Since it's an SC execution
+        }
+    }
+    
+    DB (
+        int cnt = 1;
+        for (path_list_t::iterator it = result->begin(); it != result->end();
+            it++, cnt++) {
+            SCPath *p = *it;
+            model_print("#%d. ", cnt);
+            p->printWithOrder(to, inference);
+        }
+        DPRINT("****  Iteratively finding syncrhonizable path (done) %d -> %d  ****\n",
+            from->op->get_seq_number(), to->op->get_seq_number());
+    )
+
+    return result;
+}
+
+
 // Find all the paths iteratively; we basically use a depth-first search
 // backwards from the node "to". We end a single search whenever we either: 1)
 // reach the node "from" --- we find a path; or 2) we reach a node whose
@@ -645,7 +812,7 @@ path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
     // The list to store our paths
     path_list_t *result = new path_list_t;
 
-    int fromSeqNum = from->op->get_seq_number();
+    unsigned fromSeqNum = from->op->get_seq_number();
     // Initially push back the 0th edge of to's incoming edges
     edgeStack.push_back(new EdgeChoice(to, 0, 0));
     DPRINT("Push back: (%d, %d, %d)\n", to->op->get_seq_number(), 0, 0);
@@ -702,7 +869,7 @@ path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
                 // Add the path to the result list
                 result->push_back(p);
                 DPRINT("Found path:");
-                p->printWithOrder(to, inference);
+                DB( p->printWithOrder(to, inference); )
             } else if (from->earlier(n0)) {
                 // Haven't found the "from" node yet, just keep pushing to
                 // the stack
@@ -734,16 +901,18 @@ path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
         }
     }
     
-    int cnt = 1;
-    for (path_list_t::iterator it = result->begin(); it != result->end();
-        it++, cnt++) {
-        SCPath *p = *it;
-        model_print("#%d. ", cnt);
-        p->printWithOrder(to, inference);
-    }
-    DPRINT("****  Iteratively finding path (done) %d -> %d  ****\n",
-        from->op->get_seq_number(), to->op->get_seq_number());
-    
+    DB (
+        int cnt = 1;
+        for (path_list_t::iterator it = result->begin(); it != result->end();
+            it++, cnt++) {
+            SCPath *p = *it;
+            model_print("#%d. ", cnt);
+            p->printWithOrder(to, inference);
+        }
+        DPRINT("****  Iteratively finding path (done) %d -> %d  ****\n",
+            from->op->get_seq_number(), to->op->get_seq_number());
+    )
+
     return result;
 }
 
@@ -835,6 +1004,18 @@ void SCGraph::addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths,
     }
 }
 
+// Compare the cost of an edge
+static bool compareEdge(const SCEdge *e1, const SCEdge *e2)
+{
+    return e1->type <= e2->type;
+}
+
+
+// Sort the edges in order of SB, RF and (RW|WW)
+void SCGraph::sortEdges() {
+    // FIXME: We probably don't need this
+}
+
 void SCGraph::buildGraph() {
     DB(
         model_print("****  Pre-execution inference  ****\n");
@@ -843,6 +1024,8 @@ void SCGraph::buildGraph() {
 
     buildVectors();
     computeCV();
+    computeSBCV();
+    sortEdges();
     
     DB(
         print();
@@ -918,6 +1101,8 @@ int SCGraph::buildVectors() {
             fromNode = nodeMap.get(from);
             ASSERT (fromNode);
             addEdge(fromNode, n, SB);
+            // Update the clock vector
+            fromNode->mergeSB(n);
         }
 
         // Add the sb edge
@@ -926,6 +1111,8 @@ int SCGraph::buildVectors() {
             from = threadlist->back();
             fromNode = nodeMap.get(from);
             addEdge(fromNode, n, SB);
+            // Update the clock vector
+            fromNode->mergeSB(n);
         }
 
         // Add the rf edge
@@ -938,6 +1125,23 @@ int SCGraph::buildVectors() {
 		threadlists[threadid].push_back(act);
 	}
 	return numactions;
+}
+
+
+// Compute the SB clock vectors
+void SCGraph::computeSBCV() {
+    action_list_t::iterator secondLastIter = actions->end();
+    secondLastIter--;
+    for (action_list_t::iterator it = actions->begin(); it != secondLastIter; ) {
+        ModelAction *curAct = *it;
+        it++;
+        ModelAction *nextAct = *it;
+        SCNode *curNode = nodeMap.get(curAct);
+        SCNode *nextNode = nodeMap.get(nextAct);
+        if (nextNode->sbCV->synchronized_since(curNode->op)) {
+            curNode->mergeSB(nextNode);
+        }
+    }
 }
 
 void SCGraph::computeCV() {

@@ -30,6 +30,7 @@ SCInference::~SCInference() {
 
 void SCInference::print() {
     wildcardList->sort();
+    model_print("wildcardList size = %lu\n", wildcardList->size());
     for (SnapList<int>::iterator i = wildcardList->begin(); i !=
         wildcardList->end(); i++) {
         int wildcard = *i;

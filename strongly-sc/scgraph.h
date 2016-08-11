@@ -22,7 +22,20 @@ struct SCNode {
     EdgeList *incoming;
     EdgeList *outgoing;
 
+    // The clock vector for SB edges; we can simply use the operation's clock
+    // vector for the "sb U rf" relation
+    ClockVector *sbCV;
+
+    // This clock vector is used to optimize calculating the ordering between
+    // W->W && W->R. If W1 -mo-> W2, synchronize the clock vector;
+    // If W1-sc|hb->R1, synchronize the clock vector.
+    ClockVector *readWriteCV;
+
     SCNode(ModelAction *op);
+
+    bool mergeSB(SCNode *dest);
+    bool sbSynchronized(SCNode *dest);
+    bool sbRFSynchronized(SCNode *dest);
 
     bool earlier(SCNode *another);
     static bool earlier(SCNode *n1, SCNode *n2);
@@ -83,7 +96,7 @@ struct SCPath {
 // Used for the function to find all the paths between two nodes
 struct EdgeChoice {
     SCNode *n; // The node the current edge points to
-    int i; // The index of the incoming edge
+    unsigned i; // The index of the incoming edge
 
     int finished; // Whether this choice is finished exploring
 
@@ -143,6 +156,7 @@ private:
 
     // Find the paths from one node to another node
     path_list_t * findPaths(SCNode *from, SCNode *to, int depth = 1);
+    path_list_t * findSynchronizablePathsIteratively(SCNode *from, SCNode *to);
     path_list_t * findPathsIteratively(SCNode *from, SCNode *to);
 
     // Given an existing list of subpaths from A to B1, and an edge from B1 to
@@ -151,11 +165,16 @@ private:
     void addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths, SCEdge
     *e);
 
+    // Sort the edges in order of SB, RF and (RW|WW)
+    void sortEdges();
+
     // Build the graph from the trace
 	void buildGraph();
 
 	void addEdge(SCNode *from, SCNode *to, SCEdgeType type);
 
+    // Compute the SB clock vectors
+	void computeSBCV();
 	void computeCV();
 	int buildVectors();
 	bool processRead(ModelAction *read, ClockVector *cv);
