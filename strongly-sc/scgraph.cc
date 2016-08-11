@@ -35,10 +35,12 @@ SCNode::SCNode(ModelAction *op) :
     op(op),
     incoming(new EdgeList),
     outgoing(new EdgeList),
-    sbCV (new ClockVector(NULL, op)) {
+    sbCV (new ClockVector(NULL, op)),
+    readWriteCV (new ClockVector(NULL, op)) {
 }
 
 
+// For SB reachability
 bool SCNode::mergeSB(SCNode *dest) {
     return dest->sbCV->merge(sbCV);
 }
@@ -47,6 +49,16 @@ bool SCNode::sbSynchronized(SCNode *dest) {
     return dest->sbCV->synchronized_since(op);
 }
 
+// For read-write ordering reachability
+bool SCNode::mergeReadWrite(SCNode *dest) {
+    return dest->readWriteCV->merge(readWriteCV);
+}
+
+bool SCNode::readWriteSynchronized(SCNode *dest) {
+    return dest->readWriteCV->synchronized_since(op);
+}
+
+// For sbUrf reachability
 bool SCNode::sbRFSynchronized(SCNode *dest) {
     return op->happens_before(dest->op);
 }
@@ -265,6 +277,58 @@ bool SCGraph::checkStrongSC() {
         }
     }
     
+    return true;
+}
+
+bool SCGraph::checkStrongSCPerLocFast(action_list_t *objList) {
+    action_list_t::iterator it = objList->begin(),
+        write1Iter = objList->begin(), write2Iter, readIter;
+    ModelAction *write1 = *it, *write2 = NULL, *read = NULL;
+    SCNode *writeNode1 = nodeMap.get(write1), *writeNode2, *readNode;
+    for (it++; it != objList->end(); it++) {
+        ModelAction *act = *it;
+        if (act->is_write()) {
+            write2Iter = it;
+            write2 = act;
+            writeNode2 = nodeMap.get(write2);
+            // First make sure writeNode1 is ordered before writeNode2
+            ASSERT (cvmap.get(write2));
+            if (cvmap.get(write2)->synchronized_since(write1)) {
+                DPRINT("%d -> %d:\n", write1->get_seq_number(),
+                    write2->get_seq_number());
+                if (write2->is_rmw() && write2->get_reads_from() == write1) {
+                    // Just need to synchronize the readWriteCV
+                    write1Node->mergeReadWrite(write2Node);
+                } else {
+                    if (write1Node->sbSynchronized(write2Node)) {
+                        // w1 -SB-> w2, synchronize the readWriteCV
+                        write1Node->mergeReadWrite(write2Node);
+                    } else {
+                        if (write1Node->sbRFSynchronized(write2Node)) {
+                            // w1 -sbUrf-> w2
+                            paths = findSynchronizablePathsIteratively(write1Node,
+                                write2Node);
+                            ASSERT (!paths->empty());
+                            if (!imposeSynchronizablePath(n1, n2, paths))
+                                return false;
+                        } else {
+                            // Take out the WW edge from w1->w2
+                            SCEdge *incomingEdge = removeIncomingEdge(writeNode1,
+                                writeNode2, WW);
+
+                            paths = findPathsIteratively(n1, n2);
+                            if (!imposeStrongPath(n1, n2, paths))
+                                return false;
+                             // Add back the WW edge from n1->n2
+                            if (incomingEdge)
+                                n2->incoming->push_back(incomingEdge);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     return true;
 }
 

@@ -33,8 +33,15 @@ struct SCNode {
 
     SCNode(ModelAction *op);
 
+    // For SB reachability
     bool mergeSB(SCNode *dest);
     bool sbSynchronized(SCNode *dest);
+
+    // For read-write ordering reachability
+    bool mergeReadWrite(SCNode *dest);
+    bool readWriteSynchronized(SCNode *dest);
+
+    // For rfUsb reachability 
     bool sbRFSynchronized(SCNode *dest);
 
     bool earlier(SCNode *another);
@@ -142,6 +149,8 @@ private:
 
     // Check whether the property holds
     bool checkStrongSC();
+    // This is a faster version that utilizes clock vectors
+    bool checkStrongSCPerLocFast(action_list_t *objList);
     bool checkStrongSCPerLoc(action_list_t *objList);
 
 
