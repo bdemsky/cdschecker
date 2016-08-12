@@ -297,8 +297,15 @@ bool SCGraph::checkStrongSC() {
 
 bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
     ASSERT(w1->op->is_write() && w2->op->is_write());
-    DPRINT("Impose strong path %d -WW-> %d\n", w1->op->get_seq_number(),
+    DPRINT("Impose strong path %d -WW-> %d: ", w1->op->get_seq_number(),
         w2->op->get_seq_number());
+
+    DB (
+        if (cvmap.get(w2->op)->synchronized_since(w1->op)) {
+            DPRINT("Synced\n");
+        }
+    )
+
     if (w2->op->is_rmw() && w2->op->get_reads_from() == w1->op) {
         return true;
     } else {
@@ -339,8 +346,7 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                 } else {
                     // Stores are not ordered
                     // We currently impose the seq_cst memory order
-                    DPRINT("Unordered writes NOT seq_cst (%d or %d)\n",
-                        w1->op->get_seq_number(), w2->op->get_seq_number());
+                    DPRINT("unordered writes\n");
                     if (!inference->imposeSC(w1->op) &&
                         !inference->imposeSC(w2->op))
                         return false;
@@ -352,10 +358,12 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
 
 bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
     ASSERT(w->op->is_write() && r->op->is_read());
-    DPRINT("Impose strong path %d -WR-> %d\n", w->op->get_seq_number(),
+    DPRINT("Impose strong path %d -WR-> %d:\n", w->op->get_seq_number(),
         r->op->get_seq_number());
     if (w->sbSynchronized(r)) {
         // w -SB-> r
+        DPRINT("%d -WR-> %d: Synced\n", w->op->get_seq_number(),
+            r->op->get_seq_number());
         return true;
     } else {
         path_list_t *paths = NULL;
@@ -367,26 +375,38 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
             r->incoming->push_back(incomingEdge);
         if (!paths->empty()) {
             imposeStrongPath(w, r, paths);
+            DPRINT("%d -WR-> %d: Synced\n", w->op->get_seq_number(),
+                r->op->get_seq_number());
             return true;
         }
     }
+    
+    DPRINT("%d -WR-> %d: NOT synced\n", w->op->get_seq_number(),
+        r->op->get_seq_number());
     return false;
 }
 
 bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     ASSERT(r->op->is_read() && w->op->is_write());
     
-    DPRINT("Impose strong path %d -RW-> %d\n", r->op->get_seq_number(),
+    DPRINT("Impose strong path %d -RW-> %d:\n", r->op->get_seq_number(),
         w->op->get_seq_number());
     if (r->sbSynchronized(w)) {
+        DPRINT("%d -RW-> %d: Synced\n", w->op->get_seq_number(),
+            r->op->get_seq_number());
         return true;
     } else if (r->sbRFSynchronized(w)) {
         // r -sbUrf-> w
         path_list_t *paths = findSynchronizablePathsIteratively(r, w);
         ASSERT (!paths->empty());
         imposeSynchronizablePath(r, w, paths);
+        DPRINT("%d -RW-> %d: Synced\n", w->op->get_seq_number(),
+            r->op->get_seq_number());
         return true;
     }
+    
+    DPRINT("%d -RW-> %d: NOT synced\n", w->op->get_seq_number(),
+        r->op->get_seq_number());
     return false;
 }
 
@@ -398,8 +418,11 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
     SCNode *writeNode1 = nodeMap.get(write1), *writeNode2, *readNode;
 
     void *loc = write1->get_location();
-    DPRINT("********    Computing Location CV %12p    ********\n", loc);
+    // Only compute those for reads/writes
+    if (!write1->is_read() && !write1->is_write())
+        return true;
 
+    DPRINT("********    Computing Location CV %12p    ********\n", loc);
     for (it++; it != objList->end(); it++) {
         ModelAction *act = *it;
         if (act->is_write()) {
@@ -457,6 +480,9 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
         return true;
     action_list_t::iterator it1 = objList->begin();
     ModelAction *act1 = *it1;
+    // Only compute those for reads/writes
+    if (!act1->is_read() && !act1->is_write())
+        return true;
     DPRINT("********    Checking Location %12p    ********\n", act1->get_location());
     for (; it1 != objList->end(); it1++) {
         act1 = *it1;
@@ -477,14 +503,23 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
             if (cv2->synchronized_since(act1)) {
                 DPRINT("%d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
                 if (act1->is_write() && act2->is_write()) {
-                    if (!n1->writeReadSynchronized(n2))
+                    if (!n1->writeReadSynchronized(n2)) {
                         imposeStrongPathWriteWrite(n1, n2);
+                    } else {
+                        DPRINT("Already synced\n");
+                    }
                 } else if (act1->is_write() && act2->is_read()) {
-                    if (!n1->writeReadSynchronized(n2))
+                    if (!n1->writeReadSynchronized(n2)) {
                         imposeStrongPathWriteRead(n1, n2);
+                    } else {
+                        DPRINT("Already synced\n");
+                    }
                 } else if (act1->is_read() && act2->is_write()) {
-                    if (!n1->readWriteSynchronized(n2))
+                    if (!n1->readWriteSynchronized(n2)) {
                         imposeStrongPathReadWrite(n1, n2);
+                    } else {
+                        DPRINT("Already synced\n");
+                    }
                 }
             }
         }
