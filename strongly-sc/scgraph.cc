@@ -369,15 +369,25 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
         path_list_t *paths = NULL;
         // Take out the RF edge of "r" 
         SCEdge *incomingEdge = removeRFEdge(r);
-        paths = findPathsIteratively(w, r);
-        // Add back the RF edge from w->r
-        if (incomingEdge)
-            r->incoming->push_back(incomingEdge);
+        // First try to find synchronizable paths
+        paths = findSynchronizablePathsIteratively(w, r);
         if (!paths->empty()) {
-            imposeStrongPath(w, r, paths);
-            DPRINT("%d -WR-> %d: Synced\n", w->op->get_seq_number(),
-                r->op->get_seq_number());
+            imposeSynchronizablePath(w, r, paths);
+            // Add back the RF edge from w->r
+            if (incomingEdge)
+                r->incoming->push_back(incomingEdge);
             return true;
+        } else {
+            paths = findPathsIteratively(w, r);
+            // Add back the RF edge from w->r
+            if (incomingEdge)
+                r->incoming->push_back(incomingEdge);
+            if (!paths->empty()) {
+                imposeStrongPath(w, r, paths);
+                DPRINT("%d -WR-> %d: Synced\n", w->op->get_seq_number(),
+                    r->op->get_seq_number());
+                return true;
+            }
         }
     }
     
