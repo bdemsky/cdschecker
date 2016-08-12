@@ -347,13 +347,13 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
         // Take out the RF edge of "r" 
         SCEdge *incomingEdge = removeRFEdge(r);
         paths = findPathsIteratively(w, r);
+        // Add back the RF edge from w->r
+        if (incomingEdge)
+            r->incoming->push_back(incomingEdge);
         if (!paths->empty()) {
             imposeStrongPath(w, r, paths);
             return true;
         }
-        // Add back the RF edge from w->r
-        if (incomingEdge)
-            r->incoming->push_back(incomingEdge);
     }
     return false;
 }
@@ -508,11 +508,11 @@ bool SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *pa
 
     if (p->impliedCnt > 0) {
         // We simply don't have a synchronizable path
-        return true;
+        return false;
     } else {
         // If so, we simply impose synchronization on path "p"
         DB (
-            model_print("**** Checking path (read->write): ");
+            model_print("**** Checking synchronizable path: ");
             p->printWithOrder(to, inference);
         )
         edge_list_t *edges = p->edges;
@@ -537,11 +537,6 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
     path_list_t::iterator it = paths->begin();
     SCPath *p = *it;
 
-    DB (
-        model_print("**** Checking path: ");
-        p->printWithOrder(to, inference);
-    )
-
     if (p->impliedCnt == 0) {
         if (p->rfCnt == 0) {
             // This is a natrual strong path (sb + thread create/start... => hb)
@@ -557,7 +552,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
         }
     } else {
         // An SC'able path
-        DPRINT("Checking an SCable path\n");
+        DPRINT("Checking an SC path\n");
         if (!inference->is_seqcst(to->op) || !inference->is_seqcst(from->op)) {
             // A quick check first; if nodes "from" and "to" are not
             // seq_cst, imediately check another path
