@@ -271,8 +271,7 @@ void SCGraph::printInfoPerLoc() {
             model_print("Location %14p:\n", act->get_location());
         for (; objIt != objs->end(); objIt++) {
             act = *objIt;
-            if ((act->is_read() || act->is_write()) &&
-                !act->is_uninitialized()) {
+            if (act->is_read() || act->is_write()) {
                 model_print("  ");
                 act->print();
             }
@@ -297,6 +296,7 @@ bool SCGraph::checkStrongSC() {
 
 bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
     ASSERT(w1->op->is_write() && w2->op->is_write());
+    ASSERT(w1->op->get_location() == w1->op->get_location());
     DPRINT("Impose strong path %d -WW-> %d: ", w1->op->get_seq_number(),
         w2->op->get_seq_number());
 
@@ -354,10 +354,12 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
             }
         }
     }
+    return true;
 }
 
 bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
     ASSERT(w->op->is_write() && r->op->is_read());
+    ASSERT(w->op->get_location() == w->op->get_location());
     DPRINT("Impose strong path %d -WR-> %d:\n", w->op->get_seq_number(),
         r->op->get_seq_number());
     if (w->sbSynchronized(r)) {
@@ -398,6 +400,7 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
 
 bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     ASSERT(r->op->is_read() && w->op->is_write());
+    ASSERT(w->op->get_location() == w->op->get_location());
     
     DPRINT("Impose strong path %d -RW-> %d:\n", r->op->get_seq_number(),
         w->op->get_seq_number());
@@ -422,58 +425,82 @@ bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
 
 // This function first build up the clock vectors
 bool SCGraph::computeLocCV(action_list_t *objList) {
-    action_list_t::iterator it = objList->begin(),
-        write1Iter = objList->begin(), write2Iter, readIter;
-    ModelAction *write1 = *it, *write2 = NULL, *read = NULL;
-    SCNode *writeNode1 = nodeMap.get(write1), *writeNode2, *readNode;
-
-    void *loc = write1->get_location();
-    // Only compute those for reads/writes
-    if (!write1->is_read() && !write1->is_write())
-        return true;
-
+    action_list_t::iterator it = objList->begin();
+    ModelAction *act = *it;
+    void *loc = act->get_location();
+    ASSERT (act->is_read() || act->is_write());
     DPRINT("********    Computing Location CV %12p    ********\n", loc);
-    for (it++; it != objList->end(); it++) {
-        ModelAction *act = *it;
+
+    // First sync on all the write->write & write->read to the same location
+    for (it = objList->begin(); it != objList->end(); it++) {
+        act = *it;
+        SCNode *actNode = nodeMap.get(act);
+        ASSERT (act->is_write() || act->is_read());
+        // Then start to go backward from act 
+        action_list_t::iterator it1 = it;
         if (act->is_write()) {
-            write2Iter = it;
-            write2 = act;
-            writeNode2 = nodeMap.get(write2);
-            // Check all the reads between write1 & write2 (i.e. write1 -rf->
-            // read)
-            it = write1Iter;
-            for (it++; it != write2Iter; it++) {
-                read = *it;
-                if (!read->is_read())
+            // act is a write 
+            for (; it1 != objList->begin(); it1--) {
+                ModelAction *write = *it1;
+                SCNode *writeNode = nodeMap.get(write);
+                if (!write->is_write())
                     continue;
-                readNode = nodeMap.get(read);
-                if (imposeStrongPathReadWrite(readNode, writeNode2)) {
-                    readNode->mergeReadWrite(writeNode2);
+                // Sync write -WW-> act 
+                if (cvmap.get(act)->synchronized_since(write) &&
+                    writeNode->writeReadSynchronized(actNode)) {
+                    bool res = imposeStrongPathWriteWrite(writeNode, actNode);
+                    // Strong path between writes means modification order
+                    // write -isc-> act => write -mo-> act
+                    ASSERT (res);
+                    // write -sync-> act (in write-read cv)
+                    writeNode->mergeWriteRead(actNode);
+                } else {
+                    // Stores are not ordered
+                    // We currently impose the seq_cst memory order
+                    DPRINT("unordered writes\n");
+                    if (!inference->imposeSC(act) &&
+                        !inference->imposeSC(write))
+                        return false;
+                }
+            }   
+        } else {
+            // act is a read
+            for (; it1 != objList->begin(); it1--) {
+                ModelAction *write = *it1;
+                SCNode *writeNode = nodeMap.get(write);
+                if (!write->is_write())
+                    continue;
+                if (imposeStrongPathWriteRead(writeNode, actNode)) {
+                    // Sync write -WR-> act 
+                    writeNode->mergeWriteRead(actNode);
                 }
             }
+        }
+    }
 
-            // Make sure writeNode1 is ordered before writeNode2
-            if (cvmap.get(write2)->synchronized_since(write1)) {
-                bool res = imposeStrongPathWriteWrite(writeNode1, writeNode2);
-                // Strong path between writes means modification order
-                // w1 -isc-> w2 => w1 -mo-> w2
-                ASSERT (res);
-                // w1 -sync-> w2 (in write-read cv)
-                writeNode1->mergeWriteRead(writeNode2);
-                // w1 -sync-> w2 (in read-write cv)
-                writeNode1->mergeReadWrite(writeNode2);
-            }
-            // Update the iterators
-            write1Iter = write2Iter;
-            write1 = write2;
-            writeNode1 = writeNode2;
-        } else if (act->is_read()) {
-            readIter = it;
-            read = act;
-            readNode = nodeMap.get(read);
-            if (imposeStrongPathWriteRead(writeNode1, readNode)) {
-                // w1 -sync-> r
-                writeNode1->mergeWriteRead(readNode);
+    // Then sync on all the read->write to the same location
+    for (it = objList->begin(); it != objList->end(); it++) {
+        ModelAction *act = *it;
+        SCNode *actNode = nodeMap.get(act);
+        if (!act->is_write())
+            continue;
+        // Then start to go backward from act 
+        action_list_t::iterator it1 = it;
+        // act is a write 
+        for (; it1 != objList->begin(); it1--) {
+            ModelAction *act0 = *it1;
+            SCNode *actNode0 = nodeMap.get(act0);
+            if (!act0->is_write()) {
+                if (cvmap.get(act)->synchronized_since(act0)) {
+                    actNode0->mergeReadWrite(actNode);
+                }
+            } else {
+                if (!actNode0->readWriteSynchronized(actNode)) {
+                    if (imposeStrongPathReadWrite(actNode0, actNode)) {
+                        // Sync act0 -RW-> act 
+                        actNode0->mergeReadWrite(actNode);
+                    }
+                }
             }
         }
     }
@@ -484,57 +511,9 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
 
 
 bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
-    computeLocCV(objList);
-
     if (objList->empty())
         return true;
-    action_list_t::iterator it1 = objList->begin();
-    ModelAction *act1 = *it1;
-    // Only compute those for reads/writes
-    if (!act1->is_read() && !act1->is_write())
-        return true;
-    DPRINT("********    Checking Location %12p    ********\n", act1->get_location());
-    for (; it1 != objList->end(); it1++) {
-        act1 = *it1;
-        if (act1->is_uninitialized())
-            continue;
-        action_list_t::iterator it2 = it1;
-        it2++;
-
-        SCNode *n1 = nodeMap.get(act1);
-        for (; it2 != objList->end(); it2++) {
-            ModelAction *act2 = *it2;
-            ClockVector *cv2 = cvmap.get(act2);
-            SCNode *n2 = nodeMap.get(act2);
-            
-            // The objList is always ordered by the seq_number of actions
-            ASSERT (n1->earlier(n2));
-
-            if (cv2->synchronized_since(act1)) {
-                DPRINT("%d -> %d:\n", act1->get_seq_number(), act2->get_seq_number());
-                if (act1->is_write() && act2->is_write()) {
-                    if (!n1->writeReadSynchronized(n2)) {
-                        imposeStrongPathWriteWrite(n1, n2);
-                    } else {
-                        DPRINT("Already synced\n");
-                    }
-                } else if (act1->is_write() && act2->is_read()) {
-                    if (!n1->writeReadSynchronized(n2)) {
-                        imposeStrongPathWriteRead(n1, n2);
-                    } else {
-                        DPRINT("Already synced\n");
-                    }
-                } else if (act1->is_read() && act2->is_write()) {
-                    if (!n1->readWriteSynchronized(n2)) {
-                        imposeStrongPathReadWrite(n1, n2);
-                    } else {
-                        DPRINT("Already synced\n");
-                    }
-                }
-            }
-        }
-    }
-
+    computeLocCV(objList);
     return true;
 }
 
@@ -586,6 +565,122 @@ bool SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *pa
             return false;
         }
     }
+}
+
+bool SCGraph::imposeOneStrongPath(SCNode *from, SCNode *to, SCPath *p, bool
+    justCheck) {
+    if (p->impliedCnt == 0) {
+        if (p->rfCnt == 0) {
+            // This is a natrual strong path (sb + thread create/start... => hb)
+            DPRINT("SB path\n");
+            return true;
+        } else {
+            // A synchronizable path
+            edge_list_t *edges = p->edges;
+            if (imposeSyncPath(edges->begin(), edges->end(), from, to, edges,
+                justCheck)) {
+                DPRINT("Synchronized path\n");
+                return true;
+            }
+        }
+    } else {
+        // An SC'able path
+        DPRINT("Checking an SC path\n");
+        if (!inference->is_seqcst(to->op) || !inference->is_seqcst(from->op)) {
+            // A quick check first; if nodes "from" and "to" are not
+            // seq_cst, imediately check another path
+            if (justCheck)
+                return false;
+
+            DPRINT("Try to impose SC on %d or %d\n",
+                from->op->get_seq_number(), to->op->get_seq_number());
+            if (!inference->imposeSC(from->op) || !inference->imposeSC(to->op))
+                return false;
+        }
+        // Find the synchronizable subpaths 
+        edge_list_t *edges = p->edges;
+        // "fromNode" and "endNode" represents the head and tail of a
+        // synchronizable subpath
+        edge_list_t::iterator curIter = edges->begin(),
+            beginIter = curIter, endIter = curIter;
+        SCNode *fromNode = to, *toNode = to, *curNode = to;
+        while (true) {
+            // toNode points to the end of the subpath (already seq_cst);
+            // fromNode points to the head of the subpath;
+            // when they are equals, only one node is in the path;
+            // curNode is the node that the edge "e" points to
+            SCEdge *e = *curIter;
+            SCNode *dest = e->node;
+
+            if (e->type == RF || e->type == SB) {
+                // Simply update the curNode & increase curIter
+                curNode = e->node;
+                curIter++;
+                if (dest == from) {
+                    // This is the end of the last subpath, from becomes the
+                    // fromNode
+                    endIter = edges->end();
+                    if (!imposeSyncPath(beginIter, endIter, from, toNode,
+                        edges)) {
+                        // This is not a strong path
+                        DPRINT("NOT an SC'able path (%d -> %d is not synchronized)\n",
+                            from->op->get_seq_number(), toNode->op->get_seq_number());
+                        return false;
+                    } else {
+                        // Reach the very first subpath, done!
+                        DPRINT("Strong SC path\n");
+                        return true;
+                    }
+                }
+            } else { // This is either RW or WW
+                // Found the from node, i.e. the curNode
+                fromNode = curNode;
+                // First check seq_cst of fromNode
+                if (!inference->is_seqcst(fromNode->op)) {
+                    if (justCheck)
+                        return false;
+                    DPRINT("Try to impose SC on %d\n",
+                        fromNode->op->get_seq_number());
+                    if (!inference->imposeSC(fromNode->op))
+                        return false;
+                }
+                if (fromNode != toNode) {
+                    // More than one node in this "subpath"
+                    endIter = curIter;
+                    if (!imposeSyncPath(beginIter, endIter, fromNode,
+                        toNode, edges)) {
+                        // This is not a strong path
+                        DPRINT("NOT a strong SC path (%d -> %d is not synchronized)\n",
+                            fromNode->op->get_seq_number(), toNode->op->get_seq_number());
+                        return false;
+                    }
+                }
+                // Update the iterators and nodes for the next subpath
+                curIter++;
+                if (curIter == edges->end()) {
+                    // The end of the search, and this is a strong path
+                    DPRINT("Strong SC path\n");
+                    return true;
+                }
+                // Otherwise update the invariables
+                beginIter = curIter;
+                curNode = dest;
+                toNode = dest;
+                // Also make sure that the toNode is always checked
+                if (!inference->is_seqcst(toNode->op)) {
+                    // This is not a strong path
+                    if (justCheck)
+                        return false;
+                    DPRINT("Try to impose SC on %d\n",
+                        toNode->op->get_seq_number());
+                    if (!inference->imposeSC(toNode->op))
+                        return false;
+                }
+            }
+        }
+    }
+    
+    return true;
 }
 
 
@@ -710,10 +805,15 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
     goes to the "to" node.
 */
 bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
-    end, SCNode *from, SCNode *to, edge_list_t *edges) {
-
-    DPRINT("Checking synchronization %d -> %d: ",
-        from->op->get_seq_number(), to->op->get_seq_number());
+    end, SCNode *from, SCNode *to, edge_list_t *edges, bool justCheck) {
+    
+    if (justCheck) {
+        DPRINT("Checking synchronization %d -> %d: ",
+            from->op->get_seq_number(), to->op->get_seq_number());
+    } else {
+        DPRINT("Try to impose synchronization %d -> %d: ",
+            from->op->get_seq_number(), to->op->get_seq_number());
+    }
 
     if (from->sbSynchronized(to)) {
         DPRINT("SB path\n");
@@ -749,6 +849,9 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
             DPRINT("Synchronized path (release sequence)\n");
             return true;
         } else {
+            if (justCheck) {
+                return false;
+            }
             DPRINT("Try to synchronize path (release sequence) (%d or %d is not rel/acq)\n",
                 relHead->get_seq_number(), relTail->get_seq_number());
             if (inference->imposeRelease(relHead) &&
@@ -765,6 +868,9 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
                 const ModelAction *write = e->node->op;
                 if (!inference->is_release(write) ||
                     !inference->is_acquire(curNode->op)) {
+                    if (justCheck) {
+                        return false;
+                    }
                     DPRINT("Try to synchronize path (%d or %d is not rel/acq)\n",
                         write->get_seq_number(),
                         curNode->op->get_seq_number());
@@ -819,6 +925,7 @@ static void printSpace(int num) {
     for (int i = 0; i < num; i++)
         model_print(" ");
 }
+
 
 // Find all the synchronizable paths (sb U rf) iteratively; the main algorithm
 // is the same is the findPathsIteratively() method except that it only looks
@@ -905,8 +1012,16 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
                 VDPRINT("%d\n", to->op->get_seq_number());
                 // Add the path to the result list
                 result->push_back(p);
-                VDPRINT("Found path:");
-                VDB( p->printWithOrder(to, inference); )
+                // We check every path right after we found it --- good for
+                // early return
+                if (imposeSyncPath(p->edges->begin(), p->edges->end(), from, to,
+                    p->edges, true))
+                    return result;
+                VDB(
+                    VDPRINT("Found path:");
+                    p->printWithOrder(to, inference);
+                )
+
             } else if (from->earlier(n0)) {
                 // Haven't found the "from" node yet, just keep pushing to
                 // the stack

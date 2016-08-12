@@ -168,8 +168,11 @@ private:
     // Used for paths from read to write
     bool imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths);
     bool imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
+    bool imposeOneStrongPath(SCNode *from, SCNode *to, SCPath *p, bool
+        justCheck = false);
     bool imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
-        end, SCNode *from, SCNode *to, edge_list_t *edges);
+        end, SCNode *from, SCNode *to, edge_list_t *edges, bool justCheck =
+            false);
     
     SCEdge * removeRFEdge(SCNode *read);
     SCEdge * removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
