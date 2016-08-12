@@ -29,6 +29,10 @@ struct SCNode {
     // This clock vector is used to optimize calculating the ordering between
     // W->W && W->R. If W1 -mo-> W2, synchronize the clock vector;
     // If W1-sc|hb->R1, synchronize the clock vector.
+    ClockVector *writeReadCV;
+
+    // R->W && W->W. If W1 -mo-> W2, synchronize the clock vector;
+    // If R1-hb->W1, synchronize the clock vector.
     ClockVector *readWriteCV;
 
     SCNode(ModelAction *op);
@@ -37,6 +41,9 @@ struct SCNode {
     bool mergeSB(SCNode *dest);
     bool sbSynchronized(SCNode *dest);
 
+    // For write-read ordering reachability
+    bool mergeWriteRead(SCNode *dest);
+    bool writeReadSynchronized(SCNode *dest);
     // For read-write ordering reachability
     bool mergeReadWrite(SCNode *dest);
     bool readWriteSynchronized(SCNode *dest);
@@ -149,8 +156,12 @@ private:
 
     // Check whether the property holds
     bool checkStrongSC();
-    // This is a faster version that utilizes clock vectors
-    bool checkStrongSCPerLocFast(action_list_t *objList);
+
+    bool imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2);
+    bool imposeStrongPathWriteRead(SCNode *w, SCNode *r);
+    bool imposeStrongPathReadWrite(SCNode *r, SCNode *w);
+
+    bool computeLocCV(action_list_t *objList);
     bool checkStrongSCPerLoc(action_list_t *objList);
 
 
