@@ -399,7 +399,7 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
 }
 
 bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
-    ASSERT(r->op->is_read() && w->op->is_write());
+    ASSERT(w->op->is_write());
     ASSERT(w->op->get_location() == w->op->get_location());
     
     DPRINT("Impose strong path %d -RW-> %d:\n", r->op->get_seq_number(),
@@ -423,41 +423,59 @@ bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     return false;
 }
 
-// This function first build up the clock vectors
+// This function builds up the clock vectors
 bool SCGraph::computeLocCV(action_list_t *objList) {
     action_list_t::iterator it = objList->begin();
     ModelAction *act = *it;
     void *loc = act->get_location();
-    ASSERT (act->is_read() || act->is_write());
-    DPRINT("********    Computing Location CV %12p    ********\n", loc);
+    if (act->is_read() || act->is_write())
+        DPRINT("********    Computing Location CV %12p    ********\n", loc);
+    else
+        return true;
 
+    DB (
+        DPRINT("********    List on %p    ********\n", loc);
+        for (action_list_t::iterator objIt = objList->begin(); objIt != objList->end(); objIt++) {
+            ModelAction *cur = *objIt;
+                model_print("  ");
+                cur->print();
+        }
+    )
+
+    DPRINT("********    First round (WW & WR)    ********\n");
     // First sync on all the write->write & write->read to the same location
     for (it = objList->begin(); it != objList->end(); it++) {
         act = *it;
+        if (act->is_uninitialized())
+            continue;
         SCNode *actNode = nodeMap.get(act);
         ASSERT (act->is_write() || act->is_read());
+
         // Then start to go backward from act 
         action_list_t::iterator it1 = it;
+        it1--;
         if (act->is_write()) {
             // act is a write 
             for (; it1 != objList->begin(); it1--) {
                 ModelAction *write = *it1;
+                ASSERT (write);
                 SCNode *writeNode = nodeMap.get(write);
                 if (!write->is_write())
                     continue;
-                // Sync write -WW-> act 
-                if (cvmap.get(act)->synchronized_since(write) &&
-                    writeNode->writeReadSynchronized(actNode)) {
-                    bool res = imposeStrongPathWriteWrite(writeNode, actNode);
-                    // Strong path between writes means modification order
-                    // write -isc-> act => write -mo-> act
-                    ASSERT (res);
-                    // write -sync-> act (in write-read cv)
-                    writeNode->mergeWriteRead(actNode);
+                // Sync write -WW-> act
+                if (cvmap.get(act)->synchronized_since(write)) {
+                    if (!writeNode->writeReadSynchronized(actNode)) {
+                        bool res = imposeStrongPathWriteWrite(writeNode, actNode);
+                        // Strong path between writes means modification order
+                        // write -isc-> act => write -mo-> act
+                        ASSERT (res);
+                        // write -sync-> act (in write-read cv)
+                        writeNode->mergeWriteRead(actNode);
+                    }
                 } else {
                     // Stores are not ordered
                     // We currently impose the seq_cst memory order
-                    DPRINT("unordered writes\n");
+                    DPRINT("Unordered writes\n");
                     if (!inference->imposeSC(act) &&
                         !inference->imposeSC(write))
                         return false;
@@ -467,6 +485,7 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
             // act is a read
             for (; it1 != objList->begin(); it1--) {
                 ModelAction *write = *it1;
+                ASSERT (write);
                 SCNode *writeNode = nodeMap.get(write);
                 if (!write->is_write())
                     continue;
@@ -478,28 +497,32 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
         }
     }
 
+    DPRINT("********    Second round (RW)    ********\n");
     // Then sync on all the read->write to the same location
     for (it = objList->begin(); it != objList->end(); it++) {
         ModelAction *act = *it;
+        if (act->is_uninitialized())
+            continue;
+        ASSERT (act);
         SCNode *actNode = nodeMap.get(act);
         if (!act->is_write())
             continue;
         // Then start to go backward from act 
         action_list_t::iterator it1 = it;
+        it1--;
         // act is a write 
         for (; it1 != objList->begin(); it1--) {
             ModelAction *act0 = *it1;
+            ASSERT (act0);
             SCNode *actNode0 = nodeMap.get(act0);
             if (!act0->is_write()) {
                 if (cvmap.get(act)->synchronized_since(act0)) {
                     actNode0->mergeReadWrite(actNode);
                 }
             } else {
-                if (!actNode0->readWriteSynchronized(actNode)) {
-                    if (imposeStrongPathReadWrite(actNode0, actNode)) {
-                        // Sync act0 -RW-> act 
-                        actNode0->mergeReadWrite(actNode);
-                    }
+                if (cvmap.get(act)->synchronized_since(act0)) {
+                    // Sync act0 -RW-> act 
+                    actNode0->mergeReadWrite(actNode);
                 }
             }
         }
@@ -512,6 +535,12 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
 
 bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
     if (objList->empty())
+        return true;
+
+    ModelAction *act = (*objList->begin());
+    if (act->is_read() || act->is_write())
+        model_print("Location %14p:\n", act->get_location());
+    else
         return true;
     computeLocCV(objList);
     return true;
