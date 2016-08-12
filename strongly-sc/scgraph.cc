@@ -278,6 +278,7 @@ void SCGraph::printInfoPerLoc() {
             }
         }
     }
+    model_print("**********    Location List (end)    **********\n");
 }
 
 // Check whether the property holds
@@ -296,6 +297,8 @@ bool SCGraph::checkStrongSC() {
 
 bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
     ASSERT(w1->op->is_write() && w2->op->is_write());
+    DPRINT("Impose strong path %d -WW-> %d\n", w1->op->get_seq_number(),
+        w2->op->get_seq_number());
     if (w2->op->is_rmw() && w2->op->get_reads_from() == w1->op) {
         return true;
     } else {
@@ -310,28 +313,38 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                 ASSERT (!paths->empty());
                 return imposeSynchronizablePath(w1, w2, paths);
             } else {
-                // Take out the WW edge from w1->w2
-                SCEdge *incomingEdge = removeIncomingEdge(w1, w2, WW);
-                paths = findPathsIteratively(w1, w2);
-                if (paths->empty()) {
-                    // This means w1 -sync-> r && w2 -rf->r
-                    EdgeList *outgoingEdges = w2->outgoing;
-                    for (unsigned i = 0; i < outgoingEdges->size(); i++) {
-                        SCEdge *e = (*outgoingEdges)[i];
-                        if (e->type != RF)
-                            continue;
-                        SCNode *read = e->node;
-                        if (imposeStrongPathWriteRead(w1, read))
-                            return true;
+                if (cvmap.get(w2->op)->synchronized_since(w1->op)) {
+                    // Take out the WW edge from w1->w2
+                    SCEdge *incomingEdge = removeIncomingEdge(w1, w2, WW);
+                    paths = findPathsIteratively(w1, w2);
+                    if (paths->empty()) {
+                        // This means w1 -sync-> r && w2 -rf->r
+                        EdgeList *outgoingEdges = w2->outgoing;
+                        for (unsigned i = 0; i < outgoingEdges->size(); i++) {
+                            SCEdge *e = (*outgoingEdges)[i];
+                            if (e->type != RF)
+                                continue;
+                            SCNode *read = e->node;
+                            if (imposeStrongPathWriteRead(w1, read))
+                                return true;
+                        }
+                        // There must be at least one such "r"
+                        ASSERT (false);
+                    } else {
+                        return imposeStrongPath(w1, w2, paths);
                     }
-                    // There must be at least one such "r"
-                    ASSERT (false);
+                    // Add back the WW edge from w1->w2
+                    if (incomingEdge)
+                        w2->incoming->push_back(incomingEdge);
                 } else {
-                    return imposeStrongPath(w1, w2, paths);
+                    // Stores are not ordered
+                    // We currently impose the seq_cst memory order
+                    DPRINT("Unordered writes NOT seq_cst (%d or %d)\n",
+                        w1->op->get_seq_number(), w2->op->get_seq_number());
+                    if (!inference->imposeSC(w1->op) &&
+                        !inference->imposeSC(w2->op))
+                        return false;
                 }
-                // Add back the WW edge from w1->w2
-                if (incomingEdge)
-                    w2->incoming->push_back(incomingEdge);
             }
         }
     }
@@ -339,6 +352,8 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
 
 bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
     ASSERT(w->op->is_write() && r->op->is_read());
+    DPRINT("Impose strong path %d -WR-> %d\n", w->op->get_seq_number(),
+        r->op->get_seq_number());
     if (w->sbSynchronized(r)) {
         // w -SB-> r
         return true;
@@ -361,6 +376,8 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
 bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     ASSERT(r->op->is_read() && w->op->is_write());
     
+    DPRINT("Impose strong path %d -RW-> %d\n", r->op->get_seq_number(),
+        w->op->get_seq_number());
     if (r->sbSynchronized(w)) {
         return true;
     } else if (r->sbRFSynchronized(w)) {
@@ -379,6 +396,10 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
         write1Iter = objList->begin(), write2Iter, readIter;
     ModelAction *write1 = *it, *write2 = NULL, *read = NULL;
     SCNode *writeNode1 = nodeMap.get(write1), *writeNode2, *readNode;
+
+    void *loc = write1->get_location();
+    DPRINT("********    Computing Location CV %12p    ********\n", loc);
+
     for (it++; it != objList->end(); it++) {
         ModelAction *act = *it;
         if (act->is_write()) {
@@ -400,8 +421,6 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
 
             // Make sure writeNode1 is ordered before writeNode2
             if (cvmap.get(write2)->synchronized_since(write1)) {
-                DPRINT("%d -> %d:\n", write1->get_seq_number(),
-                    write2->get_seq_number());
                 bool res = imposeStrongPathWriteWrite(writeNode1, writeNode2);
                 // Strong path between writes means modification order
                 // w1 -isc-> w2 => w1 -mo-> w2
@@ -426,6 +445,7 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
         }
     }
 
+    DPRINT("********    Computing Location CV %12p (end)    ********\n", loc);
     return true;
 }
 
@@ -433,10 +453,15 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
 bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
     computeLocCV(objList);
 
+    if (objList->empty())
+        return true;
     action_list_t::iterator it1 = objList->begin();
     ModelAction *act1 = *it1;
     DPRINT("********    Checking Location %12p    ********\n", act1->get_location());
     for (; it1 != objList->end(); it1++) {
+        act1 = *it1;
+        if (act1->is_uninitialized())
+            continue;
         action_list_t::iterator it2 = it1;
         it2++;
 
@@ -454,21 +479,13 @@ bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
                 if (act1->is_write() && act2->is_write()) {
                     if (!n1->writeReadSynchronized(n2))
                         imposeStrongPathWriteWrite(n1, n2);
-                } else {
-                    // Stores are not ordered
-                    // We currently impose the seq_cst memory order
-                    DPRINT("Unordered writes NOT seq_cst (%d or %d)\n",
-                        act1->get_seq_number(), act2->get_seq_number());
-                    if (!inference->imposeSC(act1) &&
-                        !inference->imposeSC(act2))
-                        return false;
+                } else if (act1->is_write() && act2->is_read()) {
+                    if (!n1->writeReadSynchronized(n2))
+                        imposeStrongPathWriteRead(n1, n2);
+                } else if (act1->is_read() && act2->is_write()) {
+                    if (!n1->readWriteSynchronized(n2))
+                        imposeStrongPathReadWrite(n1, n2);
                 }
-            } else if (act1->is_write() && act2->is_read()) {
-                if (!n1->writeReadSynchronized(n2))
-                    imposeStrongPathWriteRead(n1, n2);
-            } else if (act1->is_read() && act2->is_write()) {
-                if (!n1->readWriteSynchronized(n2))
-                    imposeStrongPathReadWrite(n1, n2);
             }
         }
     }
@@ -512,7 +529,7 @@ bool SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *pa
     } else {
         // If so, we simply impose synchronization on path "p"
         DB (
-            model_print("**** Checking synchronizable path: ");
+            model_print("Checking synchronizable path: ");
             p->printWithOrder(to, inference);
         )
         edge_list_t *edges = p->edges;
@@ -592,7 +609,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                         return false;
                     } else {
                         // Reach the very first subpath, done!
-                        DPRINT("SC'ed path\n");
+                        DPRINT("Strong SC path\n");
                         return true;
                     }
                 }
@@ -612,7 +629,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                     if (!imposeSyncPath(beginIter, endIter, fromNode,
                         toNode, edges)) {
                         // This is not a strong path
-                        DPRINT("NOT an SC'ed path (%d -> %d is not synchronized)\n",
+                        DPRINT("NOT a strong SC path (%d -> %d is not synchronized)\n",
                             fromNode->op->get_seq_number(), toNode->op->get_seq_number());
                         return false;
                     }
@@ -621,7 +638,7 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
                 curIter++;
                 if (curIter == edges->end()) {
                     // The end of the search, and this is a strong path
-                    DPRINT("SC'ed path\n");
+                    DPRINT("Strong SC path\n");
                     return true;
                 }
                 // Otherwise update the invariables
@@ -650,8 +667,13 @@ bool SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
 bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     end, SCNode *from, SCNode *to, edge_list_t *edges) {
 
-    DPRINT("**** Checking synchronization %d -> %d: ",
+    DPRINT("Checking synchronization %d -> %d: ",
         from->op->get_seq_number(), to->op->get_seq_number());
+
+    if (from->sbSynchronized(to)) {
+        DPRINT("SB path\n");
+        return true;
+    }
 
     // Try a simple release-sequence-type synchronization
     // Find a continuous rf chain
@@ -758,7 +780,7 @@ static void printSpace(int num) {
 // for SB & RF edges.
 path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *to) {
 
-    DPRINT("****  Iteratively finding synchronizable path %d -> %d  ****\n",
+    DPRINT("****  Finding synchronizable path %d -> %d  ****\n",
         from->op->get_seq_number(), to->op->get_seq_number());
     // The main stack we use to maintain the choices and backtrack
     SnapList<EdgeChoice *> edgeStack; 
@@ -879,8 +901,10 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
             model_print("#%d. ", cnt);
             p->printWithOrder(to, inference);
         }
-        DPRINT("****  Iteratively finding syncrhonizable path (done) %d -> %d  ****\n",
-            from->op->get_seq_number(), to->op->get_seq_number());
+        if (result->empty()) {
+            DPRINT("****  NO syncrhonizable path: %d -> %d  ****\n",
+                from->op->get_seq_number(), to->op->get_seq_number());
+        }
     )
 
     return result;
@@ -894,7 +918,7 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
 // there can't be an edge from backwards.
 path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
 
-    DPRINT("****  Iteratively finding path %d -> %d  ****\n", from->op->get_seq_number(),
+    DPRINT("****  Finding path %d -> %d  ****\n", from->op->get_seq_number(),
         to->op->get_seq_number());
     // The main stack we use to maintain the choices and backtrack
     SnapList<EdgeChoice *> edgeStack; 
@@ -998,8 +1022,10 @@ path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
             model_print("#%d. ", cnt);
             p->printWithOrder(to, inference);
         }
-        DPRINT("****  Iteratively finding path (done) %d -> %d  ****\n",
-            from->op->get_seq_number(), to->op->get_seq_number());
+        if (result->empty()) {
+            DPRINT("****  NO SC path: %d -> %d  ****\n",
+                from->op->get_seq_number(), to->op->get_seq_number());
+        }
     )
 
     return result;

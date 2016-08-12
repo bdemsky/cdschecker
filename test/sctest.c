@@ -29,7 +29,7 @@ static void c(void *obj)
     // It reads from 'w3'
 	r1=atomic_load_explicit(&y, wildcard(6)); // acquire
     // It reads from 'w4'
-	r2=atomic_load_explicit(&x, wildcard(7)); // SC
+	r2=atomic_load_explicit(&x, wildcard(7)); // relaxed
 }
 
 int user_main(int argc, char **argv)

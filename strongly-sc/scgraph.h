@@ -10,7 +10,7 @@
 struct SCNode;
 struct SCEdge;
 struct SCPath;
-struct SCGraph;
+class SCGraph;
 typedef ModelVector<SCEdge *> EdgeList;
 typedef SnapList<SCNode *> node_list_t;
 typedef SnapList<SCEdge *> edge_list_t;
