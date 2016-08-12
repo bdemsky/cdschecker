@@ -770,27 +770,27 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
     edgeStack.push_back(new EdgeChoice(to, 0, 0));
     // The first edge must be either an SB or RF edge
     ASSERT ((*to->incoming)[0]->type <= RF);
-    DPRINT("Push back: (%d, %d, %d)\n", to->op->get_seq_number(), 0, 0);
+    VDPRINT("Push back: (%d, %d, %d)\n", to->op->get_seq_number(), 0, 0);
 
     // Main loop
     while (!edgeStack.empty()) {
         EdgeChoice *choice = edgeStack.back();
         SCNode *n = choice->n;
         EdgeList *incomingEdges = n->incoming;
-        DPRINT("Peek back: (%d, %d, %d)\n", n->op->get_seq_number(), choice->i,
+        VDPRINT("Peek back: (%d, %d, %d)\n", n->op->get_seq_number(), choice->i,
             choice->finished);
 
         if ((*incomingEdges)[choice->i]->type > RF) {
             // Backtrack since we only look for SB & RF edges
             // The current edge choice is done, backtrack
-            DPRINT("RW|WW edge backtrack: \n");
+            VDPRINT("RW|WW edge backtrack: \n");
             // FIXME: We can actually give up very early here since all other
             // edges with bigger index should be RW|WW edges
             if (incomingEdges->size() != choice->i + 1) {
                 // We don't need to pop the choice yet, just update the choice
                 choice->finished = 0;
                 choice->i++;
-                DPRINT("Advance choice: (%d, %d, %d)\n",
+                VDPRINT("Advance choice: (%d, %d, %d)\n",
                     n->op->get_seq_number(), choice->i, choice->finished);
             }
         }
@@ -803,18 +803,18 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
 
             // This is also an ending condition, backtrack
             if (n0->incoming->empty()) {
-                DPRINT("Empty choice: (%d, %d, %d)\n", n->op->get_seq_number(),
+                VDPRINT("Empty choice: (%d, %d, %d)\n", n->op->get_seq_number(),
                     choice->i, choice->finished);
                 if (incomingEdges->size() != choice->i + 1) {
                     // We don't need to pop the choice yet, just update the choice
                     choice->finished = 0;
                     choice->i++;
-                    DPRINT("Advance choice: (%d, %d, %d)\n",
+                    VDPRINT("Advance choice: (%d, %d, %d)\n",
                         n->op->get_seq_number(), choice->i, choice->finished);
                 } else {
                     // Ready to pop out the choice
                     edgeStack.pop_back();
-                    DPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
+                    VDPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
                         choice->i, choice->finished);
                 }
                 // Go back to the loop
@@ -826,40 +826,40 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
                 // Found a path, build the path
                 SCPath *p = new SCPath;
                 // Add the first edge
-                DPRINT("Add edge: ");
+                VDPRINT("Add edge: ");
                 for (SnapList<EdgeChoice *>::reverse_iterator iter =
                     edgeStack.rbegin(); iter != edgeStack.rend();
                     iter++) {
                     EdgeChoice *c = *iter;
                     SCEdge *e0 = (*c->n->incoming)[c->i];
-                    DPRINT("%d -> ", e0->node->op->get_seq_number());
+                    VDPRINT("%d -> ", e0->node->op->get_seq_number());
                     p->addEdgeFromFront(e0);
                 }
-                DPRINT("%d\n", to->op->get_seq_number());
+                VDPRINT("%d\n", to->op->get_seq_number());
                 // Add the path to the result list
                 result->push_back(p);
-                DPRINT("Found path:");
-                DB( p->printWithOrder(to, inference); )
+                VDPRINT("Found path:");
+                VDB( p->printWithOrder(to, inference); )
             } else if (from->earlier(n0)) {
                 // Haven't found the "from" node yet, just keep pushing to
                 // the stack
                 edgeStack.push_back(new EdgeChoice(n0, 0, 0));
-                DPRINT("Push back: (%d, %d, %d)\n", n0->op->get_seq_number(), 0,
+                VDPRINT("Push back: (%d, %d, %d)\n", n0->op->get_seq_number(), 0,
                     0);
             }
         } else {
             // The current edge choice is done, backtrack
-            DPRINT("Finished backtrack: \n");
+            VDPRINT("Finished backtrack: \n");
             if (incomingEdges->size() != choice->i + 1) {
                 // We don't need to pop the choice yet, just update the choice
                 choice->finished = 0;
                 choice->i++;
-                DPRINT("Advance choice: (%d, %d, %d)\n",
+                VDPRINT("Advance choice: (%d, %d, %d)\n",
                     n->op->get_seq_number(), choice->i, choice->finished);
             } else {
                 // Ready to pop out the choice
                 edgeStack.pop_back();
-                DPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
+                VDPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
                     choice->i, choice->finished);
             }
         }
@@ -904,14 +904,14 @@ path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
     unsigned fromSeqNum = from->op->get_seq_number();
     // Initially push back the 0th edge of to's incoming edges
     edgeStack.push_back(new EdgeChoice(to, 0, 0));
-    DPRINT("Push back: (%d, %d, %d)\n", to->op->get_seq_number(), 0, 0);
+    VDPRINT("Push back: (%d, %d, %d)\n", to->op->get_seq_number(), 0, 0);
 
     // Main loop
     while (!edgeStack.empty()) {
         EdgeChoice *choice = edgeStack.back();
         SCNode *n = choice->n;
         EdgeList *incomingEdges = n->incoming;
-        DPRINT("Peek back: (%d, %d, %d)\n", n->op->get_seq_number(), choice->i,
+        VDPRINT("Peek back: (%d, %d, %d)\n", n->op->get_seq_number(), choice->i,
             choice->finished);
 
         if (choice->finished == 0) { // The current choice of edge is done
@@ -922,18 +922,18 @@ path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
 
             // This is also an ending condition, backtrack
             if (n0->incoming->empty()) {
-                DPRINT("Empty choice: (%d, %d, %d)\n", n->op->get_seq_number(),
+                VDPRINT("Empty choice: (%d, %d, %d)\n", n->op->get_seq_number(),
                     choice->i, choice->finished);
                 if (incomingEdges->size() != choice->i + 1) {
                     // We don't need to pop the choice yet, just update the choice
                     choice->finished = 0;
                     choice->i++;
-                    DPRINT("Advance choice: (%d, %d, %d)\n",
+                    VDPRINT("Advance choice: (%d, %d, %d)\n",
                         n->op->get_seq_number(), choice->i, choice->finished);
                 } else {
                     // Ready to pop out the choice
                     edgeStack.pop_back();
-                    DPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
+                    VDPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
                         choice->i, choice->finished);
                 }
                 // Go back to the loop
@@ -945,40 +945,40 @@ path_list_t * SCGraph::findPathsIteratively(SCNode *from, SCNode *to) {
                 // Found a path, build the path
                 SCPath *p = new SCPath;
                 // Add the first edge
-                DPRINT("Add edge: ");
+                VDPRINT("Add edge: ");
                 for (SnapList<EdgeChoice *>::reverse_iterator iter =
                     edgeStack.rbegin(); iter != edgeStack.rend();
                     iter++) {
                     EdgeChoice *c = *iter;
                     SCEdge *e0 = (*c->n->incoming)[c->i];
-                    DPRINT("%d -> ", e0->node->op->get_seq_number());
+                    VDPRINT("%d -> ", e0->node->op->get_seq_number());
                     p->addEdgeFromFront(e0);
                 }
-                DPRINT("%d\n", to->op->get_seq_number());
+                VDPRINT("%d\n", to->op->get_seq_number());
                 // Add the path to the result list
                 result->push_back(p);
-                DPRINT("Found path:");
-                DB( p->printWithOrder(to, inference); )
+                VDPRINT("Found path:");
+                VDB( p->printWithOrder(to, inference); )
             } else if (from->earlier(n0)) {
                 // Haven't found the "from" node yet, just keep pushing to
                 // the stack
                 edgeStack.push_back(new EdgeChoice(n0, 0, 0));
-                DPRINT("Push back: (%d, %d, %d)\n", n0->op->get_seq_number(), 0,
+                VDPRINT("Push back: (%d, %d, %d)\n", n0->op->get_seq_number(), 0,
                     0);
             }
         } else {
             // The current edge choice is done, backtrack
-            DPRINT("Finished backtrack: \n");
+            VDPRINT("Finished backtrack: \n");
             if (incomingEdges->size() != choice->i + 1) {
                 // We don't need to pop the choice yet, just update the choice
                 choice->finished = 0;
                 choice->i++;
-                DPRINT("Advance choice: (%d, %d, %d)\n",
+                VDPRINT("Advance choice: (%d, %d, %d)\n",
                     n->op->get_seq_number(), choice->i, choice->finished);
             } else {
                 // Ready to pop out the choice
                 edgeStack.pop_back();
-                DPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
+                VDPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
                     choice->i, choice->finished);
             }
         }
