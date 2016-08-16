@@ -1081,6 +1081,7 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
                 result->push_back(p);
                 // We check every path right after we found it --- good for
                 // early return
+                // FIXME: For synchronizable paths, we look at all of them
                 if (imposeSyncPath(p->edges->begin(), p->edges->end(), from, to,
                     p->edges, true))
                     return result;
