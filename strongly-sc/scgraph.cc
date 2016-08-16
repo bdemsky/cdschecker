@@ -448,6 +448,7 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
         act = *it;
         if (act->is_uninitialized())
             continue;
+
         SCNode *actNode = nodeMap.get(act);
         ASSERT (act->is_write() || act->is_read());
 
@@ -463,15 +464,21 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
                 if (!write->is_write())
                     continue;
                 // Sync write -WW-> act
+                DPRINT("W1=%d, ", write->get_seq_number());
+                writeNode->writeReadCV->print();
+                DPRINT("W2=%d, ", act->get_seq_number());
+                actNode->writeReadCV->print();
                 if (cvmap.get(act)->synchronized_since(write)) {
                     if (!writeNode->writeReadSynchronized(actNode)) {
                         bool res = imposeStrongPathWriteWrite(writeNode, actNode);
                         // Strong path between writes means modification order
                         // write -isc-> act => write -mo-> act
                         ASSERT (res);
-                        // write -sync-> act (in write-read cv)
-                        writeNode->mergeWriteRead(actNode);
                     }
+                    // write -sync-> act (in write-read cv)
+                    writeNode->mergeWriteRead(actNode);
+                    DPRINT("W2=%d, ", act->get_seq_number());
+                    actNode->writeReadCV->print();
                 } else {
                     // Stores are not ordered
                     // We currently impose the seq_cst memory order
@@ -489,9 +496,20 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
                 SCNode *writeNode = nodeMap.get(write);
                 if (!write->is_write())
                     continue;
-                if (imposeStrongPathWriteRead(writeNode, actNode)) {
+                DPRINT("W1=%d, ", write->get_seq_number());
+                writeNode->writeReadCV->print();
+                DPRINT("R1=%d, ", act->get_seq_number());
+                actNode->writeReadCV->print();
+                if (writeNode->writeReadSynchronized(actNode)) {
                     // Sync write -WR-> act 
                     writeNode->mergeWriteRead(actNode);
+                    DPRINT("R1=%d, ", act->get_seq_number());
+                    actNode->writeReadCV->print();
+                } else if (imposeStrongPathWriteRead(writeNode, actNode)) {
+                    // Sync write -WR-> act 
+                    writeNode->mergeWriteRead(actNode);
+                    DPRINT("R1=%d, ", act->get_seq_number());
+                    actNode->writeReadCV->print();
                 }
             }
         }
@@ -515,14 +533,34 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
             ModelAction *act0 = *it1;
             ASSERT (act0);
             SCNode *actNode0 = nodeMap.get(act0);
-            if (!act0->is_write()) {
+            if (act0->is_write()) {
+                DPRINT("W1=%d, ", act0->get_seq_number());
+                actNode0->readWriteCV->print();
+                DPRINT("W2=%d, ", act->get_seq_number());
+                actNode->readWriteCV->print();
+                // act0 is a write
                 if (cvmap.get(act)->synchronized_since(act0)) {
                     actNode0->mergeReadWrite(actNode);
+                    DPRINT("W2=%d, ", act->get_seq_number());
+                    actNode->readWriteCV->print();
                 }
             } else {
+                // act0 is a read 
+                DPRINT("R1=%d, ", act0->get_seq_number());
+                actNode0->readWriteCV->print();
+                DPRINT("W2=%d, ", act->get_seq_number());
+                actNode->readWriteCV->print();
                 if (cvmap.get(act)->synchronized_since(act0)) {
-                    // Sync act0 -RW-> act 
-                    actNode0->mergeReadWrite(actNode);
+                    if (actNode0->readWriteSynchronized(actNode)) {
+                        actNode0->mergeReadWrite(actNode);
+                        DPRINT("W2=%d, ", act->get_seq_number());
+                        actNode->readWriteCV->print();
+                    } else if (imposeStrongPathReadWrite(actNode0, actNode)) {
+                        // Sync act0 -RW-> act 
+                        actNode0->mergeReadWrite(actNode);
+                        DPRINT("W2=%d, ", act->get_seq_number());
+                        actNode->readWriteCV->print();
+                    }
                 }
             }
         }
