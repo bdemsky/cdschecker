@@ -164,8 +164,8 @@ private:
     bool computeLocCV(action_list_t *objList);
     bool checkStrongSCPerLoc(action_list_t *objList);
 
-
-    // Used for paths from read to write
+    // Check whether a path is single location
+    bool isSingleLocPath(SCNode *from, SCNode *to, path_list_t *paths);
     bool imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths);
     bool imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
     bool imposeOneStrongPath(SCNode *from, SCNode *to, SCPath *p, bool

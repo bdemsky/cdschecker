@@ -604,15 +604,64 @@ static bool comparePath(const SCPath *first, const SCPath *second)
 }
 
 
+// Check whether a path is single location
+bool SCGraph::isSingleLocPath(SCNode *from, SCNode *to, path_list_t *paths) {
+    void *loc = to->op->get_location();
+    for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
+        SCPath *p = *it;
+        edge_list_t *edges = p->edges;
+        bool flag = true;
+        SCNode *cur = to;
+        for (edge_list_t::iterator edgeIt = edges->begin(); edgeIt !=
+            edges->end(); edgeIt++) {
+            SCEdge *e = *edgeIt;
+            SCNode *n = e->node;
+            if (n->op->get_location() == loc) {
+                cur = n;
+            } else {
+                // ! (n -SB-> cur || n -RF-> cur)
+                if (!(n->sbSynchronized(cur) || (cur->op->is_read() &&
+                    cur->op->get_reads_from() == n->op))) {
+                    flag = false;
+                    break;
+                }
+            }
+        }
+        if (flag)
+            return true;
+    }
+
+    return false;
+}
+
 bool SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths) {
     if (paths->empty())
         return true;
+
+    DB (
+        int cnt = 1;
+        model_print("We have the following sbUrf paths: \n");
+        for (path_list_t::iterator it = paths->begin(); it != paths->end(); it++) {
+            SCPath *p = *it;
+            model_print("#%d. ", cnt++);
+            p->printWithOrder(to, inference);
+        }
+    )
+
+    if (isSingleLocPath(from, to, paths)) {
+        DPRINT("Single location path\n");
+        return true;
+    }
 
     // Sort the path list; if we have a synchronizable path, it must be the
     // first one in the sorted list
     paths->sort(comparePath);
     path_list_t::iterator it = paths->begin();
     SCPath *p = *it;
+
+    // This is a special case for single location path (we can just use cache
+    // coherence)
+
 
     if (p->impliedCnt > 0) {
         // We simply don't have a synchronizable path
@@ -896,16 +945,17 @@ bool SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     SCNode *curNode = to;
     for (edge_list_t::iterator it = begin; it != end; it++) {
         SCEdge *e = *it;
-        if (e->type == RF && !rfStart) {
+        SCNode *n = e->node;
+        bool isRF = e->type == RF || (curNode->op->is_read() &&
+            curNode->op->get_reads_from() == n->op);
+        if (isRF && !rfStart) {
             rfStart = true;
             relTail = curNode->op;
         }
-        if (rfStart && e->type != RF) {
+        if (rfStart && !isRF) {
             rfEnd = true;
             relHead = curNode->op;
-        }
-        if (e->type == RF && rfEnd) {
-            isRelSeq = false;
+            isRelSeq = from->op->get_tid() == relHead->get_tid();
             break;
         }
         curNode = e->node;
@@ -1010,7 +1060,8 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
     // Initially push back the 0th edge of to's incoming edges
     edgeStack.push_back(new EdgeChoice(to, 0, 0));
     // The first edge must be either an SB or RF edge
-    ASSERT ((*to->incoming)[0]->type <= RF);
+    SCEdgeType t = (*to->incoming)[0]->type;
+    ASSERT (t == SB || t == RF);
     VDPRINT("Push back: (%d, %d, %d)\n", to->op->get_seq_number(), 0, 0);
 
     // Main loop
@@ -1021,19 +1072,20 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
         VDPRINT("Peek back: (%d, %d, %d)\n", n->op->get_seq_number(), choice->i,
             choice->finished);
 
-        if ((*incomingEdges)[choice->i]->type > RF) {
+        t = (*incomingEdges)[choice->i]->type;
+        if (t == RW || t == WW) {
             // Backtrack since we only look for SB & RF edges
             // The current edge choice is done, backtrack
             VDPRINT("RW|WW edge backtrack: \n");
             // FIXME: We can actually give up very early here since all other
             // edges with bigger index should be RW|WW edges
-            if (incomingEdges->size() != choice->i + 1) {
-                // We don't need to pop the choice yet, just update the choice
-                choice->finished = 0;
-                choice->i++;
-                VDPRINT("Advance choice: (%d, %d, %d)\n",
-                    n->op->get_seq_number(), choice->i, choice->finished);
-            }
+            // Make sure this is true
+
+            // Ready to pop out the choice
+            edgeStack.pop_back();
+            VDPRINT("Pop back: (%d, %d, %d)\n", n->op->get_seq_number(),
+                choice->i, choice->finished);
+            continue;
         }
 
         if (choice->finished == 0) { // The current choice of edge is done
@@ -1081,14 +1133,13 @@ path_list_t * SCGraph::findSynchronizablePathsIteratively(SCNode *from, SCNode *
                 result->push_back(p);
                 // We check every path right after we found it --- good for
                 // early return
-                // FIXME: For synchronizable paths, we look at all of them
-                if (imposeSyncPath(p->edges->begin(), p->edges->end(), from, to,
-                    p->edges, true))
-                    return result;
                 VDB(
                     VDPRINT("Found path:");
                     p->printWithOrder(to, inference);
                 )
+                if (imposeSyncPath(p->edges->begin(), p->edges->end(), from, to,
+                    p->edges, true))
+                    return result;
 
             } else if (from->earlier(n0)) {
                 // Haven't found the "from" node yet, just keep pushing to

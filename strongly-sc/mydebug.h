@@ -2,7 +2,7 @@
 #define _MYDEBUG_H
 
 #define STRONGSC_DEBUG
-//#define STRONGSC_VERBOSE
+//#define STRONGSC_VERBOSE_DEBUG
 
 #ifdef STRONGSC_DEBUG
 #define DB(x) x
