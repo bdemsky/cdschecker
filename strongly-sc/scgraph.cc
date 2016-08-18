@@ -280,7 +280,7 @@ bool SCGraph::checkStrongSC() {
 }
 
 
-void SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
+bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
     ASSERT(w1->op->is_write() && w2->op->is_write());
     ASSERT(w1->op->get_location() == w1->op->get_location());
     DPRINT("Impose strong path %d -WW-> %d: ", w1->op->get_seq_number(),
@@ -294,11 +294,11 @@ void SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
 
     patch_list_t *patches = NULL;
     if (w2->op->is_rmw() && w2->op->get_reads_from() == w1->op) {
-        return;
+        return true;
     } else {
         if (w1->sbSynchronized(w2)) {
             // w1 -SB-> w2
-            return;
+            return true;
         } else {
             path_list_t *paths = NULL;
             if (w1->sbRFSynchronized(w2)) {
@@ -309,15 +309,15 @@ void SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                 if (patches && !patches->empty()) {
                     assignments->applyPatches(patches);
                 }
-                return;
+                return true;
             } else {
                 if (cvmap.get(w2->op)->synchronized_since(w1->op)) {
                     // Take out the WW edge from w1->w2
-                    SCEdge *incomingEdge = removeIncomingEdge(w1, w2, WW);
+                    unsigned edgeIndex = removeIncomingEdge(w1, w2, WW);
                     paths = findPaths(w1, w2);
                     // Add back the WW edge from w1->w2
-                    if (incomingEdge)
-                        w2->incoming->push_back(incomingEdge);
+                    if (edgeIndex != -1)
+                        addBackIncomingEdge(w2, edgeIndex, WW);
                     if (paths->empty()) {
                         // This means w1 -sync-> r && w2 -rf->r
                         EdgeList *outgoingEdges = w2->outgoing;
@@ -327,7 +327,7 @@ void SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                                 continue;
                             SCNode *read = e->node;
                             if (imposeStrongPathWriteRead(w1, read)) {
-                                return;
+                                return true;
                             }
                         }
                         // There must be at least one such "r"
@@ -337,7 +337,7 @@ void SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                         if (patches && !patches->empty()) {
                             assignments->applyPatches(patches);
                         }
-                        return;
+                        return false;
                     }
                 } else {
                     // Stores are not ordered
@@ -348,7 +348,7 @@ void SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                     patches = new patch_list_t;
                     patches->push_back(p);
                     assignments->applyPatches(patches);
-                    return;
+                    return false;
                 }
             }
         }
@@ -368,15 +368,14 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
     } else {
         path_list_t *paths = NULL;
         // Take out the RF edge of "r" 
-        SCEdge *incomingEdge = removeRFEdge(r);
+        unsigned rfIndex = removeRFEdge(r);
         // First try to find synchronizable paths
         paths = findSynchronizablePaths(w, r);
         patch_list_t *patches = NULL;
         if (!paths->empty()) {
             patches = imposeSynchronizablePath(w, r, paths);
             // Add back the RF edge from w->r
-            if (incomingEdge)
-                r->incoming->push_front(incomingEdge);
+            addBackRFEdge(r, rfIndex);
             if (patches && !patches->empty()) {
                 assignments->applyPatches(patches);
             }
@@ -387,8 +386,7 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
             delete paths;
             paths = findPaths(w, r);
             // Add back the RF edge from w->r
-            if (incomingEdge)
-                r->incoming->push_front(incomingEdge);
+            addBackRFEdge(r, rfIndex);
             if (!paths->empty()) {
                 patches = imposeStrongPath(w, r, paths);
                 if (patches && !patches->empty()) {
@@ -406,7 +404,7 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
     return false;
 }
 
-void SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
+bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     ASSERT(r->op->is_read() && w->op->is_write());
     ASSERT(w->op->get_location() == w->op->get_location());
     
@@ -415,7 +413,7 @@ void SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     if (r->sbSynchronized(w)) {
         DPRINT("%d -RW-> %d: Synced\n", w->op->get_seq_number(),
             r->op->get_seq_number());
-        return;
+        return true;
     } else if (r->sbRFSynchronized(w)) {
         // r -sbUrf-> w
         path_list_t *paths = findSynchronizablePaths(r, w);
@@ -426,7 +424,9 @@ void SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
         if (patches && !patches->empty()) {
             assignments->applyPatches(patches);       
         }
+        return true;
     }
+    return false;
 }
 
 // This function builds up the clock vectors
@@ -489,9 +489,12 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
                     // Stores are not ordered
                     // We currently impose the seq_cst memory order
                     DPRINT("Unordered writes\n");
-                    if (!inference->imposeSC(act) &&
-                        !inference->imposeSC(write))
-                        return false;
+                    SCPatch *p = new SCPatch(act, memory_order_seq_cst,
+                        write, memory_order_seq_cst);
+                    patch_list_t *patches = new patch_list_t;
+                    patches->push_back(p);
+                    assignments->applyPatches(patches);
+                    return false;
                 }
             }   
         } else {
@@ -663,13 +666,13 @@ patch_list_t* SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_l
             p->printWithOrder(to);
         )
         edge_list_t *edges = p->edges;
-        SCPatch *p = new SCPatch;
+        SCPatch *patch = new SCPatch;
         imposeSyncPath(edges->begin(), edges->end(), from, to,
-            edges, p);
-        if (p->getSize() > 0) {
-            patches->push_back(p);
+            edges, patch );
+        if (patch ->getSize() > 0) {
+            patches->push_back(patch );
         } else {
-            delete p;
+            delete patch;
         }
     }
 
@@ -818,9 +821,9 @@ void SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
             curNode = e->node;
         }
     }
-/
+}
 
-SCEdge * SCGraph::removeRFEdge(SCNode *read) {
+unsigned SCGraph::removeRFEdge(SCNode *read) {
     ASSERT (read->op->is_read());
     EdgeList *incomingEdges = read->incoming;
     for (unsigned i = 0; i < incomingEdges->size(); i++) {
@@ -829,8 +832,8 @@ SCEdge * SCGraph::removeRFEdge(SCNode *read) {
             DPRINT("Take out the %d -RF->%d edge temporarily\n",
                 existing->node->op->get_seq_number(),
                 read->op->get_seq_number());
-            incomingEdges->erase(incomingEdges->begin() + i);
-            return existing;
+            existing->type = REMOVED;
+            return i;
         }
     }
 
@@ -838,7 +841,15 @@ SCEdge * SCGraph::removeRFEdge(SCNode *read) {
     ASSERT (false);
 }
 
-SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) {
+void SCGraph::addBackRFEdge(SCNode *read, unsigned index) {
+    ASSERT (read->op->is_read());
+    SCEdge *e = (*read->incoming)[index];
+    ASSERT (e->type == REMOVED);
+    e->type = RF;
+}
+
+unsigned SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) {
+    ASSERT (to->op->is_write() && (type == RW || type == WW));
     DPRINT("Take out the %d -%s-> %d edge temporarily\n", from->op->get_seq_number(),
         get_edge_str(type), to->op->get_seq_number());
     EdgeList *incomingEdges = to->incoming;
@@ -846,12 +857,21 @@ SCEdge * SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) 
         SCEdge *existing  = (*incomingEdges)[i];
         if (type == existing->type &&
             from == existing->node) {
-            incomingEdges->erase(incomingEdges->begin() + i);
-            return existing;
+            existing->type = REMOVED;
+            return i;
         }
     }
-    // The caller must make sure that there's such an edge
-    return NULL;
+    // We do not have such an edge
+    return -1;
+}
+
+void SCGraph::addBackIncomingEdge(SCNode *to, unsigned index, SCEdgeType type) {
+    ASSERT (to->op->is_write() && (type == RW || type == WW));
+    if (index == -1)
+        return;
+    SCEdge *e = (*to->incoming)[index];
+    ASSERT (e->type == REMOVED);
+    e->type = type;
 }
 
 static void printSpace(int num) {
@@ -889,7 +909,7 @@ path_list_t * SCGraph::findSynchronizablePaths(SCNode *from, SCNode *to) {
             choice->finished);
 
         t = (*incomingEdges)[choice->i]->type;
-        if (t == RW || t == WW) {
+        if (t == RW || t == WW || t == REMOVED) {
             // Backtrack since we only look for SB & RF edges
             // The current edge choice is done, backtrack
             VDPRINT("RW|WW edge backtrack: \n");
@@ -951,11 +971,10 @@ path_list_t * SCGraph::findSynchronizablePaths(SCNode *from, SCNode *to) {
                 // early return
                 VDB(
                     VDPRINT("Found path:");
-                    p->printWithOrder(to, inference);
+                    p->printWithOrder(to);
                 )
-                if (imposeSyncPath(p->edges->begin(), p->edges->end(), from, to,
-                    p->edges, true))
-                    return result;
+                // FIXME: Looking for all the sbUrf paths can be very costly
+                // Maybe we can use some tricks to exit early
 
             } else if (from->earlier(n0)) {
                 // Haven't found the "from" node yet, just keep pushing to
@@ -994,7 +1013,7 @@ path_list_t * SCGraph::findSynchronizablePaths(SCNode *from, SCNode *to) {
             it++, cnt++) {
             SCPath *p = *it;
             model_print("#%d. ", cnt);
-            p->printWithOrder(to, inference);
+            p->printWithOrder(to);
         }
         if (result->empty()) {
             DPRINT("****  NO syncrhonizable path: %d -> %d  ****\n",
@@ -1040,9 +1059,14 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
             SCNode *n0 = e->node;
 
             // This is also an ending condition, backtrack
-            if (n0->incoming->empty()) {
-                VDPRINT("Empty choice: (%d, %d, %d)\n", n->op->get_seq_number(),
-                    choice->i, choice->finished);
+            if (n0->incoming->empty() || e->type == REMOVED) {
+                if (n0->incoming->empty()) {
+                    VDPRINT("Empty choice: (%d, %d, %d)\n",
+                        n->op->get_seq_number(), choice->i, choice->finished);
+                } else {
+                    VDPRINT("Removed edge: (%d, %d, %d)\n",
+                        n->op->get_seq_number(), choice->i, choice->finished);
+                }
                 if (incomingEdges->size() != choice->i + 1) {
                     // We don't need to pop the choice yet, just update the choice
                     choice->finished = 0;
@@ -1077,7 +1101,7 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
                 // Add the path to the result list
                 result->push_back(p);
                 VDPRINT("Found path:");
-                VDB( p->printWithOrder(to, inference); )
+                VDB( p->printWithOrder(to); )
             } else if (from->earlier(n0)) {
                 // Haven't found the "from" node yet, just keep pushing to
                 // the stack
@@ -1115,7 +1139,7 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
             it++, cnt++) {
             SCPath *p = *it;
             model_print("#%d. ", cnt);
-            p->printWithOrder(to, inference);
+            p->printWithOrder(to);
         }
         if (result->empty()) {
             DPRINT("****  NO SC path: %d -> %d  ****\n",
@@ -1137,13 +1161,11 @@ static bool compareEdge(const SCEdge *e1, const SCEdge *e2)
 void SCGraph::buildGraph() {
     DB(
         model_print("****  Pre-execution inference  ****\n");
-        inference->print();
     )
 
     buildVectors();
     computeCV();
     computeSBCV();
-    sortEdges();
     
     DB(
         print();
@@ -1154,7 +1176,6 @@ void SCGraph::buildGraph() {
 
     DB(
         model_print("****  Post-execution inference  ****\n");
-        inference->print();
     )
 }
 

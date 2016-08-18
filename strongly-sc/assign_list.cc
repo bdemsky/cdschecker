@@ -9,16 +9,11 @@ int AssignList::getSize() {
 	return list->size();
 }
 
-/** Append another list to this list. If assign is stronger than any
- * assignemnts of the current list, then ignore assign; if assign is weaker
- * than any existing assignment "a" in the list, remove all such "a", and
- * then append assign to the end of the list. The invariable of the list is
- * that any two instances are not comparable. */
-bool AssignList::addAssignment(MOAssignment *assign) {
+bool AssignList::addAssignment(ModelList<MOAssignment *> *aList, MOAssignment *assign) {
 	ModelList<MOAssignment *>::iterator it;
 	int compVal;
     bool hasReplaced = false;
-	for (it = list->begin(); it != list->end();) {
+	for (it = aList->begin(); it != aList->end();) {
 		MOAssignment *existing = *it;
 		compVal = existing->compareTo(assign);
 		if (compVal == 0 || compVal == -1) {
@@ -29,7 +24,7 @@ bool AssignList::addAssignment(MOAssignment *assign) {
             if (hasReplaced) {
                 // "assign" is already in the list
                 // Simply delete the existing
-                list->erase(it);
+                aList->erase(it);
                 delete existing;
                 continue;
             } else {
@@ -42,17 +37,19 @@ bool AssignList::addAssignment(MOAssignment *assign) {
         // Go to the next one
         it++;
 	}
-    list->push_back(assign);
+    aList->push_back(assign);
     return true;
 }
 
-
-void AssignList::clearAll() {
-    for (ModelList<MOAssignment*>::iterator assignIter = list->begin();
-        assignIter != list->end(); assignIter++) {
-        MOAssignment 
-    }
+/** Append another list to this list. If assign is stronger than any
+ * assignemnts of the current list, then ignore assign; if assign is weaker
+ * than any existing assignment "a" in the list, remove all such "a", and
+ * then append assign to the end of the list. The invariable of the list is
+ * that any two instances are not comparable. */
+bool AssignList::addAssignment(MOAssignment *assign) {
+    return addAssignment(this->list, assign);
 }
+
 
 /**
     Check the list to see if there is any redundant assignments (obviously
@@ -63,7 +60,7 @@ void AssignList::compressList() {
     for (ModelList<MOAssignment*>::iterator it = list->begin();
         it != list->end(); it++) {
         MOAssignment *assign = *it;
-        if (!newList->addAssignment(assign)) {
+        if (!addAssignment(newList, assign)) {
             // "assign" was not added since it is either the same or stronger
             // than existing assignments
 
@@ -98,13 +95,13 @@ void AssignList::applyPatches(patch_list_t *patches) {
             } else {
                 MOAssignment *newAssign = new MOAssignment(assign);
                 newAssign->apply(p);
-                list->push_back(p);
+                list->push_back(newAssign);
             }
         }
         if (!hasSatisfied) {
             // The current assignment should be deleted since it is too weak
             delete assign;
-            list->erase(it);
+            list->erase(assignIter);
         } else {
             // The current assignment is still good, simply go to the next
             // assignment

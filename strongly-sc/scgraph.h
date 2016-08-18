@@ -70,7 +70,7 @@ struct SCNode {
 	SNAPSHOTALLOC
 };
 
-enum SCEdgeType {SB, RF, RW, WW}; // SB includes the sb & synchronization edges
+enum SCEdgeType {SB, RF, RW, WW, REMOVED}; // SB includes the sb & synchronization edges
     // between thread create->start & finish->join
     // RW & WW are implied edges representing read-write & write-write edges
 
@@ -157,10 +157,13 @@ private:
 
     // Check whether the property holds
     bool checkStrongSC();
-
-    void imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2);
+    
+    // Returns true when w1&w2 are ordered
+    bool imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2);
+    // Returns true when w&r are ordered
     bool imposeStrongPathWriteRead(SCNode *w, SCNode *r);
-    void imposeStrongPathReadWrite(SCNode *r, SCNode *w);
+    // Returns true when r&w are ordered
+    bool imposeStrongPathReadWrite(SCNode *r, SCNode *w);
 
     bool computeLocCV(action_list_t *objList);
     bool checkStrongSCPerLoc(action_list_t *objList);
@@ -176,8 +179,10 @@ private:
     void imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
         end, SCNode *from, SCNode *to, edge_list_t *edges, SCPatch *p);
     
-    SCEdge * removeRFEdge(SCNode *read);
-    SCEdge * removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
+    unsigned removeRFEdge(SCNode *read);
+    void addBackRFEdge(SCNode *read, unsigned index);
+    unsigned removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
+    void addBackIncomingEdge(SCNode *to, unsigned index, SCEdgeType type);
 
     // Find the synchronizable paths from one node to another node
     path_list_t * findSynchronizablePaths(SCNode *from, SCNode *to);

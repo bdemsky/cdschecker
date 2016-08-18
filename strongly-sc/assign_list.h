@@ -28,6 +28,8 @@ class AssignList {
      */
 	bool addAssignment(MOAssignment *assign);
 
+	static bool addAssignment(ModelList<MOAssignment*> *aList, MOAssignment *assign);
+
     /**
         Given a list of patches, we apply each patch to the existing list of
         assignments, and create a new list of strengthened assignments.
