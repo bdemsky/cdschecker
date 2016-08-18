@@ -3,7 +3,8 @@
 #include "scanalysis.h"
 #include "traceanalysis.h"
 #include "hashtable.h"
-#include "scinference.h"
+#include "mo_assignment.h"
+#include "assign_list.h"
 
 class StrongSC : public TraceAnalysis {
  public:
@@ -18,6 +19,6 @@ class StrongSC : public TraceAnalysis {
 	SNAPSHOTALLOC
  private:
     ModelExecution *execution;
-    SCInference *infer;
+    AssignList *assignments;
 };
 #endif

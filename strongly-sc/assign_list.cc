@@ -46,6 +46,80 @@ bool AssignList::addAssignment(MOAssignment *assign) {
     return true;
 }
 
+
+void AssignList::clearAll() {
+    for (ModelList<MOAssignment*>::iterator assignIter = list->begin();
+        assignIter != list->end(); assignIter++) {
+        MOAssignment 
+    }
+}
+
+/**
+    Check the list to see if there is any redundant assignments (obviously
+    stronger than other existing assignments)
+*/
+void AssignList::compressList() {
+    ModelList<MOAssignment*> *newList = new ModelList<MOAssignment*>;
+    for (ModelList<MOAssignment*>::iterator it = list->begin();
+        it != list->end(); it++) {
+        MOAssignment *assign = *it;
+        if (!newList->addAssignment(assign)) {
+            // "assign" was not added since it is either the same or stronger
+            // than existing assignments
+
+            // So we delte it
+            delete assign;
+        }
+    }
+    delete list;
+    list = newList;
+}
+
+/**
+    Given a list of patches, we apply each patch to the existing list of
+    assignments, and create a new list of strengthened assignments.
+*/
+void AssignList::applyPatches(patch_list_t *patches) {
+    if (patches == NULL || patches->empty())
+        return;
+    unsigned assignSize = list->size();
+    ModelList<MOAssignment*>::iterator assignIter = list->begin();
+    for (unsigned assignCnt = 0; assignCnt != assignSize; assignCnt++) {
+        MOAssignment *assign = *assignIter;
+        bool hasSatisfied = false;
+        for (patch_list_t::iterator it = patches->begin(); it != patches->end();
+            it++) {
+            SCPatch *p = *it;
+            if (assign->hasSatisfied(p)) {
+                // For an assignment, if any of the patch is satisfied, no need
+                // to strengthen anything for these patches
+                hasSatisfied = true;
+                break;
+            } else {
+                MOAssignment *newAssign = new MOAssignment(assign);
+                newAssign->apply(p);
+                list->push_back(p);
+            }
+        }
+        if (!hasSatisfied) {
+            // The current assignment should be deleted since it is too weak
+            delete assign;
+            list->erase(it);
+        } else {
+            // The current assignment is still good, simply go to the next
+            // assignment
+            assignIter++;
+        }
+    }
+
+    // When the list is too big (probably too many redundant assignments), we
+    // compress the list
+    // FIXME: WHY do we randomly pick 50
+    if (list->size() > 50) {
+        compressList();
+    }
+}
+
 void AssignList::print(const char *msg) {
     int cnt = 1;
 	for (ModelList<MOAssignment *>::iterator it = list->begin(); it !=

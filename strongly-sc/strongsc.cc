@@ -5,11 +5,11 @@
 #include "execution.h"
 #include <sys/time.h>
 #include "scgraph.h"
-#include "scinference.h"
 
 
 StrongSC::StrongSC() {
-    infer = new SCInference;
+    assignments = new AssignList;
+    assignments->addAssignment(new MOAssignment);
 }
 
 StrongSC::~StrongSC() {
@@ -26,9 +26,6 @@ const char * StrongSC::name() {
 }
 
 void StrongSC::finish() {
-    model_print("****  Post-all-execution inference  ****\n");
-    infer->print();
-	delete infer;
 }
 
 bool StrongSC::option(char * opt) {
@@ -49,5 +46,5 @@ bool StrongSC::option(char * opt) {
 }
 
 void StrongSC::analyze(action_list_t *actions) {
-    SCGraph *graph = new SCGraph(execution, actions, infer);
+    SCGraph *graph = new SCGraph(execution, actions, assignments);
 }

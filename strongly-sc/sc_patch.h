@@ -8,6 +8,8 @@
 class SCPatchUnit;
 class SCPatch;
 
+typedef SnapList<SCPatch*> patch_list_t;
+
 class SCPatchUnit {
 	private:
 	const ModelAction *act;

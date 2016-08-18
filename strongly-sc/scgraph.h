@@ -5,7 +5,8 @@
 #include "execution.h"
 #include "action.h"
 #include "stl-model.h"
-#include "scinference.h"
+#include "assign_list.h"
+#include "sc_patch.h"
 
 struct SCNode;
 struct SCEdge;
@@ -102,7 +103,7 @@ struct SCPath {
     void addEdgeFromFront(SCEdge *e);
     void print(SCNode *tailNode, bool lineBreak = true);
     void print(bool lineBreak = true);
-    void printWithOrder(SCNode *tailNode, SCInference *infer, bool lineBreak = true);
+    void printWithOrder(SCNode *tailNode, bool lineBreak = true);
 
 	SNAPSHOTALLOC
 };
@@ -122,7 +123,7 @@ struct EdgeChoice {
 class SCGraph {
 public:
     SCGraph();
-    SCGraph(ModelExecution *e, action_list_t *actions, SCInference *infer);
+    SCGraph(ModelExecution *e, action_list_t *actions, AssignList *assignments);
     ~SCGraph();
 
     // Print the graph 
@@ -151,49 +152,40 @@ private:
 
 	void printInfoPerLoc();
 
-    // Currently we just infer one set of parameters
-    SCInference *inference;
+    // The list of memory order assignments
+    AssignList *assignments;
 
     // Check whether the property holds
     bool checkStrongSC();
 
-    bool imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2);
+    void imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2);
     bool imposeStrongPathWriteRead(SCNode *w, SCNode *r);
-    bool imposeStrongPathReadWrite(SCNode *r, SCNode *w);
+    void imposeStrongPathReadWrite(SCNode *r, SCNode *w);
 
     bool computeLocCV(action_list_t *objList);
     bool checkStrongSCPerLoc(action_list_t *objList);
 
-    // Check whether a path is single location
+    // Check whether a path is single location path, where a path can be
+    // transformed into a sbUrf of memory accesses of the same location 
     bool isSingleLocPath(SCNode *from, SCNode *to, path_list_t *paths);
-    bool imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths);
-    bool imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
-    bool imposeOneStrongPath(SCNode *from, SCNode *to, SCPath *p, bool
-        justCheck = false);
-    bool imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
-        end, SCNode *from, SCNode *to, edge_list_t *edges, bool justCheck =
-            false);
+
+    patch_list_t* imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths);
+    patch_list_t* imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
+
+    // Impose syncrhonizable subpath
+    void imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
+        end, SCNode *from, SCNode *to, edge_list_t *edges, SCPatch *p);
     
     SCEdge * removeRFEdge(SCNode *read);
     SCEdge * removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
 
-    // Find the paths from one node to another node
-    path_list_t * findPaths(SCNode *from, SCNode *to, int depth = 1);
-    path_list_t * findSynchronizablePathsIteratively(SCNode *from, SCNode *to);
-    path_list_t * findPathsIteratively(SCNode *from, SCNode *to);
-
-    // Given an existing list of subpaths from A to B1, and an edge from B1 to
-    // B, and a result set of edges from A to B, this method attached the edge
-    // (B1, B) to the subpaths, and then add them to the result set.
-    void addPathsFromSubpaths(path_list_t *result, path_list_t *subpaths, SCEdge
-    *e);
-
-    // Sort the edges in order of SB, RF and (RW|WW)
-    void sortEdges();
+    // Find the synchronizable paths from one node to another node
+    path_list_t * findSynchronizablePaths(SCNode *from, SCNode *to);
+    // Find all the paths from one node to another node
+    path_list_t * findPaths(SCNode *from, SCNode *to);
 
     // Build the graph from the trace
 	void buildGraph();
-
 	void addEdge(SCNode *from, SCNode *to, SCEdgeType type);
 
     // Compute the SB clock vectors
