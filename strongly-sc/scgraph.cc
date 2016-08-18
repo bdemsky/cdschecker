@@ -3,7 +3,7 @@
 #include "threads-model.h"
 #include "clockvector.h"
 #include "execution.h"
-#include "mydebug.h"
+#include "strongsc_common.h"
 #include <sys/time.h>
 
 
@@ -17,18 +17,6 @@ static const char * get_edge_str(SCEdgeType type) {
         default: return "UnkonwEdge";
     }
 }
-
-static const char * get_mo_str(memory_order order) {
-    switch (order) {
-        case std::memory_order_relaxed: return "relaxed";
-        case std::memory_order_acquire: return "acquire";
-        case std::memory_order_release: return "release";
-        case std::memory_order_acq_rel: return "acq_rel";
-        case std::memory_order_seq_cst: return "seq_cst";
-        default: return "unknown";
-    }
-}
-
 
 /**********    SCNode    **********/
 SCNode::SCNode(ModelAction *op) :
