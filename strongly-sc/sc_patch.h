@@ -10,6 +10,12 @@ class SCPatch;
 
 typedef SnapList<SCPatch*> patch_list_t;
 
+/**
+    This represents a unit of a patch. A patch unit has an memory operation
+    (act) and a corresponding memory order (which can only be
+    release/acquire/seq_cst). It means it requires a speicific memory operation
+    to have the corresponding semantics.
+*/
 class SCPatchUnit {
 	private:
 	const ModelAction *act;
@@ -29,9 +35,18 @@ class SCPatchUnit {
 		return mo;
 	}
 
+	void setMO(memory_order mo) {
+		this->mo = mo;
+	}
+
 	SNAPSHOTALLOC
 };
 
+/**
+    This represents a patch (which consists of a list of patch units).
+    Generally, it represents the list of memory operations that require special
+    stronger (than relaxed) semantics for a speicific strong SC rule.
+*/
 class SCPatch {
 	private:
 	SnapVector<SCPatchUnit*> *units;
@@ -48,9 +63,16 @@ class SCPatch {
 
 	int getSize();
 
+	unsigned long getHash();
+
+    bool equals(SCPatch *o);
+
 	SCPatchUnit* get(int i);
 
 	void print();
+
+    // An optimized way to add a patch to the list to avoid duplication
+    static bool addPatchToList(patch_list_t *patches, SCPatch *p);
 
 	SNAPSHOTALLOC
 };

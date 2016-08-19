@@ -13,7 +13,7 @@ StrongSC::StrongSC() {
 }
 
 StrongSC::~StrongSC() {
-
+    assignments->print("Overall result:");
 }
 
 void StrongSC::setExecution(ModelExecution * execution) {

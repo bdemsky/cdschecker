@@ -73,6 +73,10 @@ struct SCNode {
 enum SCEdgeType {SB, RF, RW, WW, REMOVED}; // SB includes the sb & synchronization edges
     // between thread create->start & finish->join
     // RW & WW are implied edges representing read-write & write-write edges
+    // REMOVED is a special type of edge for optimization (in some rules we need
+    // to first take out some edge and then find paths, and then later add those
+    // edges back; in this case, we simply set that edge type to REMOVED, and
+    // later reset it back normal)
 
 struct SCEdge {
     SCEdgeType type;
@@ -126,6 +130,10 @@ public:
     SCGraph(ModelExecution *e, action_list_t *actions, AssignList *assignments);
     ~SCGraph();
 
+
+    // Print the graph to a dot file
+    void printToFile();
+
     // Print the graph 
 	void print();
     
@@ -158,47 +166,73 @@ private:
     // Check whether the property holds
     bool checkStrongSC();
     
-    // Returns true when w1&w2 are ordered
+    // Returns true when w1&w2 are ordered (a path without edge "w1 -WW-> w2")
     bool imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2);
-    // Returns true when w&r are ordered
+    // Returns true when w&r are ordered without the RF edge to "r"
     bool imposeStrongPathWriteRead(SCNode *w, SCNode *r);
-    // Returns true when r&w are ordered
+    // Returns true when r&w are ordered by a rfUsb edge
     bool imposeStrongPathReadWrite(SCNode *r, SCNode *w);
 
-    bool computeLocCV(action_list_t *objList);
+    // The core of checking strong SC per memory location
+    void computeLocCV(action_list_t *objList);
+    // Ensure that every memory location is strongly SC in this execution
     bool checkStrongSCPerLoc(action_list_t *objList);
 
     // Check whether a path is single location path, where a path can be
     // transformed into a sbUrf of memory accesses of the same location 
     bool isSingleLocPath(SCNode *from, SCNode *to, path_list_t *paths);
 
+    // Given a list of rfUsb paths, returns a list of patches that can guarantee
+    // the paths are synchronized paths
     patch_list_t* imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths);
+    
+    // Given a list of paths, returns a list of patches that can guarantee
+    // at least there's one strong path
     patch_list_t* imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths);
 
     // Impose syncrhonizable subpath
-    void imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
+    // "begin" iterator points to the first edge that goes to the "to" node.
+    // A subroutine of "imposeSynchronizablePath" and "imposeStrongPath"
+    void imposeSynchronizableSubpath(edge_list_t::iterator begin, edge_list_t::iterator
         end, SCNode *from, SCNode *to, edge_list_t *edges, SCPatch *p);
     
-    unsigned removeRFEdge(SCNode *read);
-    void addBackRFEdge(SCNode *read, unsigned index);
-    unsigned removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
-    void addBackIncomingEdge(SCNode *to, unsigned index, SCEdgeType type);
+    // Remove the read-from edge that the "read" reads from (simply set the
+    // edge type of the RF edge in the incoming edges of "read" to REMOVED, and
+    // returns that edge index
+    int removeRFEdge(SCNode *read);
+
+    // Given a read node, and its RF edge index, reset that edge's type to RF
+    void addBackRFEdge(SCNode *read, int index);
+
+    // Remove the incoming edge (from, to, type) in to's incoming edge list (by
+    // setting the edge type to REMOVED), and returns that edge index
+    int removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type);
+
+
+    // Reset the type of the incoming edge (at index "index") type to "type"
+    void addBackIncomingEdge(SCNode *to, int index, SCEdgeType type);
 
     // Find the synchronizable paths from one node to another node
     path_list_t * findSynchronizablePaths(SCNode *from, SCNode *to);
+    
     // Find all the paths from one node to another node
     path_list_t * findPaths(SCNode *from, SCNode *to);
 
     // Build the graph from the trace
 	void buildGraph();
+
+    // A wrapper that makes sure the same edge is only added once
 	void addEdge(SCNode *from, SCNode *to, SCEdgeType type);
 
     // Compute the SB clock vectors
 	void computeSBCV();
+
+    // We steal most of the following from the SC analysis
 	void computeCV();
 	int buildVectors();
 	bool processRead(ModelAction *read, ClockVector *cv);
 	bool merge(ClockVector *cv, const ModelAction *act, const ModelAction *act2);
+
 	HashTable<const ModelAction *, ClockVector *, uintptr_t, 4 > cvmap;
 	SnapVector<action_list_t> threadlists;
 	int maxthreads;

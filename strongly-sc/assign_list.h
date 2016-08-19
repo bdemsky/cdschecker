@@ -5,7 +5,8 @@
 
 /**
     This class represents a list of memory order assnginments that have so far
-    passed a set of rules
+    passed a set of rules. Given a list of patches, we can apply those patches
+    to strengthen the assignment list.
 */
 class AssignList {
 	private:
@@ -15,12 +16,6 @@ class AssignList {
 	AssignList();
 	int getSize();
 
-    /**
-        Check the list to see if there is any redundant assignments (obviously
-        stronger than other existing assignments)
-    */
-    void compressList();
-
 	/** Append another list to this list. If assign is stronger than any
      * assignemnts of the current list, then ignore assign; if assign is weaker
      * than any existing assignment "a" in the list, remove all such "a", and
@@ -29,6 +24,12 @@ class AssignList {
 	bool addAssignment(MOAssignment *assign);
 
 	static bool addAssignment(ModelList<MOAssignment*> *aList, MOAssignment *assign);
+
+    /**
+        Check the list to see if there is any redundant assignments (obviously
+        stronger than other existing assignments)
+    */
+    void compressList();
 
     /**
         Given a list of patches, we apply each patch to the existing list of

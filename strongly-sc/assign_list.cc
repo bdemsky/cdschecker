@@ -3,11 +3,24 @@
 
 AssignList::AssignList() {
 	list = new ModelList<MOAssignment *>;
+    list->push_back(new MOAssignment);
 }
 
 int AssignList::getSize() {
 	return list->size();
 }
+
+
+
+/** Append another list to this list. If assign is stronger than any
+ * assignemnts of the current list, then ignore assign; if assign is weaker
+ * than any existing assignment "a" in the list, remove all such "a", and
+ * then append assign to the end of the list. The invariable of the list is
+ * that any two instances are not comparable. */
+bool AssignList::addAssignment(MOAssignment *assign) {
+    return addAssignment(this->list, assign);
+}
+
 
 bool AssignList::addAssignment(ModelList<MOAssignment *> *aList, MOAssignment *assign) {
 	ModelList<MOAssignment *>::iterator it;
@@ -41,15 +54,6 @@ bool AssignList::addAssignment(ModelList<MOAssignment *> *aList, MOAssignment *a
     return true;
 }
 
-/** Append another list to this list. If assign is stronger than any
- * assignemnts of the current list, then ignore assign; if assign is weaker
- * than any existing assignment "a" in the list, remove all such "a", and
- * then append assign to the end of the list. The invariable of the list is
- * that any two instances are not comparable. */
-bool AssignList::addAssignment(MOAssignment *assign) {
-    return addAssignment(this->list, assign);
-}
-
 
 /**
     Check the list to see if there is any redundant assignments (obviously
@@ -79,22 +83,49 @@ void AssignList::compressList() {
 void AssignList::applyPatches(patch_list_t *patches) {
     if (patches == NULL || patches->empty())
         return;
+
+    DB (
+        model_print("\nBegin applying patches ---- listSize=%lu\n", list->size());
+        int cnt = 1;
+        model_print("Patches:\n");
+        for (patch_list_t::iterator it = patches->begin(); it != patches->end();
+            it++) {
+            SCPatch *p = *it;
+            model_print("#%d: ", cnt++);
+            p->print();
+        }
+    )
+
     unsigned assignSize = list->size();
     ModelList<MOAssignment*>::iterator assignIter = list->begin();
     for (unsigned assignCnt = 0; assignCnt != assignSize; assignCnt++) {
         MOAssignment *assign = *assignIter;
+
+        DB (
+            model_print("Looking at assignemnt #%d:\n", assignCnt + 1);
+            assign->print(false);
+        )
+
         bool hasSatisfied = false;
         for (patch_list_t::iterator it = patches->begin(); it != patches->end();
             it++) {
             SCPatch *p = *it;
+            
+            DB (
+                p->print();
+            )
+
             if (assign->hasSatisfied(p)) {
                 // For an assignment, if any of the patch is satisfied, no need
                 // to strengthen anything for these patches
+                DPRINT("Patch satisfied\n");
                 hasSatisfied = true;
                 break;
             } else {
                 MOAssignment *newAssign = new MOAssignment(assign);
                 newAssign->apply(p);
+                DPRINT("After applying, add the following assignment to the list\n");
+                newAssign->print();
                 list->push_back(newAssign);
             }
         }
@@ -109,11 +140,14 @@ void AssignList::applyPatches(patch_list_t *patches) {
         }
     }
 
+    DPRINT("Done applying patches ---- listSize=%lu\n", list->size());
+
     // When the list is too big (probably too many redundant assignments), we
     // compress the list
     // FIXME: WHY do we randomly pick 50
     if (list->size() > 50) {
         compressList();
+        DPRINT("Done compressing list ---- listSize=%lu\n", list->size());
     }
 }
 

@@ -122,9 +122,11 @@ public:
         return obj_map.get(loc);
     }
 
+    // We make it public since we need to use that number
+	int get_execution_number() const;
+
 	SNAPSHOTALLOC
 private:
-	int get_execution_number() const;
 
 	ModelChecker *model;
 

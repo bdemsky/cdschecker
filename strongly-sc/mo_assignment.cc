@@ -27,7 +27,7 @@ void MOAssignment::resize(int newsize) {
 	for (i = 0; i <= size; i++)
 		newOrders[i] = orders[i];
 	for (; i <= newsize; i++)
-		newOrders[i] = WILDCARD_NONEXIST;
+		newOrders[i] = memory_order_relaxed;
 	model_free(orders);
 	size = newsize;
 	orders = newOrders;
@@ -35,13 +35,13 @@ void MOAssignment::resize(int newsize) {
 
 MOAssignment::MOAssignment() {
 	orders = (memory_order *) model_malloc((4 + 1) * sizeof(memory_order*));
-	size = 4;
+	size = 0;
 	for (int i = 0; i <= size; i++)
 		orders[i] = WILDCARD_NONEXIST;
 }
 
 MOAssignment::MOAssignment(MOAssignment *assign) {
-	ASSERT (assign->size > 0 && assign->size <= MAX_WILDCARD_NUM);
+	ASSERT (assign->size <= MAX_WILDCARD_NUM);
 	orders = (memory_order *) model_malloc((assign->size + 1) * sizeof(memory_order*));
 	this->size = assign->size;
 	for (int i = 0; i <= size; i++)
@@ -53,6 +53,7 @@ MOAssignment::~MOAssignment() {
 }
 
 
+// Check whether the assignment has already satisfied the patch
 bool MOAssignment::hasSatisfied(SCPatch *p) {
     for (int i = 0; i < p->getSize(); i++) {
         SCPatchUnit *u = p->get(i);
@@ -79,6 +80,8 @@ bool MOAssignment::hasSatisfied(SCPatch *p) {
     return true;
 }
 
+
+// Apply a given patch to strengthen the assignment
 bool MOAssignment::apply(SCPatch *p) {
     for (int i = 0; i < p->getSize(); i++) {
         SCPatchUnit *u = p->get(i);
@@ -260,11 +263,11 @@ int MOAssignment::compareMemoryOrder(memory_order mo1, memory_order mo2) {
 
 memory_order& MOAssignment::operator[](int idx) {
     ASSERT (idx > 0 && idx <= MAX_WILDCARD_NUM);
-	if (idx > 0 && idx <= size)
+	if (idx > 0 && idx <= size) {
 		return orders[idx];
-	else {
+    } else {
 		resize(idx);
-		orders[idx] = WILDCARD_NONEXIST;
+        // An unknown wildcard should initially have relaxed semantics
 		return orders[idx];
 	}
 }
@@ -324,7 +327,9 @@ unsigned long MOAssignment::getHash() {
 
 
 void MOAssignment::print(bool hasHash) {
-	ASSERT(size > 0 && size <= MAX_WILDCARD_NUM);
+	ASSERT(size <= MAX_WILDCARD_NUM);
+    if (size == 0)
+		model_print("****  Empty assignment  ****\n");
 	if (hasHash)
 		model_print("****  Hash: %lu  ****\n", getHash());
 	for (int i = 1; i <= size; i++) {

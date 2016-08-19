@@ -1,4 +1,5 @@
 #include "scgraph.h"
+#include "common.h"
 #include "action.h"
 #include "threads-model.h"
 #include "clockvector.h"
@@ -179,7 +180,6 @@ void SCPath::printWithOrder(SCNode *tailNode, bool lineBreak) {
     // The wildcard ID 
     int wildcard = 0;
     // The current wildcard memory order
-    memory_order curMO;
     for (; it != edges->rend(); it++) {
         e = *it;
         n = e->node;
@@ -247,6 +247,59 @@ SCGraph::~SCGraph() {
 
 }
 
+// Print the graph to a dot file
+void SCGraph::printToFile() {
+    int execNum = execution->get_execution_number();
+
+    model_print("****  Dot graph for exec %d  ****\n", execNum);
+    model_print("digraph G%d {\n", execNum);
+    model_print("\tmargin=0\n\n");
+
+    for (node_list_t::iterator it = nodes.begin(); it != nodes.end(); it++) {
+        SCNode *n = *it;
+        int seq = n->op->get_seq_number();
+        for (unsigned i = 0; i < n->incoming->size(); i++) {
+            SCEdge *e = (*n->incoming)[i];
+            SCNode *n1 = e->node;
+            if (n1->op->is_uninitialized())
+                continue;
+            int seq1 = n1->op->get_seq_number();
+            switch (e->type) {
+                case SB:
+                model_print("\t%d -> %d [label=\"sb\", color=black];\n", seq1,
+                    seq);
+                break;
+                case RF:
+                model_print("\t%d -> %d [label=\"rf\", color=red, penwidth=1.5];\n",
+                    seq1, seq);
+                break;
+                case RW:
+                model_print("\t%d -> %d [label=\"rw\", color=darkgreen, style=dashed];\n",
+                    seq1, seq);
+                break;
+                case WW:
+                model_print("\t%d -> %d [label=\"ww\", color=darkgreen, style=dashed];\n",
+                    seq1, seq);
+                break;
+                default:
+                ASSERT (false);
+            }
+        }
+    }
+
+    model_print("}\n");
+}
+
+// Print the graph 
+void SCGraph::print() {
+    model_print("**********    SC Graph    **********\n");
+    for (node_list_t::iterator it = nodes.begin(); it != nodes.end(); it++) {
+        SCNode *n = *it;
+        n->print();
+    }
+}
+
+
 void SCGraph::printInfoPerLoc() {
     model_print("**********    Location List    **********\n");
     for (obj_list_list_t::iterator it = objLists.begin(); it != objLists.end(); it++) {
@@ -280,6 +333,7 @@ bool SCGraph::checkStrongSC() {
 }
 
 
+// Returns true when w1&w2 are ordered (a path without edge "w1 -WW-> w2")
 bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
     ASSERT(w1->op->is_write() && w2->op->is_write());
     ASSERT(w1->op->get_location() == w1->op->get_location());
@@ -313,7 +367,7 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
             } else {
                 if (cvmap.get(w2->op)->synchronized_since(w1->op)) {
                     // Take out the WW edge from w1->w2
-                    unsigned edgeIndex = removeIncomingEdge(w1, w2, WW);
+                    int edgeIndex = removeIncomingEdge(w1, w2, WW);
                     paths = findPaths(w1, w2);
                     // Add back the WW edge from w1->w2
                     if (edgeIndex != -1)
@@ -337,7 +391,7 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                         if (patches && !patches->empty()) {
                             assignments->applyPatches(patches);
                         }
-                        return false;
+                        return true;
                     }
                 } else {
                     // Stores are not ordered
@@ -346,7 +400,7 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
                     SCPatch *p = new SCPatch(w1->op, memory_order_seq_cst,
                         w2->op, memory_order_seq_cst);
                     patches = new patch_list_t;
-                    patches->push_back(p);
+                    SCPatch::addPatchToList(patches, p);
                     assignments->applyPatches(patches);
                     return false;
                 }
@@ -355,6 +409,8 @@ bool SCGraph::imposeStrongPathWriteWrite(SCNode *w1, SCNode *w2) {
     }
 }
 
+
+// Returns true when w&r are ordered without the RF edge to "r"
 bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
     ASSERT(w->op->is_write() && r->op->is_read());
     ASSERT(w->op->get_location() == w->op->get_location());
@@ -404,6 +460,7 @@ bool SCGraph::imposeStrongPathWriteRead(SCNode *w, SCNode *r) {
     return false;
 }
 
+// Returns true when r&w are ordered by a rfUsb edge
 bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     ASSERT(r->op->is_read() && w->op->is_write());
     ASSERT(w->op->get_location() == w->op->get_location());
@@ -429,15 +486,15 @@ bool SCGraph::imposeStrongPathReadWrite(SCNode *r, SCNode *w) {
     return false;
 }
 
-// This function builds up the clock vectors
-bool SCGraph::computeLocCV(action_list_t *objList) {
+// The core of checking strong SCness per memory location
+void SCGraph::computeLocCV(action_list_t *objList) {
     action_list_t::iterator it = objList->begin();
     ModelAction *act = *it;
     void *loc = act->get_location();
     if (act->is_read() || act->is_write())
         DPRINT("********    Computing Location CV %12p    ********\n", loc);
     else
-        return true;
+        return;
 
     DB (
         DPRINT("********    List on %p    ********\n", loc);
@@ -492,9 +549,9 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
                     SCPatch *p = new SCPatch(act, memory_order_seq_cst,
                         write, memory_order_seq_cst);
                     patch_list_t *patches = new patch_list_t;
-                    patches->push_back(p);
+                    SCPatch::addPatchToList(patches, p);
                     assignments->applyPatches(patches);
-                    return false;
+                    return;
                 }
             }   
         } else {
@@ -576,10 +633,10 @@ bool SCGraph::computeLocCV(action_list_t *objList) {
     }
 
     DPRINT("********    Computing Location CV %12p (end)    ********\n", loc);
-    return true;
 }
 
 
+// Ensure that every memory location is strongly SC in this execution
 bool SCGraph::checkStrongSCPerLoc(action_list_t *objList) {
     if (objList->empty())
         return true;
@@ -643,6 +700,9 @@ bool SCGraph::isSingleLocPath(SCNode *from, SCNode *to, path_list_t *paths) {
     return false;
 }
 
+
+// Given a list of rfUsb paths, returns a list of patches that can guarantee
+// the paths are synchronized paths
 patch_list_t* SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_list_t *paths) {
     if (paths->empty())
         return NULL;
@@ -667,10 +727,10 @@ patch_list_t* SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_l
         )
         edge_list_t *edges = p->edges;
         SCPatch *patch = new SCPatch;
-        imposeSyncPath(edges->begin(), edges->end(), from, to,
+        imposeSynchronizableSubpath(edges->begin(), edges->end(), from, to,
             edges, patch );
-        if (patch ->getSize() > 0) {
-            patches->push_back(patch );
+        if (patch->getSize() > 0) {
+            SCPatch::addPatchToList(patches, patch);
         } else {
             delete patch;
         }
@@ -681,8 +741,12 @@ patch_list_t* SCGraph::imposeSynchronizablePath(SCNode *from, SCNode *to, path_l
 
 
 /**
+    
+    Given a list of paths, returns a list of patches that can guarantee at least
+    there's one strong path.
     We only call this method when there's no suitable synchronizable path
     "from -> to"
+
 */
 patch_list_t* SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *paths) {
     ASSERT (!paths->empty());
@@ -703,8 +767,6 @@ patch_list_t* SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *p
         )
         
         SCPatch *patch = new SCPatch;
-        // Add the patch to the list
-        patches->push_back(patch);
         patch->addPatchUnit(from->op, memory_order_seq_cst);
         patch->addPatchUnit(to->op, memory_order_seq_cst);
 
@@ -731,8 +793,8 @@ patch_list_t* SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *p
                     // This is the end of the last subpath, from becomes the
                     // fromNode
                     endIter = edges->end();
-                    imposeSyncPath(beginIter, endIter, from, toNode, edges,
-                        patch);
+                    imposeSynchronizableSubpath(beginIter, endIter, from,
+                        toNode, edges, patch);
                     break;
                 }
             } else { // This is either RW or WW
@@ -743,7 +805,7 @@ patch_list_t* SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *p
                 if (fromNode != toNode) {
                     // More than one node in this "subpath"
                     endIter = curIter;
-                    imposeSyncPath(beginIter, endIter, fromNode,
+                    imposeSynchronizableSubpath(beginIter, endIter, fromNode,
                         toNode, edges, patch);
                 }
                 // Update the iterators and nodes for the next subpath
@@ -760,16 +822,20 @@ patch_list_t* SCGraph::imposeStrongPath(SCNode *from, SCNode *to, path_list_t *p
                 patch->addPatchUnit(toNode->op, memory_order_seq_cst);
             }
         }
+
+        // Add the patch to the list
+        SCPatch::addPatchToList(patches, patch);
     }
     
     return patches;
 }
 
 /**
-    When we call this method, the begin iterator points to the first edge that
-    goes to the "to" node.
+    Impose syncrhonizable subpath
+    "begin" iterator points to the first edge that goes to the "to" node
+    A subroutine of "imposeSynchronizablePath" and "imposeStrongPath"
 */
-void SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
+void SCGraph::imposeSynchronizableSubpath(edge_list_t::iterator begin, edge_list_t::iterator
     end, SCNode *from, SCNode *to, edge_list_t *edges, SCPatch *p) {
     
     DPRINT("Try to impose synchronization %d -> %d: ",
@@ -783,7 +849,6 @@ void SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     // Try a simple release-sequence-type synchronization
     // Find a continuous rf chain
     bool rfStart = false;
-    bool rfEnd = false;
     bool isRelSeq = true;
     const ModelAction *relHead = NULL, *relTail = NULL;
     SCNode *curNode = to;
@@ -797,7 +862,6 @@ void SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
             relTail = curNode->op;
         }
         if (rfStart && !isRF) {
-            rfEnd = true;
             relHead = curNode->op;
             isRelSeq = from->op->get_tid() == relHead->get_tid();
             break;
@@ -823,7 +887,11 @@ void SCGraph::imposeSyncPath(edge_list_t::iterator begin, edge_list_t::iterator
     }
 }
 
-unsigned SCGraph::removeRFEdge(SCNode *read) {
+
+// Remove the read-from edge that the "read" reads from (simply set the edge
+// type of the RF edge in the incoming edges of "read" to REMOVED, and returns
+// that edge index
+int SCGraph::removeRFEdge(SCNode *read) {
     ASSERT (read->op->is_read());
     EdgeList *incomingEdges = read->incoming;
     for (unsigned i = 0; i < incomingEdges->size(); i++) {
@@ -841,14 +909,19 @@ unsigned SCGraph::removeRFEdge(SCNode *read) {
     ASSERT (false);
 }
 
-void SCGraph::addBackRFEdge(SCNode *read, unsigned index) {
+
+// Given a read node, and its RF edge index, reset that edge's type to RF
+void SCGraph::addBackRFEdge(SCNode *read, int index) {
     ASSERT (read->op->is_read());
     SCEdge *e = (*read->incoming)[index];
     ASSERT (e->type == REMOVED);
     e->type = RF;
 }
 
-unsigned SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) {
+
+// Remove the incoming edge (from, to, type) in to's incoming edge list (by
+// setting the edge type to REMOVED), and returns that edge index
+int SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) {
     ASSERT (to->op->is_write() && (type == RW || type == WW));
     DPRINT("Take out the %d -%s-> %d edge temporarily\n", from->op->get_seq_number(),
         get_edge_str(type), to->op->get_seq_number());
@@ -865,18 +938,15 @@ unsigned SCGraph::removeIncomingEdge(SCNode *from, SCNode *to, SCEdgeType type) 
     return -1;
 }
 
-void SCGraph::addBackIncomingEdge(SCNode *to, unsigned index, SCEdgeType type) {
+
+// Reset the type of the incoming edge (at index "index") type to "type"
+void SCGraph::addBackIncomingEdge(SCNode *to, int index, SCEdgeType type) {
     ASSERT (to->op->is_write() && (type == RW || type == WW));
     if (index == -1)
         return;
     SCEdge *e = (*to->incoming)[index];
     ASSERT (e->type == REMOVED);
     e->type = type;
-}
-
-static void printSpace(int num) {
-    for (int i = 0; i < num; i++)
-        model_print(" ");
 }
 
 
@@ -1150,17 +1220,10 @@ path_list_t * SCGraph::findPaths(SCNode *from, SCNode *to) {
     return result;
 }
 
-
-// Compare the cost of an edge
-static bool compareEdge(const SCEdge *e1, const SCEdge *e2)
-{
-    return e1->type <= e2->type;
-}
-
-
 void SCGraph::buildGraph() {
     DB(
-        model_print("****  Pre-execution inference  ****\n");
+        model_print("****  Building Graph %d  ****\n",
+            execution->get_execution_number());
     )
 
     buildVectors();
@@ -1169,25 +1232,14 @@ void SCGraph::buildGraph() {
     
     DB(
         print();
+        //printToFile();
         printInfoPerLoc();
     )
 
     checkStrongSC();
-
-    DB(
-        model_print("****  Post-execution inference  ****\n");
-    )
 }
 
-
-void SCGraph::print() {
-    model_print("**********    SC Graph    **********\n");
-    for (node_list_t::iterator it = nodes.begin(); it != nodes.end(); it++) {
-        SCNode *n = *it;
-        n->print();
-    }
-}
-
+// A wrapper that makes sure the same edge is only added once
 void SCGraph::addEdge(SCNode *from, SCNode *to, SCEdgeType type) {
     SCEdge *e = new SCEdge(type, to);
     EdgeList *outgoingEdges = from->outgoing;
@@ -1202,6 +1254,67 @@ void SCGraph::addEdge(SCNode *from, SCNode *to, SCEdgeType type) {
     outgoingEdges->push_back(e);
     to->incoming->push_back(new SCEdge(type, from));
 }
+
+
+// Compute the SB clock vectors
+void SCGraph::computeSBCV() {
+    action_list_t::iterator secondLastIter = actions->end();
+    secondLastIter--;
+    for (action_list_t::iterator it = actions->begin(); it != secondLastIter; ) {
+        ModelAction *curAct = *it;
+        it++;
+        ModelAction *nextAct = *it;
+        SCNode *curNode = nodeMap.get(curAct);
+        SCNode *nextNode = nodeMap.get(nextAct);
+        if (nextNode->sbCV->synchronized_since(curNode->op)) {
+            curNode->mergeSB(nextNode);
+        }
+    }
+}
+
+
+
+// **** We steal most of the following from the SC analysis ****
+
+void SCGraph::computeCV() {
+	bool changed = true;
+	bool firsttime = true;
+	ModelAction **last_act = (ModelAction **)model_calloc(1, (maxthreads + 1) * sizeof(ModelAction *));
+	while (changed) {
+		changed = changed&firsttime;
+		firsttime = false;
+
+		for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
+			ModelAction *act = *it;
+			ModelAction *lastact = last_act[id_to_int(act->get_tid())];
+			if (act->is_thread_start())
+				lastact = execution->get_thread(act)->get_creation();
+			last_act[id_to_int(act->get_tid())] = act;
+			ClockVector *cv = cvmap.get(act);
+			if (cv == NULL) {
+				cv = new ClockVector(NULL, act);
+				cvmap.put(act, cv);
+			}
+			if (lastact != NULL) {
+				merge(cv, act, lastact);
+			}
+			if (act->is_thread_join()) {
+				Thread *joinedthr = act->get_thread_operand();
+				ModelAction *finish = execution->get_last_action(joinedthr->get_id());
+				changed |= merge(cv, act, finish);
+			}
+			if (act->is_read()) {
+				changed |= processRead(act, cv);
+			}
+		}
+		/* Reset the last action array */
+		if (changed) {
+			bzero(last_act, (maxthreads + 1) * sizeof(ModelAction *));
+		}
+	}
+	model_free(last_act);
+}
+
 
 int SCGraph::buildVectors() {
 	maxthreads = 0;
@@ -1266,63 +1379,6 @@ int SCGraph::buildVectors() {
 	return numactions;
 }
 
-
-// Compute the SB clock vectors
-void SCGraph::computeSBCV() {
-    action_list_t::iterator secondLastIter = actions->end();
-    secondLastIter--;
-    for (action_list_t::iterator it = actions->begin(); it != secondLastIter; ) {
-        ModelAction *curAct = *it;
-        it++;
-        ModelAction *nextAct = *it;
-        SCNode *curNode = nodeMap.get(curAct);
-        SCNode *nextNode = nodeMap.get(nextAct);
-        if (nextNode->sbCV->synchronized_since(curNode->op)) {
-            curNode->mergeSB(nextNode);
-        }
-    }
-}
-
-void SCGraph::computeCV() {
-	bool changed = true;
-	bool firsttime = true;
-	ModelAction **last_act = (ModelAction **)model_calloc(1, (maxthreads + 1) * sizeof(ModelAction *));
-	while (changed) {
-		changed = changed&firsttime;
-		firsttime = false;
-
-		for (action_list_t::iterator it = actions->begin(); it != actions->end(); it++) {
-			ModelAction *act = *it;
-			ModelAction *lastact = last_act[id_to_int(act->get_tid())];
-			if (act->is_thread_start())
-				lastact = execution->get_thread(act)->get_creation();
-			last_act[id_to_int(act->get_tid())] = act;
-			ClockVector *cv = cvmap.get(act);
-			if (cv == NULL) {
-				cv = new ClockVector(NULL, act);
-				cvmap.put(act, cv);
-			}
-			if (lastact != NULL) {
-				merge(cv, act, lastact);
-			}
-			if (act->is_thread_join()) {
-				Thread *joinedthr = act->get_thread_operand();
-				ModelAction *finish = execution->get_last_action(joinedthr->get_id());
-				changed |= merge(cv, act, finish);
-			}
-			if (act->is_read()) {
-				changed |= processRead(act, cv);
-			}
-		}
-		/* Reset the last action array */
-		if (changed) {
-			bzero(last_act, (maxthreads + 1) * sizeof(ModelAction *));
-		}
-	}
-	model_free(last_act);
-}
-
-
 bool SCGraph::processRead(ModelAction *read, ClockVector *cv) {
 	bool changed = false;
 
@@ -1386,5 +1442,3 @@ bool SCGraph::merge(ClockVector *cv, const ModelAction *act, const ModelAction *
 
 	return cv->merge(cv2);
 }
-
-

@@ -6,6 +6,12 @@
 
 #define ASSIGNEMNT_INCOMPARABLE(x) (!(-1 <= (x) <= 1))
 
+/**
+    This represents a memory order assignment for the wildcards. We use an array
+    (the size of the array is the maximum wildcard we have seen so far). We can
+    check whether it satisfy a specific patch; or if not, we can apply that
+    patch to strengthen the assignment accordingly.
+*/
 class MOAssignment {
 	private:
 	memory_order *orders;
@@ -30,6 +36,8 @@ class MOAssignment {
 
     // Check whether the assignment has already satisfied the patch
     bool hasSatisfied(SCPatch *p);
+
+    // Apply a given patch to strengthen the assignment
     bool apply(SCPatch *p);
 	
 	/** return value:
