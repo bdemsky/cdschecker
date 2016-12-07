@@ -1,0 +1,24 @@
+<project name="SpecCheckerCompiler" default="compile" basedir=".">
+  <!-- Compile variables -->
+  <property name="src" location="src"/>
+  <property name="build" location="classes"/>
+  <property name="lib" location="lib/javacc.jar"/>
+
+  <target name="init">
+  <!-- Create the build directory -->
+    <mkdir dir="${build}"/>
+  </target>
+
+  <target name="compile" depends="init"
+        description="compile the source">
+    <!-- Compile the code from ${src} into ${build} -->
+    <javac srcdir="${src}" destdir="${build}" classpath="${lib}"
+		includeantruntime="false" />
+  </target>
+
+  <target name="clean"
+        description="clean up">
+    <!-- Delete the ${build} directory trees -->
+    <delete dir="${build}"/>
+  </target>
+</project>

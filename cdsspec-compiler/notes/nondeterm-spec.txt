@@ -1,0 +1,458 @@
+Modification to the current specifications.
+
+I. Order
+-- Sequential order (SO): Some total order that is consistent with the union of
+happens-before and SC relation.
+
+II. State
+Previously, we keep a sequential state throughout the process of executing the
+sequential history. In our model, we keep a state local to each method call.
+Conceptually, this state is the accumulative side effects of the subset of
+method calls that happen before the current method call. 
+
+To evaluate the state of each method call, an obvious approach is to
+execute the subset of methods that happen before the current method in the
+sequential order from the initial state. A optimization we can make is that we
+start to evaluate the state from the most recent deviding node which every other
+node in that subset is either hb before or after.
+
+III. Specifications
+Our specification language supports using the following primitives to access the
+state of method calls so that users can use those to write specifications with
+different level of tightness.
+
+To support tighter specifications, we introduce the concept of concurrent set of
+method calls, meaning that for a specific method call, it can basically see the
+effect of two different categories of method calls --- one that happens before
+it, and one that concurrently execute with it. It is worth noting that when two
+two method calls execute concurrently, in general there can be the following two
+effects: 1) those concurrent methods can happen in either order, and the final
+result remains the same. A concurrent FIFO is an example, in which concurrent
+enqueue and dequeue methods can happen in a random order; and 2) the order of
+those concurrent methods will affect the final result. The C/C++11 atomics is an
+example, in which when concurrent stores to the same location execute in
+different order, a later store will have different result.
+
+1. CONCURRENT: This primitive extracts all the methods that executes
+"concurrently" with the current method --- neither hb/SC before nor after the
+current method --- and returns as a set. It is worth noting that in order to
+preserve composability, when evaluating the state, the concurrent method calls'
+information cannot be used. That is to say, the concurrent set of mehtods are
+only used for assertions.
+
+2. PREV: This primitive extracts all the methods that execute right before the
+current method in the execution graph --- most recent method calls that are
+hb/SC before the current method call --- and returns as a set. For each method
+in this set, the current method's specification can access their state.
+
+3. NEXT: This primitive extracts all the methods that execute right after the
+current method in the execution graph, and returns as a set. For each method in
+this set, the current method's specification CANNOT access their state (for
+preserving composability).
+
+// FIXME: This might break composability!!??!!
+4. FINAL: This is the function that allows users to specify some final check
+on the state. This will enable to users to use the graph model (the relaxed
+atomics can be specified) although the complxity of using that can get quite
+complex.
+
+Our specifications allow two ways of evaluating the state of method calls. One
+way is to define "@Transition" on method calls, and then our checker executes
+the method calls that are hb/SC before me in the sequential order starting from
+the initial state. The other way is to define "@EvaluateState" after
+"@Transition", which can only access the states of method calls that are hb/SC
+before it.  Usually users calculate the state by using the PREV primitive to
+access the state of previous method calls.
+
+IV. Specification Details
+
+/// Global specification
+@State: // Declare the state structure
+@Initial: // How do we initialize the state
+@Commutativity: Method1 <-> Method2 (Guard) // Guard can only access the return
+		// value and the arguments of the two method calls
+
+/// Interface specification
+@Interface: InterfaceName // Required; a label to represent the interface
+@Transition: // Optional; the transitional side effect from the initial state to
+			 // the current method call by executing such effect on method calls
+			 // that are hb/SC before me in sequential order. When this field is
+			 // omitted, the current state seen before checking is the same as
+			 // the initial state.
+@EvaluateState: // Optional; to calculate the state before this
+				// method call is checked in a customized fashion. This is
+				// evaluated after "@Transition". If omitted, the state we would
+				// see is the effect after the "@Transition".
+@PreCondition: // Optional; checking code
+@SideEffect: // Optional; to calculate the side effect this method call
+				  // have on the state after the "@PreCondition".
+@PostCondition: // Optional; checking code
+
+
+/// Convienient operations
+We define a struct called MethodCall to represent the data we would collect and
+communicate between the real execution and the checking process.
+
+
+STATE(field) 	// A primitive to access the current state in the interface
+				// specification by the name of the field. We can use this as a
+				// lvalue & rvalue ==> "STATE(x) = 1" and "int i = STATE(x)" are
+				// both okay
+
+				// This can also be used to refer to the state of a method item
+				// in the Subset operation (see Subset)
+
+NAME			// Used to refer to the name of a method item in the Subset
+				// operation (see Subset)
+
+RET(type)		// Used to refer to the return value of a method item in the
+				// Subset operation (see Subset)
+
+ARG(type, arg)	// Used to refer to the argument of a method item in the
+				// Subset operation (see Subset)
+
+
+PREV		// Represent the set of previous method calls of the current method
+			// call
+
+CONCURRENT	// Represent the set of concurrent method calls of the current
+				// method call
+
+NEXT		// Represent the set of next method calls of the current method
+			// call
+
+Name(method)		// The interface label name of the specific method
+
+State(method, field)		// A primitive to access a specific state field of a
+							// specific method. Also used as lvalue and rvalue
+
+Ret(method, type)		// The return value of the specific method; type should
+						// be the name of the interface label
+
+Arg(method, type, arg)	// The arguement by name of the specific method; type should
+						// be the name of the interface label, and arg should be
+						// the name of the argument
+
+Prev(method)		// Represent the set of previous method calls of the
+					// specific method call
+
+Next(method)		// Represent the set of next method calls of the specific
+					// method call
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ForEach(item, container) { ... }	// Useful iteration primitive
+
+NewMethodSet		// Create a new method set (set<MethodCall*>*)
+
+MakeSet(type, oldset, newset, field);		// Construct a new set from an
+						// old set. We extract a specific field of that set item
+						// and form a new set. Specifically we expect users to
+						// use this on MethodSet. For example, if we want to
+						// construct an integer set from the state "x" of
+						// the previous methods, we use "MakeSet(int, PREV,
+						// newset, STATE(x))", and the newset contains the new
+						// set
+
+Subset(set, condition)	// A generic subset operation that takes a condition and
+						// returns all the item for which the boolean guard
+						// holds. The condition can be specified with GUARD or
+						// GeneralGuard shown as follow.
+
+HasItem(set, condition)	// A generic set operation that takes a condition and
+						// returns if there exists any item in "set" for which
+						// the condition holds. Its syntax is similar to that of
+						// Subset() operation
+
+Size(container)		// Return the size of a container type
+
+Belong(container, item)		// Return if item is in the container
+
+Union(set1, set2)	// Union of two sets
+
+Intesection(set1, set2)		// Intersection of two sets
+
+Subtract(set1, set2)	// Returns the new set that represents the result of
+						// set1-set2
+Insert(set, item)	// Insert item to set
+
+Insert(set, others)		// Insert the whole set "others" to "set"
+
+ITEM	// Used to refer to the set item in the GeneralGuard shown below
+
+GeneralGuard(type, expression)	// Used as a condition for any set<T> type. We
+								// use "ITEM" to refer to a set item. For
+								// example, a subset of positive elements on an
+								// IntSet "s" would be
+								// "Subset(s, GeneralGuard(int, ITEM > 0))"
+
+Guard(expression)	// Used specifically for MethodSet(set<MethodCall*>). An
+					// example to extract the subset of method calls in the PREV
+					// set that is a "Store" method and whose state "x" is equal
+					// to "val" and the return value is 5 would be
+					// "Subset(PREV, Guard(STATE(x) == val && NAME == "Store" &&
+					// RET(Store) == 5))"
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+To make things easier, we have the following helper macros.
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+/**
+	This is a common macro that is used as a constant for the name of specific
+	variables. We basically have two usage scenario:
+	1. In Subset operation, we allow users to specify a condition to extract a
+	subset. In that condition expression, we provide NAME, RET(type), ARG(type,
+	field) and STATE(field) to access each item's (method call) information.
+	2. In general specification (in pre- & post- conditions and side effects),
+	we would automatically generate an assignment that assign the current
+	MethodCall* pointer to a variable namedd _M. With this, when we access the
+	state of the current method, we use STATE(field) (this is a reference
+	for read/write).
+*/
+#define ITEM _M
+#define _M ME
+
+#define CAT(a, b) CAT_HELPER(a, b) /* Concatenate two symbols for macros! */
+#define CAT_HELPER(a, b) a ## b
+#define X(name) CAT(__##name, __LINE__) /* unique variable */
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*****************************************************************************
+typedef struct MethodCall {
+	string name; // The interface label name
+	void *value; // The pointer that points to the struct that have the return
+				 // value and the arguments
+	void *state; // The pointer that points to the struct that represents
+					  // the state
+	set<MethodCall*> *prev; // Method calls that are hb right before me
+	set<MethodCall*> *concurrent; // Method calls that are concurrent with me
+	set<MethodCall*> *next; // Method calls that are hb right after me
+} MethodCall;
+
+typedef MethodCall *Method;
+typedef set<Method> *MethodSet;
+
+typedef vector<int> IntVector;
+typedef list<int> IntList;
+typedef set<int> IntSet;
+*****************************************************************************
+
+We will automatically generate two types of struct. One is the state struct, and
+we will call it StateStruct. The other one is a per interface struct, and it
+wraps the return value (RET) and the arguments as its field. We will name those
+struct with the interface label name.
+
+-----------------------------------------------------------------------------
+For example, if we declare an ordered integer list in the specification state ,
+we will generate a struct as follow.
+
+@State: IntList *queue;
+@Initial: queue = new IntList;
+@...
+
+===>
+typedef struct StateStruct {
+	IntList *queue;
+} StateStruct;
+
+-----------------------------------------------------------------------------
+If we have two interface whose specifications are as follow, we would generate
+two struct accordingly.
+
+@Interface: Store
+@...
+void store(atomic_int *loc, int val) ...
+
+@Interface: Load
+@...
+int load(atomic_int *loc) ...
+
+===>
+typedef struct Store {
+	atomic_int *loc;
+	int val;
+} Store;
+
+typedef struct Load {
+	int RET;
+	atomic_int *loc;
+} Load;
+
+-----------------------------------------------------------------------------
+We will put all these generated struct in a automatically-generated header file
+called "generated.h". This file also includes header files that have commonly
+used data types that interface (return value and arguments) accesses. In order
+to make things work, users should include "generated.h" file in the end for
+using our specification checker.
+
+*****************************************************************************
+
+
+/// Ordering point specification
+@OPDefine: condition	// If the specified condition satisfied, the atomic
+						// operation right before is an ordering point
+
+@PotentialOP(Label): condition	// If the specified condition satisfied, the
+								// atomic operation right before is a potential
+								// ordering point, and we label it with a tag
+
+@OPCheck(Label): condition	// If the specified condition satisfied, the
+							// potential ordering point defined earlier with the
+							// same tag becomes an ordering point
+
+@OPClear: condition		// If the specified condition satisfied, all the
+						// ordering points and potential ordering points will be
+						// cleared
+
+@OPClearDefine: condition	// If the specified condition satisfied, all the
+							// ordering points and potential ordering points will
+							// be cleared, and the atomic operation right before
+							// becomes an ordering point. This is a syntax sugar
+							// as the combination of an "OPClear" and "OPDefine"
+							// statement
+
+
+V. Examples
+
+!!!!!!! The register example should be extended to commute if we think of their
+transitional effects as set operations --- a set operation that will only mask
+out side the effects of its own previous behavior (things that are hb/SC before
+it)  ---- VERY IMPORTANT note here!!
+
+
+1. The register examples: Basically, we can think of registers as the cache on a
+memory system. The effect of a load or store basically tells us what the current
+value in the cache line is, and a load can read from values that can be
+potentially in the cache --- either one of the concurrent store update the cache
+or it inherites one of the the previous state in the execution graph.
+
+----------   Interfae   ----------
+void init(atomic_int &loc, int initial);
+int load(atomic_int &loc);
+void store(atomic_int &loc, int val);
+----------   Interfae   ----------
+
+a. The SC atomics --- the classic linearizability approach
+
+b. The RA (release/acquire) C/C++ atomics
+// For RA atomics, a load must read its value from a store that happens before
+// it.
+----------   Specification   ----------
+@State: int x;
+@Initial: x = 0;
+@Commutativity: Store <-> Store(true)
+@Commutativity: Load <-> Load(true)
+@Commutativity: Store <-> Load(true)
+
+/** No @Transition */
+@Interface: Store
+@SideEffect: STATE(x) = val;
+void store(int *loc, int val);
+
+@Interface: Load
+@PreCondition:
+	return HasItem(PREV, STATE(x) == RET);
+@SideEffect: STATE(x) = RET;
+int load(int *loc);
+
+c. The C/C++ atomics (a slightly loose specification)
+// Actually, any concurrent data structures that rely modification-order to be
+// correct would not have a precicely tight specification under our model, and
+// C/C++ relaxed atomics is an example. See the following read-read coherence
+// example.
+
+// T1				// T2
+x = 1;				x = 2;
+
+// T3
+r1 = x; // r1 == 1
+r2 = x; // r2 == 2
+r3 = x; // r3 == 1
+
+Our model cannot prevent such a case from happening. However, we can still have
+a slightly loose specification which basically states that a load can read from
+any store that either immediately happens before it or concurrently executes.
+
+
+----------   Specification   ----------
+@State: int x;
+@Initial: x = 0;
+
+@Interface: Store
+@SideEffect: STATE(x) = val;
+void store(int *loc, int val);
+
+
+@Interface: Load
+@PreCondition:
+	// Auto generated code
+	// MethodCall *ME = ((SomeTypeConversion) info)->method;
+
+	return HasItem(Prev, STATE(x) == RET) || 
+		+ HasItem(CONCURRENT, NAME == "Store" && ARG(Store, val) == RET)
+@SideEffect: STATE(x) = RET;
+int load(int *loc);
+
+d. The C/C++ normal memory accesses
+- Use the admissibility requirement, then the classic linearizability approach
+on the admissible executions
+
+2. The FIFO queue example.
+----------   Specification   ----------
+// A FIFO queue should have the following properties held:
+// 1. The enq() methods should conflict
+// 2. The deq() methods that succeed should conflict
+// 3. Corresponding enq() and deq() methods should conflict
+// 4. An enqueued item can be dequeued by at most once
+// 5. A dequeued item must have a corresponding enqueued item
+// 6. When a queue is NOT "empty" (users can tightly or loosely define
+// emptiness), and there comes a deq() method, the deq() method should succeed
+
+
+@DeclareVar: vector<int> *q;
+@InitVar: q = new voctor<int>;
+@Copy: New.q = new vector<int>(Old.q);
+// Fails to dequeue
+@Commutativity: Deq <-> Deq (!_M1.RET || !_M2.RET)
+@Commutativity: Enq <-> Deq (true)
+
+@Interface: Enq
+@Transition: q->push_back(val);
+void enq(queue_t *q, int val);
+
+@Interface: Deq
+@Transition: if (RET) q->pop_back();
+@PreCondition:
+	// Check whether the queue is really empty
+	// Either the state is an empty queue, or for all those remaining
+	// elements in the queue, there should be some concurrent dequeuers to
+	// dequeue them
+	if (!RET) {
+		// State is empty
+		if (STATE(q)->size() == 0) return true;
+		// Otherwise check there must be other concurrent dequeuers
+		ForEach (item, State(q)) {
+			// Check there's some concurrent dequeuer for this item
+			if (!HasItem(CONCURRENT, NAME == "Deq" && RET(Deq) &&
+				*ARG(Deq, res) == item)) return false;
+		}
+		return true;
+	} else { // Check the global queue state
+		return q->back() == *res;
+	}
+bool deq(queue_t *q, int *res);
+
+
+*******************************************************************************
+A good example to simulate a queue data structure is as follows.
+Suppose we have a special structure
+typedef struct Q {
+	atomic_int x;
+	atomic_int y;
+} Q;
+
+, and we have two interface on Q, read() and write(), where the write and read
+method calls are synchronized by themselves, and they have to read and write the
+x and y fields in turn.

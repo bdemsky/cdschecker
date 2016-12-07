@@ -1,0 +1,137 @@
+/**
+	This file contains the design thoughts and details about how we use set
+	theory and more formalized way to design a simple specification language to
+	abstractly describe a sequential data structure.
+*/
+
+1. Design goals:
+   We should design a specification language that users (developers of data
+   structures) can use to describe the specification of sequential data
+   structures. The language should be as mathematical and precise as possible,
+   while it provides enough expressiveness and usability for users. That's to
+   say, users can learn the language easily and take advantage of it to describe
+   as many data structures as possible, e.g, Lock, Queue, Dequeue, LinkedList,
+   Stack, Vector, Hashtable, and UnorderedPool(maybe).
+
+2. Common data structures:
+   Data structures, to some degree, can be viewed as a collector with specific
+   operation on it. Those operations are done according to the maintained state
+   and pre-defined logic. Set in mathematics has similar characteristics, which
+   contains a collection of elements. However, elements in a set are distint.
+   Order_list, which is a list of elements that have a total order and can
+   duplicate, can be used to complement set. For example, a queue is a container
+   that has a FIFO order on the elements while a stack with a LIFO order. For
+   hashtable, it is a set of pairs (tuples) that has restrictions on the pairs.
+
+3. Potential constructs:
+   a) Set
+   The set here is conceptually similar to the set in Set Theory. We define our
+   set as a collection of unique and unordered elements. Uniqueness here
+   implicates that the set element should provide an internal equality check.
+   The following is some basic manipulations on set:
+   1) Tuple
+   Every element is an n-dimentional tuple, and each element of a tuple is a
+   tuple. This is basically used to represent the mapping between elements such
+   as a HashMap. Some examples:
+   a or (a) // 1-dimentional tuple, actually any variable is a 1-dimentional tuple
+   (key, value) // 2-dimentional tuple
+   (a, (a, b)) // 2-dimentional tuple, while the second column is a tuple too
+   1-dimentional tuple is the most basic part, it should have a type, such as
+   integer, boolean, or other templated types. The type of a set can be derived
+   from the tuple too. For example, A, B and C are basic types or templated
+   types, we can have Set<(A)>, Set<(A, B)> or Set<(A, (B, C))> as different
+   types. Set<(A)> contains elements of type A, Set<(A, B)> contains tuples of
+   (A, B) and Set<(A, (B, C))> contains tuples of (A, (B, C)). We can get an
+   instance of tuple in a way like (key, value).
+      The tuple has its basic operation dimention(n), which returns the tuple of
+	  its nth column.
+   2) Union, intersection, and remove.
+   new_set = union(s1, s2); // returns a new set
+   or
+   s1.union(s2); // s1 becomes the union of s1 and s2, and it returns the new s1
+   It takes two sets and return the union of the two sets. Same for the
+   intersection and complement.
+   3) Cartesian product
+   new_set = prod(s1, s2); // returns the cartisian product of s1 & s2
+   The result of this operation is that a new set of tuples of s1 and s2.
+   4) Remove
+   set.remove(elem);
+   5) Find
+   subset = set.find((key, *)); // use wildcard to find possible subset
+   b) Order_List
+   This is a list of tuples that has an order. It should have the following
+   operations:
+   1) push_back
+   list.push_back(elem);
+   2) push_front
+   list.push_front(elem);
+   3) remove_back
+   elem = list.remove_back();
+   4) remove_front
+   elem = list.remove_front();
+   5) Find
+   elem = list.find(elem);
+   6) IndexOf
+   index = list.indexOf(elem);
+   index = list.indexOf(elem, 1);
+   7) PushAtIndex
+   list.pushAtIndex(1);
+   8) PushAfterElem
+   list.pushAfterElem(target, elem, 10); // find the first matched target from index 10,
+                                         // insert elem after target
+   9) RemoveIfExists
+   RemoveIfExists(elem)
+
+4. Examples:
+   1) Hashtable
+   @Declare:
+     Set<(Key, Value)> table;
+   @Manipulation:
+     void Put((Key) key, (Value) value) {
+       table.remove(table.find((key, *))).union((key,value));
+	 }
+     
+	 (Value) Get((Key) key) {
+       return table.find((key, *));
+	 }
+
+   2) Stack
+   @Declare:
+     Order_List<(Type)> stack;
+   @Manipulation:
+     void Push((Type) elem) {
+       stack.push_back(elem);
+	 }
+
+	 (Type) Pop() {
+       return stack.remove_back();
+	 }
+
+   3) LinkedList
+   // Suppose we store the pointer and they are unique??
+   @Declare:
+     Order_List<(Type)> list;
+   @Manipulation:
+     void add((Type) target, (Type) elem) {
+       assert(list.find(elem).size() == 1);
+	   list.insertAfterElem(target, elem);
+	 }
+
+	 void remove((Type) target) {
+       list.remove(target);
+	 }
+
+   4) UnorderPool
+   // A possible data structure, basically returns an element only once
+   @Declare:
+     Order_List<(Type)> pool;
+   @Manipulation:
+     void insert((Type) elem) {
+       pool.push_back(elem);
+	 }
+
+     // Check if elem is possible to be removed; if yes, remove it & return true,
+	 // otherwise return false.
+	 bool remove((Type) elem) {
+       return pool.removeIfExists(elem);
+	 }

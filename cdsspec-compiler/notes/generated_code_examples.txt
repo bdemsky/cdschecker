@@ -1,0 +1,256 @@
+******    Example1:    ******
+Global Variable Declaration
+
+/* Include all the header files that contains the interface declaration */
+#inlcude <atomic>
+#include <memory>
+#include <assert.h>
+
+/* Other necessary header files */
+#include <stdint.h>
+#include <specannotation.h>
+#include <spec_lib.h>
+
+/* All other user-defined functions */
+ALL_USER_DEFINED_FUNCTIONS  // Make them static 
+
+/* Definition of interface info struct (per interface) */
+typedef struct Put_info {
+	shared_ptr<TypeV> __RET__;
+	TypeK & key;
+	TypeV & value;
+} Put_info;
+
+typedef struct Get_info {
+	shared_ptr<TypeV> __RET__;
+	TypeK & key;
+} Get_info;
+/* End of info struct definition */
+
+/* ID functions of interface */
+static id_t Put_id() {
+	id_t id = PUT_ID;  // Default ID == 0;
+	return id;
+}
+
+static id_t Get_id() {
+	id_t id = GET_ID;
+	return id;
+}
+/* End of ID functions */
+
+
+
+/* Check_action function of interfaces */
+bool Put_check_action(void *info, id_t __ID__) {
+	bool check_passed;
+	Put_info *theInfo = (Put_info) info;
+	shared_ptr<TypeV> __RET__ = theInfo->__RET__;
+	TypeK & key = theInfo->key;
+	TypeV & value = theInfo->value;
+
+	// __COND_SAT__
+	bool __COND_SAT__ = PUT_CONDITION;
+
+	// Check
+	check_passed = PUT_CHECK_EXPRESSION;
+	if (!check_passed)
+		return false;
+
+	// Action
+	PUT_ACTION
+
+	// Post_check
+	check_passed = PUT_POST_CHECK_EXPRESSION;
+	if (!check_passed)
+		return false;
+
+	// Post_action
+	PUT_POST_ACTION
+}
+
+
+bool Get_check_action(void *info, id_t __ID__) {
+	//...
+}
+/* End of check_action function definitions */ 
+
+/* Initialization of interface<->function_ptr table */
+#define INTERFACE_SIZE 2
+void** func_ptr_table;
+
+/* Beginning of other user-defined variables */
+bool lock_acquired;
+int reader_lock_cnt;
+/* End of other user-defined variables */
+
+
+/* Define function for sequential code initialization */
+void __sequential_init() {
+	/* Init func_ptr_table */
+	func_ptr_table = (void**) malloc(sizeof(void*) * 2);
+	func_ptr_table[0] = (void*) &Put_id;
+	func_ptr_table[1] = (void*) &Put_check_action;
+	func_ptr_table[2] = (void*) &Get_id;
+	func_ptr_table[3] = (void*) &Get_check_action;
+
+	/* Init user-defined variables */
+	lock_acquired = false;
+	reader_lock_cnt = 0;
+
+	/* Pass function table info */
+	anno_func_table_init func_table;
+	func_table.size = INTERFACE_SIZE;
+	func_table.table = func_ptr_table;
+	spec_annotation func_init;
+	func_init.type = FUNC_TABLE_INIT;
+	func_init.annotation = &anno_func_table_init;
+	cdsannotate(SPEC_ANALYSIS, &func_init);
+
+	/* Pass the happens-before initialization here */
+	/* PutIfAbsent (putIfAbsent_Succ) -> Get (true) */
+	anno_hb_init hbConditionInit0;
+	hbConditionInit0.interface_num_before = 1;
+	hbConditionInit0.hb_condition_num_before = 1;
+	hbConditionInit0.interface_num_after = 2;
+	hbConditionInit0.hb_condition_num_after = 0;
+	spec_annotation hb_init0;
+	hb_init0.type = HB_INIT;
+	hb_init0.annotation = &hbConditionInit0;
+	cdsannotate(SPEC_ANALYSIS, &hb_init0);
+}
+/* End of Global construct generation in class */
+
+/* The following static field declaration is necessary for class */
+template <typename T>
+bool CLASS<T>::lock_acquired;
+
+template <typename T>
+int CLASS<T>::reader_lock_cnt;
+/* End of static field definition */
+
+
+******    Example2:    ******
+Interface Wrapper
+
+/* Include the header files first */
+#include <threads.h>
+#include <cdsannotate.h>
+#include <specannotation.h>
+#include <spec_lib.h>
+
+TypeReturn interfaceName(ARGType1 arg1, ARGType2 arg2)
+{
+	// Interface begins
+	anno_interface_begin interface_begin;
+	interface_begin.interface_num = 0; // Interface number
+	spec_annotation annotation_interface_begin;
+	annotation_interface_begin.type = INTERFACE_BEGIN;
+	annotation_interface_begin.annotation = &interface_begin;
+	cdsannotate(SPEC_ANALYSIS, &annoation_interface_begin);
+
+	TypeReturn __RET__ = __wrapper_interfaceName(arg1, arg2);
+
+	// HB conditions (if any)
+	if (HB_CONDITION1) {
+		anno_hb_condition hb_condition1;
+		hb_condition1.interface_num = 0; // Interface number
+		hb_condition1.hb_condition_num = 1; // HB condition number
+		spec_annotation annotation_hb_condition;
+		annotation_hb_condition.type = HB_CONDITION;
+		annotation_hb_condition.annotation = &hb_condition;
+		cdsannotate(SPEC_ANALYSIS, &annotation_hb_condition);
+	}
+	// And more (if any)
+
+	// Interface ends
+	INTERFACE_LABEL_info info = (INTERFACE_LABEL_info*) malloc(sizeof(INTERFACE_LABEL_info));
+	info->__RET__ = __RET__;
+	info->arg1 = arg1;
+	info->arg2 = arg2;
+	anno_interface_end interface_end;
+	interface_end.interface_num = 0; // Interface number
+	interface_end.info = info; // Info
+	spec_annotation annotation_interface_end;
+	annotation_interface_end.type = INTERFACE_END;
+	annotation_interface_end.annotation = &interface_end;
+	cdsannotate(SPEC_ANALYSIS, &annoation_interface_end);
+}
+
+
+******    Example3:    ******
+Potential Commit Point
+
+
+#include <stdint.h>
+#include <cdsannotate.h>
+
+/* Should add the __ATOMIC_RET__ if necessary */
+uint64_t __ATOMIC_RET = somevar.compare_exchange_explicit(...);
+
+if (POTENTIAL_CP_DEFINE_CONDITION) {
+	anno_potential_cp_define potential_cp_define;
+	potential_cp_define.label_num = 1; // Commit point label number
+	spec_annotation annotation_potential_cp_define;
+	annotation_potential_cp_define.type = POTENTIAL_CP_DEFINE;
+	annotation_potential_cp_define.annotation = &potential_cp_define;
+	cdsannotate(SPEC_ANALYSIS, &annotation_potential_cp_define);
+}
+
+******    Example4:    ******
+Commit Point Define
+
+#include <threads.h>
+#include <cdsannotate.h>
+#include <stdint.h>
+
+/* Should add the __ATOMIC_RET__ if necessary */
+uint64_t __ATOMIC_RET = somevar.compare_exchange_explicit(...);
+
+/* For all the interface check at this commit point (if there is multiple
+ * checks here) */
+// Commit point 3 <=> potentialCP 4
+if (COMMIT_POINT3_CONDITION) {
+	anno_cp_define cp_define;
+	cp_define.label_num = 3;
+	cp_define.potential_cp_label_num = 1;
+	spec_annotation annotation_cp_define;
+	annotation_cp_define.type = CP_DEFINE;
+	annotation_cp_define.annotation = &cp_define;
+	cdsannotate(SPEC_ANALYSIS, &annotation_cp_define);
+}
+// More if there are any
+
+}
+
+
+*****    Example5:    ******
+Commit Point Define Check
+
+
+#include <threads.h>
+#include <cdsannotate.h>
+#include <stdint.h>
+
+/* Should add the __ATOMIC_RET__ if necessary */
+uint64_t __ATOMIC_RET = somevar.compare_exchange_explicit(...);
+
+
+/* For all the interface check at this commit point (if there is multiple
+ * checks here) */
+if (COMMIT_POINT3_CONDITION) {
+	anno_cp_define cp_define;
+	uint64_t call_sequence_num = get(&__sequential.interface_call_sequence, tid);
+	bool check_passed = false;
+	cp_define.check_passed = check_passed;
+	cp_define.interface_num = interface_num;
+	cp_define.label_num = 3;
+	cp_define.call_sequence_num = call_sequence_num;
+	spec_annotation annotation_cp_define;
+	annotation_cp_define.type = CP_DEFINE;
+	annotation_cp_define.annotation = &cp_define;
+	cdsannotate(SPEC_ANALYSIS, &annotation_cp_define);
+}
+// More if there are any
+
+}

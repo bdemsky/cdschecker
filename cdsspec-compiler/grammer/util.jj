@@ -1,0 +1,458 @@
+/* util.jj Grammer definition for utility functions */
+
+options {
+	STATIC = false;
+	JAVA_UNICODE_ESCAPE = true;
+}
+
+PARSER_BEGIN(UtilParser)
+package edu.uci.eecs.utilParser;
+import edu.uci.eecs.specExtraction.FunctionHeader;
+import edu.uci.eecs.specExtraction.QualifiedName;
+import edu.uci.eecs.specExtraction.VariableDeclaration;
+//import edu.uci.eecs.specExtraction.WrongAnnotationException;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.util.ArrayList;
+
+	
+public class UtilParser {
+	public static void main(String[] argvs)
+	throws ParseException, TokenMgrError {
+		try {
+			File f = new File("./grammer/spec1.txt");
+			FileInputStream fis = new FileInputStream(f);
+			UtilParser parser = new UtilParser(fis);
+			
+			//parser.Test();
+			System.out.println("Parsing finished!");
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public static ArrayList<VariableDeclaration> getTemplateArg(String line)
+	throws ParseException {
+		InputStream input = new ByteArrayInputStream(line.getBytes());
+		UtilParser parser = new UtilParser(input);
+		return parser.TemplateParamList();
+	}
+
+	public static FunctionHeader parseFuncHeader(String line)
+	throws ParseException {
+		InputStream input = new ByteArrayInputStream(line.getBytes());
+		UtilParser parser = new UtilParser(input);
+		return parser.FuncDecl();
+	}
+
+	public static VariableDeclaration parseDeclaration(String line)
+	throws ParseException {
+		InputStream input = new ByteArrayInputStream(line.getBytes());
+		UtilParser parser = new UtilParser(input);
+		return parser.Declaration();
+	}
+
+	public static String stringArray2String(ArrayList<String> content) {
+		StringBuilder sb = new StringBuilder();
+		if (content.size() == 1)
+			return content.get(0);
+		for (int i = 0; i < content.size(); i++) {
+			sb.append(content.get(i) + "\n");
+		}
+		return sb.toString();
+	}
+}
+PARSER_END(UtilParser)
+
+SKIP :
+{
+	" "
+|
+	"\n"
+|
+	"\r"
+|
+	"\r\n"
+|
+	"\t"
+}
+
+TOKEN :
+{
+/*   Specification & C/C++ shared tokens   */
+// Reserved keywords
+	<CONST: "const">
+|
+	<STRUCT: "struct">
+|
+	<CLASS: "class">
+|
+	<UNSIGNED: "unsigned">
+|
+	<TEMPLATE: "template">
+|
+	<INLINE: "inline">
+|
+	<STATIC: "static">
+|
+	<FOR: "for">
+|
+	<#DIGIT: ["0"-"9"]>
+|
+	<#LETTER: ["a"-"z", "A"-"Z"]>
+|
+	<IDENTIFIER: (<LETTER> | "_") (<LETTER> | <DIGIT> | "_")*>
+|
+	<POUND: "#">
+|
+	<OPEN_BRACKET: "[">
+|
+	<CLOSE_BRACKET: "]">
+|
+	<EQUALS: "=">
+|
+	<OPEN_PAREN: "(">
+|
+	<CLOSE_PAREN: ")">
+|
+	<OPEN_BRACE: "{">
+|
+	<CLOSE_BRACE: "}">
+|
+	<HB_SYMBOL: "->">
+|
+	<COMMA: ",">
+|
+/*   C/C++ only token*/
+	<DOT: ".">
+|
+	<DOLLAR: "$">
+|
+	<STAR: "*">
+|
+	<NEGATE: "~">
+|
+	<EXCLAMATION: "!">
+|
+	<AND: "&">
+|
+	<OR: "|">
+|
+	<MOD: "%">
+|
+	<PLUS: "+">
+|
+	<PLUSPLUS: "++">
+|
+	<MINUS: "-">
+|
+	<MINUSMINUS: "--">
+|
+	<DIVIDE: "/">
+|
+	<BACKSLASH: "\\">
+|
+	<LESS_THAN: "<">
+|
+	<GREATER_THAN: ">">
+|
+	<GREATER_EQUALS: ">=">
+|
+	<LESS_EQUALS: "<=">
+|
+	<LOGICAL_EQUALS: "==">
+|
+	<NOT_EQUALS: "!=">
+|
+	<LOGICAL_AND: "&&">
+|
+	<LOGICAL_OR: "||">
+|
+	<XOR: "^">
+|
+	<QUESTION_MARK: "?">
+|
+	<COLON: ":">
+|
+	<DOUBLECOLON: "::">
+|
+	<DOUBLELESSTHAN: "<<">
+|
+	<DOUBLEGREATERTHAN: ">>">
+|
+	<TRIPLEGREATERTHAN: ">>>">
+|
+	<PLUS_EQUALS: "+=">
+|
+	<MINUS_EQUALS: "-=">
+|
+	<TIMES_EQUALS: "*=">
+|
+	<DIVIDE_EQUALS: "/=">
+|
+	<MOD_EQUALS: "%=">
+|
+	<XOR_EQUALS: "^=">
+|
+	<OR_EQUALS: "|=">
+|
+	<AND_EQUALS: "&=">
+|
+	<SEMI_COLON: ";">
+|
+	<STRING_LITERAL:
+	"\""
+	((~["\"","\\","\n","\r"])
+	| ("\\"
+		( ["n","t","b","r","f","\\","'","\""]
+		| ["0"-"7"] ( ["0"-"7"] )?
+		| ["0"-"3"] ["0"-"7"]
+			["0"-"7"]
+		)
+		)
+	)*
+	"\"">
+|
+	<CHARACTER_LITERAL:
+	"'"
+	((~["'","\\","\n","\r"])
+	| ("\\"
+		(["n","t","b","r","f","\\","'","\""]
+		| ["0"-"7"] ( ["0"-"7"] )?
+		| ["0"-"3"] ["0"-"7"]
+		["0"-"7"]
+		)
+		)
+	)
+	"'">
+|
+	< INTEGER_LITERAL:
+        <DECIMAL_LITERAL> (["l","L"])?
+      | <HEX_LITERAL> (["l","L"])?
+      | <OCTAL_LITERAL> (["l","L"])?>
+|
+	< #DECIMAL_LITERAL: ["1"-"9"] (["0"-"9"])* >
+|
+	< #HEX_LITERAL: "0" ["x","X"] (["0"-"9","a"-"f","A"-"F"])+ >
+|
+	< #OCTAL_LITERAL: "0" (["0"-"7"])* >
+|
+	< FLOATING_POINT_LITERAL:
+        <DECIMAL_FLOATING_POINT_LITERAL>
+      | <HEXADECIMAL_FLOATING_POINT_LITERAL> >
+|
+	< #DECIMAL_FLOATING_POINT_LITERAL:
+        (["0"-"9"])+ "." (["0"-"9"])* (<DECIMAL_EXPONENT>)? (["f","F","d","D"])?
+      | "." (["0"-"9"])+ (<DECIMAL_EXPONENT>)? (["f","F","d","D"])?
+      | (["0"-"9"])+ <DECIMAL_EXPONENT> (["f","F","d","D"])?
+      | (["0"-"9"])+ (<DECIMAL_EXPONENT>)? ["f","F","d","D"]>
+|
+	< #DECIMAL_EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+|
+	< #HEXADECIMAL_FLOATING_POINT_LITERAL:
+        "0" ["x", "X"] (["0"-"9","a"-"f","A"-"F"])+ (".")? <HEXADECIMAL_EXPONENT> (["f","F","d","D"])?
+      | "0" ["x", "X"] (["0"-"9","a"-"f","A"-"F"])* "." (["0"-"9","a"-"f","A"-"F"])+ <HEXADECIMAL_EXPONENT> (["f","F","d","D"])?>
+|
+	< #HEXADECIMAL_EXPONENT: ["p","P"] (["+","-"])? (["0"-"9"])+ >
+|
+	< #SPACE: (" " | "\t")+>
+|
+	< #TO_END_OF_LINE: (~["\n"])+>
+|
+	/* Macro token */
+	<INCLUDE: "#" (<SPACE>)? "include" <SPACE> (<STRING_LITERAL> | "<" (<LETTER> | <DOT>)+ ">")>
+|
+	<DEFINE: "#" (<SPACE>)? <TO_END_OF_LINE>>
+}
+
+String Type() :
+{
+	String type;
+	String str;
+	QualifiedName name;
+}
+{
+	{ type = ""; }
+	(<CONST>
+	{ type = "const"; }
+	)?
+	(
+		((str = <STRUCT>.image | str = <CLASS>.image | str = <UNSIGNED>.image) {
+		type = type.equals("") ? type + str : type + " " + str;
+		})? 
+	(
+	name = ParseQualifiedName() {
+		if (!type.equals(""))
+			type = type + " " + name.fullName;
+		else
+			type = name.fullName;
+	})
+	)
+	((str = <CONST>.image {
+		if (!type.equals(""))
+			type = type + " " + str;
+		else
+			type = str;
+	}) |
+	(str = <STAR>.image {
+		if (!type.equals(""))
+			type = type + " " + str;
+		else
+			type = str;
+	}) |
+	(str = <AND>.image {
+		if (!type.equals(""))
+			type = type + " " + str;
+		else
+			type = str;
+	})
+	)*
+	{
+		return type;
+	}
+}
+
+void Test() :
+{
+	String str;	
+	FunctionHeader func;
+}
+{
+	/*
+	str = Type()
+	{
+		System.out.println(str);
+	}
+	*/
+	func = FuncDecl() 
+	{
+		System.out.println(func);
+	}
+	
+}
+
+String ParameterizedName() :
+{
+	String res = "";
+	String str;
+}
+{
+	(str = <IDENTIFIER>.image {res = str;})
+	(<LESS_THAN> str = Type() { res = res + "<" + str; }
+	(<COMMA> str = Type() { res = res + ", " + str; })* <GREATER_THAN>
+	{ res = res + ">"; }
+	)?
+	{
+		return res;
+	}
+}
+
+FunctionHeader FuncDecl() :
+{
+	String ret;
+	QualifiedName funcName;
+	ArrayList<VariableDeclaration> args;
+}
+{
+	(<STATIC> | <INLINE>)*
+	ret = Type() 
+	funcName = ParseQualifiedName() 
+	args = FormalParamList() 
+	{
+		FunctionHeader res = new FunctionHeader(ret, funcName, args);
+		//System.out.println(res);
+		return res;
+	}
+}
+
+QualifiedName ParseQualifiedName() :
+{
+	String qualifiedName, str;
+}
+{
+	{ qualifiedName = ""; }
+	(str = ParameterizedName() { qualifiedName = qualifiedName + str; } )
+	( <DOUBLECOLON> (str = ParameterizedName() { qualifiedName = qualifiedName +
+	"::" + str; }  ))*
+	{
+		QualifiedName res = new QualifiedName(qualifiedName);
+		//System.out.println(res);
+		return res;
+	}
+}
+
+ArrayList<VariableDeclaration> TemplateParamList() :
+{
+	ArrayList<VariableDeclaration> params;
+	String type;
+	String name;
+}
+{
+	{
+		params = new ArrayList<VariableDeclaration>();
+	}
+	<TEMPLATE>
+	<LESS_THAN>
+	(type = <IDENTIFIER>.image 
+	name = <IDENTIFIER>.image
+	{
+		params.add(new VariableDeclaration(type, name));
+	}
+	)
+
+	(<COMMA> type = <IDENTIFIER>.image 
+	name = <IDENTIFIER>.image
+	{
+		params.add(new VariableDeclaration(type, name));
+	}
+	)*
+	<GREATER_THAN>
+	{
+		//System.out.println(params);
+		return params;
+	}
+}
+
+ArrayList<VariableDeclaration > FormalParamList() :
+{
+	ArrayList<VariableDeclaration > typeParams;
+	VariableDeclaration varDecl;
+}
+{
+	{
+		typeParams = new ArrayList<VariableDeclaration >();
+	}
+	<OPEN_PAREN>
+	((varDecl = TypeParam() {typeParams.add(varDecl);})
+	((<COMMA> varDecl = TypeParam() {typeParams.add(varDecl);}))*)?
+	<CLOSE_PAREN>
+	{
+		return typeParams;
+	}
+}
+
+VariableDeclaration Declaration() :
+{
+	String type, param;
+}
+{
+	(type = Type()) (param = <IDENTIFIER>.image)  <SEMI_COLON>
+	{
+		return new VariableDeclaration(type, param);
+	}
+}
+
+VariableDeclaration TypeParam() :
+{
+	String type, param;
+}
+{
+	(type = Type()) (param = <IDENTIFIER>.image)
+	{
+		return new VariableDeclaration(type, param);
+	}
+}

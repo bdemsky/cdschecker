@@ -1,0 +1,50 @@
+1. Template support
+  The global specification should be expanded right after the specification
+  definition (the golbal construct). The global variables and functions will be
+  the private members of the data structure. In this case, the template of the
+  data structure can be automatically passed to the variables and functions.
+  Besides, as the public member of the function, all the interface check can
+  access the specification variables and functions just as normal.
+
+2. On-the-fly spec check
+  For a check and action, they will be expanded right at the place where they
+  are declared and will get executed when the inserted annotation gets executed.
+  And the annotation is just a way to pass if the checks are satisfied. However,
+  it is wrong because the annotation is also a type of atomic operation. For
+  example, for a potential commit point and a later commit point check, they
+  might be interleaved by another commit point. Therefore, we need to check in
+  the specanalysis to see if the specific interleaving of annotation is "legal".
+
+3. Happens-before initialization
+  This concerns the place where we pass to the specanalysis the happens-before
+  rules????
+
+4. To make implementation easier and the spec cleaner, we make a difference C
+  and C++ programs. Since C does not support template and class, we require
+  users to provide an entry point where we can initialize the sequential
+  variables. By default, it's a C++ program, and everything is wrapped in an
+  inner class because it can have easy initialization and template support.
+
+5. We add @Interface_define construct in the specification. Basically,
+  @Interface construct can be used in both interface declaration and interface
+  definition, if they are not separated. However, if they are, then @Interface
+  is used for the interface declaration and @Interface_define is for the
+  interface definition. This is redundant information, but it makes the
+  implementation much easier because we don't need to parse the C/C++ program.
+
+6. Checking at runtime or check with complete trace analysis can have the
+  follwing concerns. Checking at runtime, HB might not be established yet (we
+  can leave it at trace analysis though). More importantly, we have potential
+  commit point and commit point check, which might be preempted by another
+  commit point. We can't decide whether to execute the commit point actions or
+  not since we can't decide if it's really a commit point at that time. Checking
+  with complete execution can be more clear and better designed, but it has a
+  tough challenge. Some data structure may check their predicate with pointers,
+  however, we can't guarantee those pointers are still valid (the object they
+  are pointing to may be changed or even deleted). To tackle this, we provide an
+  alternative which requires users to define the snapshot function for the
+  pointers if they are about to check with pointers that might change. In the
+  current data structure, it's not a problem because they only return reference
+  or pointers, which we can do simple equality check. We decided to take the
+  trace analysis approach because it's still more flexible and easier to
+  implement.

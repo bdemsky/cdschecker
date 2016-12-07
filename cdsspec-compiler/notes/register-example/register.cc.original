@@ -1,0 +1,65 @@
+#include <stdio.h>
+#include <threads.h>
+#include <stdatomic.h>
+
+#include "librace.h"
+#include "register.h"
+
+/**	@DeclareState: int val;
+	@Initial: val = 0;
+	@Commutativity: LOAD <-> LOAD (true)
+	@Commutativity: STORE <-> LOAD (true)
+	@Commutativity: STORE <-> STORE (true)
+*/
+
+/** @Interface: LOAD
+	@PreCondition:
+	return HasItem(PREV, STATE(val) == RET);
+	@SideEffect: STATE(val) = RET;
+
+*/
+int Load(atomic_int *loc) {
+	return loc->load(memory_order_acquire);
+}
+
+/** @Interface: STORE 
+	@SideEffect: STATE(val) = val;
+
+*/
+void Store(atomic_int *loc, int val) {
+	loc->store(val, memory_order_release);
+}
+
+static void a(void *obj)
+{
+	Store(&x, 1);
+	Store(&x, 2);
+}
+
+static void b(void *obj)
+{
+	Store(&x, 3);
+}
+
+static void c(void *obj)
+{
+	int r1 = Load(&x);
+	int r2 = Load(&x);
+}
+
+int user_main(int argc, char **argv)
+{
+	thrd_t t1, t2, t3;
+
+	/** @Entry */
+
+	thrd_create(&t1, (thrd_start_t)&a, NULL);
+	thrd_create(&t2, (thrd_start_t)&b, NULL);
+	thrd_create(&t3, (thrd_start_t)&c, NULL);
+
+	thrd_join(t1);
+	thrd_join(t2);
+	thrd_join(t3);
+
+	return 0;
+}
